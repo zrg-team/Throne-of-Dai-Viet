@@ -1,5 +1,5 @@
 import { bankLegacy, computeRunScore, getLegacy } from '../../state/legacy';
-import { addRunXp, chooseTrait } from '../../state/dynasty';
+import { addRunXp, chooseTrait, getDynasty, isCrowned, setDynastyFounder } from '../../state/dynasty';
 import { addCabinetCard, addRubbings, learnRecipe } from '../../state/cabinet';
 import { advanceCeremony } from './Ceremony';
 import { PLAYER_KINGDOM_ID } from '../../game/constants';
@@ -32,6 +32,7 @@ import { passHeroSummon, recruitSummonedHero } from './SummonSystem';
 import { resolveEmpireResponse } from './WaveDirector';
 import { startPromptCooldown } from './DecisionDirector';
 import { applyFoundingGift } from '../../state/GameState';
+import { rollFounder } from '../../ui/faces/kingLook';
 import { findLand } from '../LandSystem';
 import type { AscentConquestMethod, GameState } from '../../state/types';
 
@@ -67,6 +68,16 @@ export function resolveAscentPrompt(state: GameState, choiceId: string): boolean
   let handled = false;
 
   switch (prompt.kind) {
+    case 'coronation': {
+      // Answered with *anything*. The four steps write the founder into the dynasty store
+      // themselves — a store write, like the ceremony's `chooseTrait` — so there is no option id
+      // to validate here, and a driver answering blind with `'ok'` must not wedge the first
+      // screen of the game. That is the exact failure the muster card taught twice.
+      crownRun(state);
+      handled = true;
+      break;
+    }
+
     case 'mandate': {
       // The same call `takePowerCard` makes. No `pendingLevelUps` to spend and no ambition to
       // charge: this one is the reign's dowry, not a reward the run had to earn.
@@ -386,6 +397,46 @@ export function resolveAscentPrompt(state: GameState, choiceId: string): boolean
   startPromptCooldown(state, prompt.kind);
   drainAscentPrompts(state);
   return true;
+}
+
+/** The map's own generator, so a rolled king costs the run's random stream nothing. */
+function mulberry32(seed: number): () => number {
+  let state = (seed >>> 0) || 1;
+  return () => {
+    state = (state + 0x6d2b79f5) | 0;
+    let t = Math.imul(state ^ (state >>> 15), 1 | state);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/**
+ * Seats the crowned king on the run that is already under way.
+ *
+ * The king hero is built by `generateKingHero` when the world is made, which is *before* the
+ * rite is answered — the coronation card is raised in the same function, two lines later. So the
+ * throne is holding the blank figure at the moment this runs, and the three identity fields the
+ * creator chose have to be written onto him here. Nothing else about him moves: stats, rarity,
+ * upkeep and every system that reads them are untouched, because looks are free and numbers are
+ * not.
+ *
+ * Skipping the rite lands in the same place. `rollFounder` writes a complete, handsome king, so
+ * the store's shape after a skip is identical to the store's shape after four steps and no
+ * screen downstream needs a second path for the uncrowned house.
+ */
+function crownRun(state: GameState): void {
+  // Seeded off the map, not off `Math.random`. Every headless harness in `test_scripts/` seeds
+  // the global RNG and then compares a run against a recorded one; a skip that drew fifteen
+  // numbers out of that stream would shift every roll downstream of it and quietly invalidate
+  // the lot. This also makes the rolled king reproducible: the same seed opens on the same face.
+  if (!isCrowned()) setDynastyFounder(rollFounder(getDynasty().level, mulberry32(state.mapConfig.seed)));
+  const founder = getDynasty().founder;
+  if (!founder?.look) return;
+  const king = state.heroes.find((hero) => hero.id === 'king');
+  if (!king) return;
+  king.name = founder.name;
+  king.sex = founder.sex;
+  if (founder.era) king.era = founder.era as typeof king.era;
 }
 
 /** Re-rolls the open Power Draft. Separate from `resolveAscentPrompt`: it does not close it. */

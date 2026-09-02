@@ -131,12 +131,20 @@ export function focusBattle(state: GameState, landId: string): boolean {
   const leaving = ascent.activeBattle;
   if (leaving && !leaving.over) {
     leaving.delegated = true;
+    // The claim goes with the field. Walking to another fight is one of the three ways a player
+    // gives one up — see `claimed`.
+    leaving.claimed = false;
     sides.push(leaving);
   }
   ascent.activeBattle = taking;
   // Taken back by the hand that asked for it. The take-back chip says so on the screen this
   // opens, so a focused fight is never one the player has to hand *back* to themselves.
+  //
+  // And it is a claim, not a loan. A side fight is being held by a general and is past beat ten by
+  // definition, so without `claimed` the auto-delegate rule handed it straight back on the next
+  // season — walking onto a field took command for less than one season. See `claimed`.
   taking.delegated = false;
+  taking.claimed = true;
   ascent.sideBattles = sides;
   return true;
 }

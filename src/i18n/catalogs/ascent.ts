@@ -1772,6 +1772,11 @@ export const enAscent = {
   "dynasty.title": "TÔNG PHẢ",
   "dynasty.menu": "Dynasty Ledger ›",
   "dynasty.subEmpty": "Not opened yet",
+  "dynasty.tabletName": "Your dynasty",
+  "dynasty.tabletInvite": "Finish a run and the house keeps its score.",
+  "dynasty.tabletStats": "Reign {n} · Level {level} · best {score}",
+  "dynasty.tabletStatsShort": "Reign {n} · Level {level}",
+  "dynasty.tabletWaiting": "{n} to choose",
   "dynasty.subLevel": "Level {level}",
   "dynasty.subWaiting": "Level {level} · {n} waiting",
   "dynasty.shopSub": "{total} banked",
@@ -1825,7 +1830,8 @@ export const enAscent = {
 
   // ── Tàng Ấn Các — the Cabinet of Seals (Phase 3) ─────────────────────────
   "ascent.draft.recipeHint": "Forged pair: with {partner} → {result}",
-  "ascent.draft.fanHint": "Tap a card to raise it · tap the raised card to take it",
+  "ascent.draft.fanHint": "Slide across the hand to browse · double-tap, flick up, or press the button to take",
+  "ascent.fan.take": "Take this",
   "ascent.cabinet.rubbingEarned": "Wave {wave} held — a rubbing joins the Cabinet of Seals.",
   "ascent.cabinet.deedRelief": "Deed done: the first relief march. +1 rubbing in the Cabinet.",
   "ascent.bind.title": "BIND A SEAL",
@@ -3621,6 +3627,11 @@ export const viAscent = {
   "dynasty.title": "TÔNG PHẢ",
   "dynasty.menu": "Tông Phả ›",
   "dynasty.subEmpty": "Chưa mở",
+  "dynasty.tabletName": "Dòng họ của bạn",
+  "dynasty.tabletInvite": "Chơi xong một ván, dòng họ sẽ giữ điểm.",
+  "dynasty.tabletStats": "Đời {n} · Cấp {level} · cao nhất {score}",
+  "dynasty.tabletStatsShort": "Đời {n} · Cấp {level}",
+  "dynasty.tabletWaiting": "còn {n} lượt",
   "dynasty.subLevel": "Cấp {level}",
   "dynasty.subWaiting": "Cấp {level} · còn {n} lượt",
   "dynasty.shopSub": "{total} điểm",
@@ -3674,7 +3685,8 @@ export const viAscent = {
 
   // ── Tàng Ấn Các (Giai đoạn 3) ────────────────────────────────────────────
   "ascent.draft.recipeHint": "Cặp đã rèn: cùng {partner} → {result}",
-  "ascent.draft.fanHint": "Chạm để nâng lá bài · chạm lá đang nâng để lấy",
+  "ascent.draft.fanHint": "Lướt ngang tay bài để xem · chạm đúp, hất lên, hoặc bấm nút để lấy",
+  "ascent.fan.take": "Lấy lá này",
   "ascent.cabinet.rubbingEarned": "Giữ vững đợt {wave} — một thác bản về Tàng Ấn Các.",
   "ascent.cabinet.deedRelief": "Công trạng: lần giải vây đầu tiên. +1 thác bản.",
   "ascent.bind.title": "ĐÓNG ẤN",

@@ -24,6 +24,7 @@ import {
   LANE_CLOSE_BUTTON_HEIGHT, LANE_CLOSE_BUTTON_OFFSET, LANE_FOOTER_HEIGHT, cssHex, footerSplit,
 } from '../constants';
 import { clearLanePage } from '../layers';
+import { delegateBattle } from '../../../systems/ascent/BattleSystem';
 import type { ConquestUIScene } from '../../ConquestUIScene';
 
 /** The ghost "back" button a lane sub-page shows above its footer button. */
@@ -828,6 +829,20 @@ export function closeLane(self: ConquestUIScene): void {
   // Leaving the battle screen unanswered is an answer: the generals fight on and the world
   // moves. The hold only ever lasts as long as the screen that asked for it.
   self.battleAwaitingOrder = false;
+  /**
+   * ...and so does the command.
+   *
+   * A field the player took by hand is theirs until they give it up, and walking off the screen is
+   * one of the three ways they do (the others are the *auto* chip and moving to another fight).
+   * Without this the claim outlived the screen: the player would leave a field they had taken,
+   * nobody would be on its dials, and the auto-delegate rule — which now leaves a claimed field
+   * alone by design — would never step in either.
+   *
+   * `standing: false` deliberately: stepping out of one fight says nothing about how the player
+   * wants the next one to open, and `handToGenerals` is the run-wide answer to that question.
+   * A no-op when nothing is live or the fight is already the general's.
+   */
+  if (self.openPromptKey === 'lane:battle') delegateBattle(self.state, true, false);
   // The drum belongs to the screen that raised it. Left running, it would start a fight the
   // player has walked away from — and call `buildBattleField` on a lane that no longer exists.
   self.battleOpeningTimer?.remove();

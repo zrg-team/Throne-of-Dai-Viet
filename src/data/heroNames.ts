@@ -25,14 +25,20 @@ const SURNAMES = [
   'Uông', 'Khương', 'Nhữ', 'Phùng', 'Tăng', 'Đậu', 'Ông', 'Cấn', 'Sầm', 'Diệp',
 ];
 
-/** Tên đệm — the middle name, and the clearest gender marker a Vietnamese name carries. */
-const MIDDLE_MAN = [
+/**
+ * Tên đệm — the middle name, and the clearest gender marker a Vietnamese name carries.
+ *
+ * Exported alongside the given-name pools because the Coronation's name step composes from these
+ * exact lists. It cannot go through `makeHeroName`: that one prefixes an office title — Đô Đốc,
+ * Thái Sư — and a king who introduces himself by an office he does not hold is not a king.
+ */
+export const MIDDLE_MAN = [
   'Văn', 'Hữu', 'Đức', 'Quang', 'Minh', 'Công', 'Bá', 'Xuân', 'Thế', 'Trọng',
   'Duy', 'Đình', 'Chí', 'Tấn', 'Ngọc', 'Anh', 'Gia', 'Khắc', 'Nhật', 'Việt',
   'Đăng', 'Trung', 'Quốc', 'Sĩ', 'Tiến', 'Doãn', 'Cảnh', 'Thanh', 'Đại', 'Huy',
   'Nhân', 'Phúc', 'Hoài', 'Bảo', 'Trí', 'Vĩnh', 'Tường', 'Danh', 'Lương', 'Thượng',
 ];
-const MIDDLE_WOMAN = [
+export const MIDDLE_WOMAN = [
   'Thị', 'Ngọc', 'Thu', 'Kim', 'Mỹ', 'Diệu', 'Hồng', 'Bích', 'Lan', 'Phương',
   'Thanh', 'Tuyết', 'Hoài', 'Cẩm', 'Xuân', 'Ánh', 'Khánh', 'Như', 'Quỳnh', 'Thuý',
   'Minh', 'Thuỳ', 'Hải', 'Nhật', 'Lệ', 'Đan', 'Trúc', 'Yên', 'Hà', 'Vân',
@@ -40,7 +46,7 @@ const MIDDLE_WOMAN = [
 ];
 
 /** Tên — the given name, which is what a person is actually called. */
-const GIVEN_MAN = [
+export const GIVEN_MAN = [
   'Hùng', 'Dũng', 'Cường', 'Kiệt', 'Tuấn', 'Sơn', 'Long', 'Bảo', 'Khôi', 'Trung',
   'Thắng', 'Nghĩa', 'Tài', 'Đạt', 'Phúc', 'Lộc', 'An', 'Bình', 'Chính', 'Đại',
   'Quyết', 'Toàn', 'Vinh', 'Khánh', 'Hiển', 'Trực', 'Cẩn', 'Nhân', 'Tráng', 'Uy',
@@ -52,7 +58,7 @@ const GIVEN_MAN = [
   'Trạch', 'Trản', 'Trứ', 'Tuân', 'Tuấn Kiệt', 'Tường', 'Ước', 'Vận', 'Viện', 'Vỹ',
   'Xán', 'Yển', 'Ất', 'Bích', 'Cẩm', 'Chấn', 'Đôn Hậu', 'Hoán', 'Kỳ', 'Lữ',
 ];
-const GIVEN_WOMAN = [
+export const GIVEN_WOMAN = [
   'Hoa', 'Lan', 'Mai', 'Hương', 'Linh', 'Nga', 'Trang', 'Thảo', 'Yến', 'Nhung',
   'Hạnh', 'Quyên', 'Tuyết', 'Vân', 'Xuân', 'Diễm', 'Ngân', 'Thanh', 'Trâm', 'Loan',
   'Nguyệt', 'Phượng', 'Hiền', 'Duyên', 'Nhàn', 'Tú', 'Chi', 'Quỳnh', 'Như', 'Ánh',

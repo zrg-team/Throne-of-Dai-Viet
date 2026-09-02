@@ -1,6 +1,7 @@
 import { GENERATED_ERAS, REAL_FIGURES, makeHeroName, type RealFigure } from './heroNames';
 import { heroTemplates } from './heroes';
 import { t } from '../i18n';
+import { getDynasty } from '../state/dynasty';
 import type { GameState, Hero, HeroEra, HeroStats, HeroType } from '../state/types';
 
 /**
@@ -73,6 +74,29 @@ const REAL_AT_EPIC = 0.3;
  * phi Ỷ Lan" becomes `real-nguyen-phi-y-lan` — while the authored entry may be filed under a
  * shorter id, so ids agree only by accident and names agree by construction.
  */
+/**
+ * Share of minted champions dressed in the house's own century.
+ *
+ * A *lean*, not a rule, and the number matters. The Coronation promises that the họ "styles the
+ * army"; at 1.0 that promise becomes a uniform — every commander in the same cap — and the
+ * roster's whole variety argument (a hundred portraits, not six repeated) is spent on it. At
+ * 0.55 a player reading their court sees their own century more often than any other and still
+ * meets champions from the rest of the record, which is what the wardrobe was built to show.
+ *
+ * Costs nothing when the house has not been crowned: the ordinary weighted table stands.
+ */
+const HOUSE_ERA_SHARE = 0.55;
+
+/** The century a minted champion is dressed in, leaned toward the house's own. */
+function generatedEra(next: () => number): HeroEra {
+  const armyEra = getDynasty().founder?.armyEra;
+  const roll = next();
+  if (armyEra && GENERATED_ERAS.includes(armyEra as HeroEra) && roll < HOUSE_ERA_SHARE) {
+    return armyEra as HeroEra;
+  }
+  return GENERATED_ERAS[Math.floor(roll * GENERATED_ERAS.length) % GENERATED_ERAS.length];
+}
+
 const AUTHORED_NAMES = new Set(heroTemplates.map((hero) => hero.name));
 const GENERATABLE_FIGURES: readonly RealFigure[] = REAL_FIGURES.filter(
   (figure) => !AUTHORED_NAMES.has(figure.name),
@@ -161,7 +185,7 @@ export function generateHero(seed: number, options: GenerateHeroOptions = {}): H
 
   const type = options.type ?? TYPES[Math.floor(next() * TYPES.length) % TYPES.length];
   const sex = options.sex ?? (next() < WOMAN_SHARE ? 'woman' : 'man');
-  const era = options.era ?? GENERATED_ERAS[Math.floor(next() * GENERATED_ERAS.length) % GENERATED_ERAS.length];
+  const era = options.era ?? generatedEra(next);
   // Only a male minister may be a monastic: a Trúc Lâm master is a specific thing, and the
   // wardrobe for it is shaven head and kesa, which is not a costume to hand out at random.
   const monastic = type === 'minister' && sex === 'man' && next() < MONASTIC_SHARE;

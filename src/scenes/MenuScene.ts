@@ -7,9 +7,11 @@ import {
 } from '../state/tour';
 import { getLegacy, LEGACY_PERKS, purchaseLegacyPerk, rankForScore } from '../state/legacy';
 import { DYNASTY_TRAITS, DYNASTY_TRAITS_PENDING } from '../data/dynastyTraits';
-import { dynastyProgress, getDynasty, respecDynasty, respecsAvailable } from '../state/dynasty';
+import { dynastyProgress, getDynasty, isCrowned, respecDynasty, respecsAvailable, setDynastyFounder } from '../state/dynasty';
 import { cabinetProgress, getCabinet } from '../state/cabinet';
 import { dynastyFounderHero } from '../ui/dynastyPortrait';
+import { drawHouseBanner, houseBanner } from '../ui/ascent/houseBanner';
+import { CoronationSheet } from '../ui/coronation/CoronationSheet';
 import { renderHeroFaceInBox } from '../ui/FaceRenderer';
 import { getLanguage, setLanguage, t, type LanguageCode } from '../i18n';
 import {
@@ -22,6 +24,7 @@ import {
 import { createMapItemRenderer, type MapItemRenderer } from '../ui/MapItemRenderer';
 import { createMapRenderer, type MapRenderer } from '../ui/MapRenderer';
 import { BACK_BAR_BAND, BACK_BAR_HEIGHT, InkUI, INK_UI, INK_UI_HEX, type InkScrollArea, type UIBounds } from '../ui/InkUI';
+import { sawtoothBand, seal } from '../ui/ink/devices';
 import {
   BATTLE_DIFFICULTIES, BATTLE_SPEEDS, getBattleDifficulty, getBattleSpeed,
   setBattleDifficulty, setBattleSpeed,
@@ -50,7 +53,7 @@ import { attachPaperSheet } from '../ui/ink/paperSheet';
 import { qualityLadder } from '../game/qualityLadder';
 import { rungForTier } from '../game/qualityRungs';
 
-type MenuMode = 'main' | 'classic' | 'confirm-new' | 'legacy' | 'dynasty' | 'settings';
+type MenuMode = 'main' | 'classic' | 'confirm-new' | 'legacy' | 'dynasty' | 'temple' | 'settings';
 
 /**
  * The front page's footer, measured up from the bottom edge.
@@ -166,6 +169,16 @@ export class MenuScene extends Phaser.Scene {
    * which destroys the objects but not the listener.
    */
   private pageScroll?: InkScrollArea;
+  /**
+   * The Temple's open re-dress, kept across the page's own redraws.
+   *
+   * Every stepper tap re-renders the whole menu page, which destroys everything the sheet drew.
+   * The king being dressed lives here instead, and is dropped by any navigation away — an
+   * abandoned change must not be waiting, half-made, when the player comes back.
+   */
+  private templeSheet?: CoronationSheet;
+  /** The dynasty tablet's seal pulse, killed with the page it is stamped on. */
+  private dynastyPulse?: Phaser.Tweens.Tween;
   /**
    * The page currently drawn, which is not always the page `render` is about to draw.
    *
@@ -2313,6 +2326,9 @@ export class MenuScene extends Phaser.Scene {
     // Leaving the dynasty sheet disarms the respec — an armed destructive control must never
     // survive a navigation and be waiting, already half-pressed, when the player comes back.
     if (this.mode !== 'dynasty') this.respecArmed = false;
+    // The Temple's unsaved dress does not survive leaving the page. Anything else would let a
+    // player wander to the shop and back and find their king wearing a change they abandoned.
+    if (this.mode !== 'temple') this.templeSheet = undefined;
     if (this.mode === 'settings') {
       this.renderSettings();
       return;
@@ -2323,6 +2339,8 @@ export class MenuScene extends Phaser.Scene {
       this.renderLegacyShop();
     } else if (this.mode === 'dynasty') {
       this.renderDynastySheet();
+    } else if (this.mode === 'temple') {
+      this.renderTemple();
     } else if (this.mode === 'classic') {
       this.renderClassic();
     } else {
@@ -2530,11 +2548,31 @@ export class MenuScene extends Phaser.Scene {
      *
      * A fresh install therefore opens on three rows: play, the house, the way out.
      */
-    // `textLink` sets its own 30-unit floor for the hit area and centres the type on its baseline.
-    const CONTINUE_LINE_ROW = saved ? 30 : 0;
-    // 38, not `ROW`: the ledger carries a second line and a 30-unit button leaves 22 units of room
-    // for 25 units of type, which is what trimmed the note to an ellipsis on the last pass.
-    const LEDGER_ROW = 38;
+
+    /**
+     * The tablet takes what the other rows leave, between 44 and 68.
+     *
+     * Bracketing it by `GAME_HEIGHT` was wrong because the binding case is not the sheet's height,
+     * it is whether there is a **save**: at the 620 clamp the lane is 154 and play + Continue +
+     * a 58-unit tablet + Classic Modes is exactly 154, so every gap collapsed to its floor and the
+     * column printed twenty units through the footer. Measured, not guessed — the numbers are the
+     * page's own.
+     *
+     * 68 is the ceiling: past it the tablet competes with the play control, which is the one thing
+     * on this sheet allowed to be the largest. 44 is the floor, where it goes to its compact form
+     * (below) and still carries the name, the score and the bar.
+     */
+    const GAP_FLOOR = 4;
+    const GAP_WANTED = 6;
+    const LANE_ROOM = SETTINGS_TOP - this.vy(520);
+    // `textLink` keeps its own 44-unit hit area whatever the row is given; this is only the space
+    // the line occupies in the column.
+    const CONTINUE_LINE_ROW = saved ? 26 : 0;
+    const LEDGER_ROW = Phaser.Math.Clamp(
+      LANE_ROOM - (this.vh(58) + CONTINUE_LINE_ROW + ROW) - GAP_WANTED * (saved ? 5 : 4),
+      44,
+      68,
+    );
 
     /**
      * The tagline is what gives way when the lane cannot hold the column.
@@ -2546,8 +2584,6 @@ export class MenuScene extends Phaser.Scene {
      * sentence is added only where the room is genuinely there. It returns at 620 in English and
      * at every height above the clamp in both.
      */
-    const GAP_FLOOR = 4;
-    const LANE_ROOM = SETTINGS_TOP - this.vy(520);
     const controls = this.vh(58) + CONTINUE_LINE_ROW + LEDGER_ROW + ROW;
     // One fewer row means one fewer gap between them.
     const innerRows = saved ? 4 : 3;
@@ -2644,31 +2680,7 @@ export class MenuScene extends Phaser.Scene {
       cursor += CONTINUE_LINE_ROW + gap;
     }
 
-    /**
-     * The house: your level, and whether it owes you a choice.
-     *
-     * One primary per page. The house was drawn in the cinnabar the play button wears, which put
-     * two identical calls to action on a sheet whose whole job is to point at one — so it takes the
-     * gold and Classic Modes steps down to ghost. Three weights, one per row, in the order the
-     * player wants them: play, the house, the way out.
-     *
-     * A waiting choice is said in the sub-label rather than in a louder colour. "Cấp 2 · còn 1
-     * lượt" is more specific than a red border and does not cost the page its single accent.
-     *
-     * The Ascension Legacy shop lives on the sheet this opens; two near-identical doors side by
-     * side only made the reader choose between two words whose meaning they did not yet have.
-     */
-    this.content.push(this.ui.button(
-      { x: SECONDARY_X, y: cursor, width: SECONDARY_WIDTH, height: LEDGER_ROW },
-      t('dynasty.menu'), () => { this.mode = 'dynasty'; this.render(); },
-      {
-        variant: 'secondary',
-        fontSize: '12px',
-        subLabel: ledgerSub,
-        extraHitPadding: Math.max(0, 44 - LEDGER_ROW),
-      })
-      .setData('menuSecondary', 'dynasty')
-      .setData('visualBounds', { width: SECONDARY_WIDTH, height: LEDGER_ROW }));
+    this.renderDynastyTablet(SECONDARY_X, cursor, SECONDARY_WIDTH, LEDGER_ROW);
     cursor += LEDGER_ROW + gap;
 
     this.tourTargets.classic = { x: SECONDARY_X, y: cursor, width: SECONDARY_WIDTH, height: ROW };
@@ -2844,6 +2856,95 @@ export class MenuScene extends Phaser.Scene {
   }
 
   /**
+   * Thái Miếu — the Temple, where a crowned king is re-dressed.
+   *
+   * The same `CoronationSheet` the rite is drawn with, hosted on a menu page instead of inside a
+   * prompt: one wardrobe picker, two doors. It walks the dress and the banner and never the name,
+   * because the name is the record and the record does not change. Nothing is written until "Keep
+   * this dress" — the way out leaves the king exactly as he was.
+   */
+  private renderTemple(): void {
+    const sheet = this.templeSheet ?? new CoronationSheet({
+      scene: this,
+      ui: this.ui,
+      mode: 'temple',
+      redraw: () => this.render(),
+      finish: (founder) => {
+        // The *look* and the mark, never the name or the house: a Temple that renamed the line
+        // would rewrite every reign the Chronicle has already recorded under the old one.
+        const store = getDynasty();
+        setDynastyFounder({
+          ...store.founder,
+          ...founder,
+          ...(store.founder?.name ? { name: store.founder.name } : {}),
+          ...(store.founder?.givenName ? { givenName: store.founder.givenName } : {}),
+          ...(store.founder?.armyEra ? { armyEra: store.founder.armyEra } : {}),
+        }, store.house);
+        this.templeSheet = undefined;
+        this.mode = 'dynasty';
+        this.render();
+      },
+      cancel: () => {
+        this.templeSheet = undefined;
+        this.mode = 'dynasty';
+        this.render();
+      },
+    });
+    this.templeSheet = sheet;
+
+    const PAD = 20;
+    const W = GAME_WIDTH - PAD * 2;
+    this.content.push(this.add.text(GAME_WIDTH / 2, this.vy(236), sheet.title(), {
+      color: '#2a2118', fontFamily: TITLE_FONT, fontSize: '20px', fontStyle: '700', align: 'center',
+    }).setOrigin(0.5, 0));
+
+    let y = this.vy(236) + 26;
+    const note = this.ui.label(GAME_WIDTH / 2, y, sheet.subtitle(), 'caption', {
+      fontSize: '10px', align: 'center', wordWrap: { width: W },
+      // On parchment like every band on the dynasty sheet: the front page's landscape is still
+      // painted behind this mode, and 10px type laid straight onto mountains is unreadable.
+      backgroundColor: 'rgba(243,230,196,0.86)', padding: { x: 4, y: 1 },
+    }).setOrigin(0.5, 0);
+    this.content.push(note);
+    y += note.height + 8;
+
+    // The foot is measured before the body so the scroll viewport stops short of it — the rule
+    // `promptScrollBody` follows, and the reason a stepper never lands under a button. 58 rather
+    // than 46: the row under the fold was touching the buttons at the 620 clamp.
+    const foot = sheet.foot();
+    const footHeight = 58;
+    const viewport = Math.max(120, this.pageFloor() - y - footHeight);
+
+    // One sheet of paper behind the whole picker. Every portrait, chip and swatch on it is drawn
+    // for a parchment ground; over the landscape the swatch rows in particular vanish.
+    // Opaque, not near-opaque: at 0.94 the front page's own wordmark showed through the sheet
+    // behind the swatch rows, which is the one place on this page colour has to be judged.
+    this.content.push(this.ui.panel({ x: PAD - 6, y: y - 6, width: W + 12, height: viewport + 12 },
+      { border: INK_UI.softBrush, fillAlpha: 1 }));
+
+    const area = this.ui.scrollArea({ x: PAD, y, width: W, height: viewport });
+    this.pageScroll = area;
+    const layer = this.add.container(0, 0);
+    // `addTo` before the content is filled: the area parents its swallow-zone first, and
+    // reversed the zone lands on top and eats every tap the steppers were supposed to get.
+    area.addTo(layer);
+    this.content.push(layer);
+    area.setContentHeight(Math.max(viewport, sheet.draw(area.content, W - 6)));
+
+    const footY = y + viewport + 8;
+    if (foot.back) {
+      this.content.push(this.ui.button({ x: PAD, y: footY, width: Math.round(W * 0.44), height: 38 },
+        foot.back.label, foot.back.onTap, { variant: 'ghost', fontSize: '11.5px' }));
+    }
+    const rightX = PAD + Math.round(W * 0.46);
+    this.content.push(this.ui.button(
+      { x: rightX, y: footY, width: PAD + W - rightX, height: 38 },
+      foot.close.label, foot.close.onTap, { variant: 'primary', fontSize: '11.5px' },
+    ));
+    this.footBackBar();
+  }
+
+  /**
    * Tông Phả — the dynasty sheet.
    *
    * Beside the Legacy shop and deliberately unlike it. The shop is a list of things to buy; this
@@ -2890,7 +2991,12 @@ export class MenuScene extends Phaser.Scene {
       // third of a screen of nothing below it, which reads as a page that failed to load rather
       // than as a page with little to say.
       const bandTop = this.vy(268);
-      const panelTop = bandTop + Math.max(0, Math.round((this.pageFloor() - bandTop - panelHeight) / 2));
+      // The king, his mark, the house line and the Temple door, when there is one — budgeted into
+      // the centring rather than appended under it, or the door prints through the back bar on
+      // the 620 clamp. 74 for the portrait band, 24 for the house line, 38 + 14 for the button.
+      const crownedBlock = isCrowned(store) ? 74 + 24 + 38 + 14 : 0;
+      const panelTop = bandTop
+        + Math.max(0, Math.round((this.pageFloor() - bandTop - panelHeight - crownedBlock) / 2));
       this.content.push(this.ui.panel({ x: PAD, y: panelTop, width: W, height: panelHeight },
         { border: INK_UI.softBrush, fillAlpha: 0.92 }));
       this.content.push(this.add.text(GAME_WIDTH / 2, panelTop + 16, t('dynasty.emptyTitle'), {
@@ -2899,6 +3005,37 @@ export class MenuScene extends Phaser.Scene {
       this.content.push(this.ui.label(GAME_WIDTH / 2, panelTop + 16 + 18 + 8, t('dynasty.emptyBody'),
         'caption', { fontSize: '11.5px', align: 'center', wordWrap: { width: W - 28 } })
         .setOrigin(0.5, 0));
+
+      // **A crowned house is not an empty one.**
+      //
+      // The record is still blank — no reign has ended — but a king exists the moment the rite is
+      // answered, and this page is the only door to the Temple. Without this, a player who crowns
+      // a king and then leaves the run is told their dynasty is empty and has nowhere to go and
+      // look at the person they just made, which is the whole reason the rite is worth a screen.
+      if (isCrowned(store)) {
+        const founder = dynastyFounderHero(store);
+        let row = panelTop + panelHeight + 14;
+        // On parchment like every other band on this page: the front page's landscape is painted
+        // behind this mode, and a portrait and a 14px house name laid straight onto mountains is
+        // the same unreadable page the populated sheet had on its first pass.
+        this.content.push(this.ui.panel({ x: PAD, y: row - 6, width: W, height: 74 + 24 + 4 },
+          { border: INK_UI.softBrush, fillAlpha: 0.92 }));
+        if (founder) {
+          this.content.push(renderHeroFaceInBox(this, founder,
+            { x: GAME_WIDTH / 2 - 34, y: row, width: 68, height: 68 }));
+        }
+        const mark = drawHouseBanner(this, houseBanner(), 26, 34);
+        mark.setPosition(GAME_WIDTH / 2 + 44, row + 16);
+        this.content.push(mark);
+        row += 74;
+        this.content.push(this.ui.label(GAME_WIDTH / 2, row,
+          store.house ? t('dynasty.house', { name: store.house }) : t('dynasty.houseUnnamed'),
+          'label', { fontSize: '14px', align: 'center', wordWrap: { width: W } }).setOrigin(0.5, 0));
+        row += 24;
+        this.content.push(this.ui.button({ x: PAD, y: row, width: W, height: 38 },
+          t('coronation.temple'), () => { this.mode = 'temple'; this.render(); },
+          { variant: 'secondary', fontSize: '12px', subLabel: t('coronation.temple.note') }));
+      }
       this.footBackBar();
       return;
     }
@@ -2992,7 +3129,13 @@ export class MenuScene extends Phaser.Scene {
     // The Cabinet of Seals door — always shown, because the empty cabinet page is itself the
     // pitch: fifty dashed silhouettes and the faucet list is what tells a player the hunt exists.
     const cabinetHeight = 46;
-    const fixedBelow = 12 + 15 + 5 + 6 + recordHeight + 12 + shopHeight + cabinetHeight + respecHeight + 8 + BACK_BAR_HEIGHT;
+    // The Temple door. Budgeted with the rest rather than appended after the grid is sized: a row
+    // added below a grid that has already claimed the room is the `4a67460` bug — the page's own
+    // controls print through the back bar on the 620 clamp. Only shown to a house that has a king
+    // to re-dress; an uncrowned house is told where the rite opens instead, on one caption line.
+    const templeHeight = 46;
+    const fixedBelow = 12 + 15 + 5 + 6 + recordHeight + 12 + shopHeight + cabinetHeight
+      + templeHeight + respecHeight + 8 + BACK_BAR_HEIGHT;
     const gridRoom = this.pageFloor() - (y + headerH) - fixedBelow;
     const CHIP_H = Math.max(20, Math.min(28, Math.floor(gridRoom / CHIP_ROWS) - CHIP_GAP));
     body.add(this.ui.panel({ x: PAD, y, width: W, height: headerH },
@@ -3002,9 +3145,17 @@ export class MenuScene extends Phaser.Scene {
     if (founder) {
       body.add(renderHeroFaceInBox(this, founder, { x: PAD + 8, y: y + 6, width: 58, height: 58 }));
     }
+    // The house's own mark, on the house's own sheet. This is the whole of what the banner is for
+    // — a save a player recognises at a glance — and it costs the header no height: it stands in
+    // the right margin the house name was already wrapping short of.
+    if (store.founder) {
+      const mark = drawHouseBanner(this, houseBanner(), 30, 40);
+      mark.setPosition(PAD + W - 40, y + 8);
+      body.add(mark);
+    }
     body.add(this.ui.label(PAD + 76, y + 8,
       store.house ? t('dynasty.house', { name: store.house }) : t('dynasty.houseUnnamed'),
-      'label', { fontSize: '15px', wordWrap: { width: W - 90 } }));
+      'label', { fontSize: '15px', wordWrap: { width: W - 132 } }));
     body.add(this.ui.label(PAD + 76, y + 30, t('dynasty.reignOrdinal', { n: store.reigns }),
       'caption', { fontSize: '11px' }));
     body.add(this.ui.label(PAD + 76, y + 46, t('dynasty.level', { level: store.level }),
@@ -3110,6 +3261,24 @@ export class MenuScene extends Phaser.Scene {
       }));
     y += 46;
 
+    // Thái Miếu — the barbershop rule, taken straight from Crusader Kings: looks may be changed
+    // for ever, stats may never be. It is also where the creator's locked rows are collected: a
+    // player who has just held ten waves has somewhere to go and see what that bought.
+    const crowned = isCrowned(store);
+    body.add(this.ui.button({ x: PAD, y, width: W, height: 38 },
+      t('coronation.temple'),
+      () => {
+        if (!crowned) return;
+        this.mode = 'temple';
+        this.render();
+      },
+      {
+        variant: crowned ? 'secondary' : 'disabled',
+        fontSize: '12px',
+        subLabel: crowned ? t('coronation.temple.note') : t('coronation.temple.uncrowned'),
+      }));
+    y += 46;
+
     // ── The one way back ────────────────────────────────────────────────────
     // Traits are a biography, not a loadout, so a respec is earned by ascending and never
     // offered casually. The row says what it costs even when there is nothing to spend.
@@ -3149,6 +3318,225 @@ export class MenuScene extends Phaser.Scene {
 
     area.setContentHeight(Math.max(viewport, y + 8));
     this.footBackBar();
+  }
+
+  /**
+   * The house, drawn as a **bài vị** — the ancestral tablet a household keeps on its altar.
+   *
+   * A button said "Tông Phả ›" and a sub-label said "Cấp 2". Correct, and it taught nobody what the
+   * feature was: a row of three plates where one of them happened to be the only thing on the page
+   * that survives a run. The ask was that the front page *sell* it — show the score, say the words,
+   * and light up when the house is owed something.
+   *
+   * So it is not a plate. A tablet is the object this feature already is in the culture the game is
+   * drawn from: the lineage board with the house name on it, kept where the family can see it. It
+   * carries the founder's own face (the wardrobe system, at the dynasty's rank, so the king ages),
+   * the house name, the reign count, the level, the best score, and the XP bar along its foot. That
+   * is the whole feature legible without a tap — which is what "users know about the dynasty score"
+   * asks for — and it reads as a different *kind* of thing from the buttons above and below it,
+   * which is what stops the column being a wall.
+   *
+   * **Unplayed it is an invitation, not a row of zeroes.** The frame is empty, the words say what
+   * will fill it, and the border stays quiet. A page that shows a new player `Cấp 0 · 0 điểm` has
+   * told them the feature is not for them.
+   *
+   * **Owed a choice it is stamped.** The border turns cinnabar, a seal is pressed into the corner
+   * and breathes — one slow yoyo, the only motion in the column. That is the game's own vocabulary
+   * for "this is signed and waiting": the Reckoning presses the same seal. A badge or a dot would
+   * have been a notification; a seal is the object saying something about itself.
+   */
+  private renderDynastyTablet(x: number, y: number, width: number, height: number): void {
+    // `cssHex` lives in the conquest chrome, which the menu does not import — one line rather
+    // than a dependency on the run's UI barrel.
+    const ink = (colour: number): string => `#${colour.toString(16).padStart(6, '0')}`;
+    const store = getDynasty();
+    const progress = dynastyProgress(store);
+    const opened = store.reigns > 0;
+    const owed = store.pendingPicks > 0;
+    const accent = owed ? INK_UI.cinnabar : opened ? INK_UI.gold : INK_UI.softBrush;
+
+    const tablet = this.add.container(x, y);
+    this.content.push(tablet);
+
+    // The board: parchment, a heavy outer rule and a hairline inside it. The doubled rule is what
+    // makes a panel read as a *document* rather than a control — see the Reckoning's edict plate.
+    const board = this.add.graphics();
+    board.fillStyle(INK_UI.parchment, opened ? 0.97 : 0.8);
+    board.fillRoundedRect(0, 0, width, height, 5);
+    board.lineStyle(owed ? 2 : 1.5, accent, owed ? 0.95 : 0.75);
+    board.strokeRoundedRect(0, 0, width, height, 5);
+    board.lineStyle(0.7, INK_UI.brush, 0.32);
+    board.strokeRoundedRect(3.5, 3.5, width - 7, height - 7, 3);
+    tablet.add(board);
+    /**
+     * No sawtooth band across the head.
+     *
+     * The drum's register is the right idiom and the wrong size for this board: drawn full width it
+     * crossed the portrait recess, and on the compact form it printed straight through the house
+     * name — the head is four units it does not have. The doubled rule already does the work the
+     * band was there for, which is to say *document* rather than *control*.
+     */
+
+    /**
+     * Three columns, and the middle one is told how much room the other two leave it.
+     *
+     * The portrait only exists once a reign has ended — an empty recess is a blank box, not a
+     * promise — and the seal only exists while a choice is owed. Both are measured into the text's
+     * wrap width rather than hoped around: the first pass let the stats line run under the seal and
+     * "cao nhất 5,510" printed straight through it.
+     */
+    const merged = height < 52;
+    /**
+     * The portrait is what gives way when the board is squeezed, not the type.
+     *
+     * Shrinking everything produced a 44-unit tablet whose house name wrapped into its own reign
+     * line: the face was taking 35 units of width the words needed. It is the most decorative thing
+     * here and it is still on the sheet one tap away, so below 52 it goes and the words get the
+     * whole board. The name, the level, the score, the seal and the bar all stay.
+     */
+    const founder = opened && !merged ? dynastyFounderHero(store) : undefined;
+    const PORTRAIT = Math.min(46, height - 20);
+    const textX = 14 + (founder ? PORTRAIT + 11 : 0);
+    const rightReserve = owed ? (merged ? 34 : 52) : 20;
+    const textWidth = width - textX - rightReserve;
+
+    if (founder) {
+      // A ruled recess, so the face sits *in* the tablet rather than on it.
+      const top = Math.round((height - PORTRAIT) / 2);
+      const recess = this.add.graphics();
+      recess.fillStyle(INK_UI.parchmentShade, 0.8);
+      recess.fillRect(14, top, PORTRAIT, PORTRAIT);
+      recess.lineStyle(0.8, INK_UI.brush, 0.5);
+      recess.strokeRect(14, top, PORTRAIT, PORTRAIT);
+      tablet.add(recess);
+      // Inset by two: `renderHeroFaceInBox` fits the face's own extent, and a topknot pin drawn at
+      // the very top of it lands on the recess rule rather than inside the frame.
+      tablet.add(renderHeroFaceInBox(this, founder,
+        { x: 16, y: top + 2, width: PORTRAIT - 4, height: PORTRAIT - 4 }));
+    }
+
+    // The words. The name of the feature leads in both states — a player who has never opened it
+    // has to learn what it is called before a house name can mean anything.
+    /**
+     * The rows are measured off the board, not written into it.
+     *
+     * The tablet is 58 at the 620 clamp and 68 above it, and at fixed offsets the 68-unit layout
+     * printed the house name straight through the reign line on the short one. Ten units is the
+     * whole difference, so the eyebrow moves up, the name drops a point, and the foot rows are
+     * measured back from the bottom edge where the bar already is.
+     */
+    const tight = height < 64;
+    /**
+     * Below 52 the eyebrow stops being a row of its own: three stacked lines plus a bar need about
+     * that much, and squeezed under it the name printed through the reign line. At the floor the
+     * feature's name joins the house's on one line — `TÔNG PHẢ · Nhà Lê Duyệt` — which keeps the
+     * word on the page while spending one row instead of two.
+     */
+    const eyebrowY = tight ? 9 : 11;
+    const nameY = merged ? 8 : eyebrowY + 11;
+    // Two more units off the foot than the bar needs, so the reign line sits above the rule
+    // rather than on it — at `height - 22` the 9.5px type ended exactly where the bar begins.
+    const statsY = merged ? 24 : height - 25;
+    if (!merged) {
+      const eyebrow = this.ui.label(textX, eyebrowY, t('dynasty.title'), 'caption', {
+        fontSize: '8px', color: ink(owed ? INK_UI.cinnabar : INK_UI.gold),
+      });
+      eyebrow.setLetterSpacing?.(2.2);
+      tablet.add(eyebrow);
+    }
+
+    const houseLine = opened
+      ? (store.house ? t('dynasty.house', { name: store.house }) : t('dynasty.houseUnnamed'))
+      : t('dynasty.tabletName');
+    tablet.add(this.ui.label(textX, nameY,
+      merged ? `${t('dynasty.title')} · ${houseLine}` : houseLine,
+      'label', { fontSize: merged ? '11px' : tight ? '12px' : '13px', wordWrap: { width: textWidth } }));
+
+    /**
+     * The line says the most it has room for, and never wraps.
+     *
+     * With the portrait on the left and the seal on the right there are about 159 units left, and
+     * "Đời 1 · Cấp 2 · cao nhất 5,510" needs more — it wrapped, and the second line fell out of the
+     * bottom of the board and over the bar. The best score is the part that gives way, because
+     * while a choice is owed the seal is already carrying the more urgent number, and the score is
+     * on the sheet one tap away either way.
+     */
+    tablet.add(this.ui.label(textX, statsY,
+      opened
+        ? t(owed ? 'dynasty.tabletStatsShort' : 'dynasty.tabletStats', {
+          n: store.reigns,
+          level: store.level,
+          score: store.bestScore.toLocaleString('en-US'),
+        })
+        : t('dynasty.tabletInvite'),
+      'caption', { fontSize: '9.5px', wordWrap: { width: textWidth } }));
+
+    /**
+     * The bar rides the foot of the board, inside the hairline — a rule that fills, not a widget.
+     *
+     * It is the third thing to give way, after the portrait and the eyebrow. On a 44-unit board two
+     * lines of type and a bar do not fit without the stats sitting on the rule, and the level the
+     * bar is a picture of is printed in words two lines above it.
+     */
+    if (opened && !merged) {
+      // It starts where the words start, not at the board's edge: run full width it passes under
+      // the portrait recess and reads as a rule cutting the frame off rather than as the text
+      // column's own measure.
+      const barY = height - 9;
+      const barW = width - textX - 14;
+      const bar = this.add.graphics();
+      bar.fillStyle(INK_UI.softBrush, 0.3);
+      bar.fillRoundedRect(textX, barY, barW, 4, 2);
+      bar.fillStyle(owed ? INK_UI.cinnabar : INK_UI.gold, 0.92);
+      bar.fillRoundedRect(textX, barY,
+        Math.max(4, barW * Math.min(1, progress.into / Math.max(1, progress.need))), 4, 2);
+      tablet.add(bar);
+    }
+
+    if (owed) {
+      /**
+       * Pressed, and breathing.
+       *
+       * One slow yoyo on the seal alone — not the tablet, which would make the type swim. It is the
+       * only motion in the column, so it reads as *this one thing wants you* rather than as a page
+       * that fidgets. Killed in `clearContent`: a repeating tween left running against a destroyed
+       * graphic either throws or lands an alpha on a recycled object.
+       */
+      const stamp = this.add.graphics();
+      // Top corner, the way a seal is pressed onto a document — and clear of the line beneath it,
+      // which is where the first pass put the two on top of each other.
+      // Centred on a compact board — at 15 it was pressed into the top rule and clipped by it.
+      seal(stamp, width - 26, merged ? Math.round(height / 2) : tight ? 19 : 21,
+        merged ? 20 : tight ? 22 : 24, 'lotus');
+      tablet.add(stamp);
+      this.dynastyPulse?.remove();
+      this.dynastyPulse = this.tweens.add({
+        targets: stamp,
+        alpha: { from: 1, to: 0.42 },
+        duration: 1100,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut',
+      });
+      // On the compact board the seal says it alone — a chip beside it would sit under it.
+      if (!merged) {
+        tablet.add(this.ui.label(width - 14, statsY,
+          t('dynasty.tabletWaiting', { n: store.pendingPicks }), 'caption',
+          { fontSize: '9px', color: ink(INK_UI.cinnabar), align: 'right' }).setOrigin(1, 0));
+      }
+    } else {
+      // The way in, at the edge the eye leaves by. Replaced by the seal when one is pressed.
+      tablet.add(this.ui.label(width - 15, Math.round(height / 2) - 9, '›', 'label',
+        { fontSize: '16px', color: ink(accent) }).setOrigin(0.5, 0));
+    }
+
+    const hit = this.add.rectangle(width / 2, height / 2, width, Math.max(height, 44), 0xffffff, 0.001)
+      .setInteractive({ useHandCursor: true });
+    hit.on('pointerup', () => { this.mode = 'dynasty'; this.render(); });
+    tablet.add(hit);
+    // Not `menuSecondary`: that key means a stamped plate of the secondary tier, and
+    // `verify-menu-icons-flags` measures everything wearing it against that tier's rules.
+    tablet.setData('menuTablet', 'dynasty');
   }
 
   private renderLegacyShop(): void {
@@ -4383,6 +4771,8 @@ export class MenuScene extends Phaser.Scene {
     this.closeModal();
     this.pageScroll?.destroy();
     this.pageScroll = undefined;
+    this.dynastyPulse?.remove();
+    this.dynastyPulse = undefined;
     for (const item of this.content) {
       item.destroy();
     }

@@ -3,6 +3,7 @@ import type { EraId, GameState, MandateState } from '../../state/types';
 import { t } from '../../i18n';
 import { estateStanding, ESTATE_CRISIS } from '../DecreeSystem';
 import { pushToast } from './notifications';
+import { grantDeed } from '../../state/cabinet';
 
 /** Ordered eras and the cumulative Mandate points needed to enter each. */
 export const ERA_ORDER: EraId[] = ['founding', 'rivalry', 'empires', 'mandate'];
@@ -125,6 +126,12 @@ export function addMandate(state: GameState, amount: number): void {
         mandate.reachedEras.push(era);
         mandate.edictPoints += ERA_CONFIG[era].edictGrant;
         pushToast(state, t('empire.mandate.eraReached', { era: eraLabel(era) }), 'milestone');
+        // The house remembers the era across runs: the two later ones each open a banner mark in
+        // the Coronation. Deeds rather than a new store, and paid out here rather than at the
+        // doctrine card, because this is the one place an era is *entered* — a big award can
+        // cross two at once, and the loop above is already written to announce both.
+        if (era === 'empires') grantDeed('era-empires');
+        if (era === 'mandate') grantDeed('era-mandate');
       }
     }
     mandate.era = newEra;

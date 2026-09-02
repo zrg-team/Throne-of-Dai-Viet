@@ -301,6 +301,7 @@ export function promptSignature(prompt: AscentPrompt): string {
     case 'wave-result': return `${prompt.wave}`;
     case 'host-lost': return `hostLost:${prompt.armyName}:${prompt.reason}:${prompt.men}`;
     case 'story-beat': return `${prompt.storyId}:${prompt.fragmentId}`;
+    case 'coronation': return 'coronation';
     case 'mandate': return `mandate:${prompt.options.join(',')}`;
     case 'founder': return prompt.options.join(',');
     case 'run-over': return `${prompt.score}`;

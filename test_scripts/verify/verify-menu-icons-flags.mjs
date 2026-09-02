@@ -127,7 +127,9 @@ check(structure.utilities.find((button) => button.id === 'history')?.icon === 'b
 // under its name — so the ceiling is 32 for a one-line plate and 40 for a two-line one. Everything
 // else about the tier holds either way: 240 wide, 44 of touch, and type no larger than the label
 // size the primary is deliberately bigger than.
-check(structure.secondary.length >= 2
+// One plate on the front page now — Classic Modes. Continue is a link and the house is a tablet,
+// and both carry their own data keys precisely so they are not measured against this tier's rules.
+check(structure.secondary.length >= 1
     && structure.secondary.every((button) => button.bounds.width === 240
       && button.bounds.height <= (button.fontSizes.length > 1 ? 40 : 32)
       && button.hitHeight >= 44

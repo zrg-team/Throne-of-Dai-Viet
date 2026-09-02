@@ -20,6 +20,9 @@ await page.goto(`${URL}/?capture=1`, { waitUntil: 'domcontentloaded' });
 await page.waitForFunction(() => typeof window.__startBenchGame === 'function' && window.__phaserGame.scene.isActive('MenuScene'), null, { timeout: 30000 });
 
 const r = await page.evaluate(async () => {
+  // The throne's identity is read off the dynasty store now, so a house crowned by an earlier
+  // script would make this run's king somebody else's. Cleared first, deliberately.
+  localStorage.removeItem('mandate:dynasty:v1');
   const { heroTemplates, generateKingHero, KINGS, FOUNDER_IDS } = await import('/src/data/heroes.ts');
   const { heroEffect } = await import('/src/i18n/index.ts');
   const { generateHero } = await import('/src/data/heroFactory.ts');
@@ -153,6 +156,10 @@ const r = await page.evaluate(async () => {
   const rulerSets = new Set(); let opensOnRuler = 0, chainsToFounder = 0, seated = 0;
   for (let i = 0; i < 60; i += 1) {
     const st = createAscentGameState({ seaSides: 1, difficulty: 'normal' });
+    // Lễ Đăng Quang stands ahead of the mandate, once in a house's life. It carries no options —
+    // the rite writes the founder into the dynasty store itself — so it is answered and stepped
+    // over here; this loop is about the two *opening* cards, which are what follow it.
+    if (st.pendingAscentPrompt?.kind === 'coronation') resolveAscentPrompt(st, 'crowned');
     const first = st.pendingAscentPrompt;
     if (first?.kind === 'mandate') opensOnRuler += 1;
     rulerSets.add((first?.options ?? []).join('|'));

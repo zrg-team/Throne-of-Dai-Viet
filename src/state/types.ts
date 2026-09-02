@@ -1742,6 +1742,17 @@ export interface EnvoyOption {
 /** Every pausing decision Dragon Ascent can raise. Exactly one is live at a time. */
 export type AscentPrompt =
   /**
+   * Lễ Đăng Quang — the rite that makes the king, before anything else in the run.
+   *
+   * Raised exactly once in a player's life, gated on the dynasty store rather than on any scene
+   * flag: an HMR dual instance of a scene flag re-raises it, and a store does not. It carries no
+   * options because it is not a choice between things the systems know about — the four steps
+   * are drawn by hand and write the founder into the dynasty store themselves. The resolver
+   * accepts *any* answer and, if nothing was made, writes a rolled king, so a driver that
+   * answers blind and a player who taps Skip leave the store in the same shape.
+   */
+  | { kind: 'coronation' }
+  /**
    * The first card of a run: which advantage the reign opens with.
    *
    * You are not choosing who you are — you are the king, and that was never in question. You are
@@ -2089,6 +2100,24 @@ export interface AscentBattle {
    */
   steeredFormation?: boolean;
   steeredStance?: boolean;
+  /**
+   * The player has taken this field by hand, and holds it until they give it up.
+   *
+   * **The grace window does not apply to a field somebody claimed.** `ASCENT_AUTO_DELEGATE_BEATS`
+   * exists for a field that *opens* under the player and is then ignored — the code's own words,
+   * "an uncommanded field is an implicitly delegated one". Tapping *Cầm quân lại* is the opposite
+   * of ignoring it, and a take-back happens past beat ten by definition, so the rule used to hand
+   * the field straight back on the next season. Reported as *i take control -> game back to auto*,
+   * and it looked like closing the screen caused it because the battle lane holds the economy
+   * clock: no tick runs while you are standing on the field, so the hand-back fires on the first
+   * one after you leave.
+   *
+   * Set by an explicit claim — the take-back chip, or walking onto a side fight with
+   * `focusBattle`. Cleared by the three ways a player gives the field up, and only those:
+   * handing it to the general (*auto* / *Rời trận*), leaving the screen (`closeLane`), or moving
+   * to another fight (the field left behind). Nothing else takes it away.
+   */
+  claimed?: boolean;
 
   /**
    * The shape each side is standing in — the fast dial, and the whole rock-paper-scissors.

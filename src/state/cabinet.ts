@@ -51,8 +51,21 @@ export interface CabinetStore {
   packsBought: number;
 }
 
-/** The launch deeds, in the order the cabinet page lists them. Each pays one rubbing, once. */
-export const CABINET_DEEDS = ['first-relief', 'first-evolution', 'first-jade'] as const;
+/**
+ * The launch deeds, in the order the cabinet page lists them. Each pays one rubbing, once.
+ *
+ * The list is **append-only**: the id strings are a save contract, and `getCabinet` filters the
+ * stored array against this table, so a retired id silently un-does a deed a player already did.
+ *
+ * The last three are the Coronation's, and they do two jobs at once. They pay a rubbing like the
+ * others, and they are what the wardrobe picker reads to decide which flourishes are still
+ * greyed — so every lock in the creator names a system the player has not met yet: waves are the
+ * clock the mode runs on, jade is where evolutions live, and eras are milestones rather than
+ * scenery. Nothing they gate has power; ornament is the only thing safe to lock.
+ */
+export const CABINET_DEEDS = [
+  'first-relief', 'first-evolution', 'first-jade', 'wave-ten', 'era-empires', 'era-mandate',
+] as const;
 export type CabinetDeed = (typeof CABINET_DEEDS)[number];
 
 /** What a copy past Lv3 melts into, in Legacy points — no dead pulls. */

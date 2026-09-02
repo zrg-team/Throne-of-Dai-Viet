@@ -285,8 +285,14 @@ export function advanceAscentTick(state: GameState): void {
   // the practice yard, and an unclaimed fight losing there is the lesson.
   // Only the field the player is standing on can be *un*commanded — the side fights open
   // delegated, because there is nobody to grant a grace window to on a field nobody is watching.
+  //
+  // **A field the player claimed is not an uncommanded one.** `claimed` is set by the take-back
+  // chip and by walking onto a side fight, and while it stands this rule leaves the field alone —
+  // otherwise "take the field" was a button that undid itself on the next season, since a
+  // take-back happens past the window by definition. The claim ends only where the player ends
+  // it: handing over, leaving the screen, or moving to another fight.
   const live = state.ascent.activeBattle;
-  if (live && !live.delegated && !live.steeredFormation && !live.steeredStance
+  if (live && !live.delegated && !live.claimed && !live.steeredFormation && !live.steeredStance
     && (live.approachBeats ?? 0) + live.round >= ASCENT_AUTO_DELEGATE_BEATS) {
     delegateBattle(state, true, false);
   }

@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { FACE_PART_DEFS, type FacePartDef } from './faces/parts.generated';
-import { resolveHeroLook } from './faces/heroLook';
+import { resolveHeroLook, type HeroLook } from './faces/heroLook';
+import { dynastyLookStamp, getDynasty } from '../state/dynasty';
 import { getActiveMapTheme } from './mapTheme';
 import { PIGMENT } from './ink/palette';
 import { hatchPoly, inkPath, washFill } from './ink/stroke';
@@ -137,7 +138,12 @@ const badgeTextures = new Map<string, Phaser.GameObjects.RenderTexture>();
  */
 export function heroFaceTextureKey(scene: Phaser.Scene, hero: Hero): string | undefined {
   const theme = getActiveMapTheme().id;
-  const identity = `${hero.id}|${hero.name}|${hero.era ?? ''}|${hero.sex ?? ''}|${hero.type}|${hero.rarity}|${hero.monastic === true}`;
+  // The made king's look is part of his identity, and none of the fields above carry it: the
+  // Temple re-dresses the same id, the same name, the same era and the same rank, so without the
+  // stamp `textures.exists` hits on the portrait from *before* the change and the Temple appears
+  // to do nothing at all. Empty for every hero the Coronation has not touched, so the roster's
+  // cache keys are byte-identical to what they were.
+  const identity = `${hero.id}|${hero.name}|${hero.era ?? ''}|${hero.sex ?? ''}|${hero.type}|${hero.rarity}|${hero.monastic === true}|${lookStampFor(hero)}`;
   let hash = 2166136261;
   for (let i = 0; i < identity.length; i += 1) {
     hash ^= identity.charCodeAt(i);
@@ -213,10 +219,53 @@ export function renderHeroFace(
   return root;
 }
 
+/**
+ * The made king's look stamp, when this hero is him — otherwise the empty string.
+ *
+ * Keyed the way `resolveHeroLook` keys the same decision: on the founder's id *or* name, because
+ * the throne's hero carries the constant id `'king'`.
+ */
+function lookStampFor(hero: Hero): string {
+  const founder = getDynasty().founder;
+  if (!founder?.look) return '';
+  if (hero.id !== founder.id && hero.name !== founder.name) return '';
+  return dynastyLookStamp();
+}
+
+/**
+ * A portrait from a look the caller already has, with no cache in the way.
+ *
+ * The Coronation's preview: every stepper tap composes a different king, and the baked path is
+ * keyed on a hero's identity rather than on a look, so it would serve the same face back for
+ * every tap. One build per tap is the right cost — that is a tap, not a frame, and the frame
+ * ledger's cost floor is live Graphics *per frame*, which this never is.
+ */
+export function renderLookInBox(
+  scene: Phaser.Scene,
+  look: HeroLook,
+  box: { x: number; y: number; width: number; height: number },
+  maxScale = 1,
+): Phaser.GameObjects.Container {
+  const scale = Math.min(box.width / HERO_FACE_W, box.height / HERO_FACE_H, maxScale);
+  const centreOffsetY = (HERO_FACE_EXTENT.top + HERO_FACE_EXTENT.bottom) / 2;
+  const root = scene.add.container(
+    box.x + box.width / 2,
+    box.y + box.height / 2 - centreOffsetY * scale,
+  ).setScale(scale);
+  root.add(buildLookLayers(scene, look));
+  return root;
+}
+
 /** Builds the editable part stack once; callers normally see its baked one-Image result. */
 function buildHeroFaceLayers(scene: Phaser.Scene, hero: Hero): Phaser.GameObjects.Container {
+  return buildLookLayers(scene, resolveHeroLook(hero));
+}
+
+function buildLookLayers(scene: Phaser.Scene, source: HeroLook): Phaser.GameObjects.Container {
   const root = scene.add.container(0, 0);
-  const look = resolveHeroLook(hero);
+  // Copied, not mutated: the woodblock treatment below strips the plate from `look.parts`, and a
+  // caller that keeps its own look — the Coronation's preview does — would find it edited.
+  const look: HeroLook = { ...source, parts: source.parts.slice() };
 
   // Under the woodblock treatment the rarity plate — a dark lacquered slab with a gold rim — is
   // the one part of the portrait that fights the page it now sits on. The face itself is right;

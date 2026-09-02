@@ -807,11 +807,13 @@ export function showBindCard(
 
   const BUTTON = 46;
   const buttonY = content.y + content.height - BUTTON - 2;
-  const HINT = 16;
+  // The same two lanes the draft keeps above its fan: the take-pill's, and the hint's above it.
+  const HINT_Y_ABOVE_FAN = 70;
+  const LANES = HINT_Y_ABOVE_FAN + 8;
   const fanHeight = Phaser.Math.Clamp(Math.round(content.height * 0.52), 180, 240);
   const fanTop = buttonY - 10 - fanHeight;
   // Capped for the same reason the draft's readout is: the outcome is three lines, not a page.
-  const infoHeight = Math.min(fanTop - content.y - HINT - 10, 150);
+  const infoHeight = Math.min(fanTop - content.y - LANES, 150);
 
   const info = self.add.container(content.x, content.y);
   self.modalLayer.add(info);
@@ -857,15 +859,18 @@ export function showBindCard(
   const fan = new CardFan(self, {
     x: content.x, y: fanTop, width: content.width, height: fanHeight,
     cards: prompt.options.map((id) => ({ id })),
-    initial: 0,
+    // The centre card opens raised — the resting hand stays symmetric.
+    initial: Math.floor((prompt.options.length - 1) / 2),
     onRaise: describe,
     onTake: (index) => self.choose(prompt.options[index]),
+    takeLabel: t('ascent.bind.confirm'),
   });
   self.modalLayer.add(fan.view);
 
-  self.modalLayer.add(self.add.text(content.x + content.width / 2, fanTop - HINT + 2,
+  self.modalLayer.add(self.add.text(content.x + content.width / 2, fanTop - HINT_Y_ABOVE_FAN,
     t('ascent.draft.fanHint'), {
       color: INK_UI_HEX.mutedText, fontFamily: UI_FONT, fontSize: '10px', align: 'center',
+      wordWrap: { width: content.width - 8 },
     }).setOrigin(0.5, 0));
 
   self.modalLayer.add(self.ui.button(
