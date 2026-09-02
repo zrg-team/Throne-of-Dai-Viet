@@ -29,6 +29,8 @@ import {
   BATTLE_RALLY_DESPERATION,
   BATTLE_ROUT_LOSS_SHARE,
   BATTLE_OVERTIME_MORALE,
+  BATTLE_NUMBERS_FLOOR,
+  BATTLE_OVERTIME_WEIGHT_CAP,
   BATTLE_ROUT_MORALE,
   BATTLE_VOLLEY_BITE,
   BATTLE_WITHDRAW_RECOVERY,
@@ -1879,11 +1881,18 @@ export function fightRound(state: GameState): void {
    */
   const overtime = Math.max(0, battle.round - battle.totalRounds);
   const grind = overtime * BATTLE_OVERTIME_MORALE;
+  // Weighted by the men still standing: the outnumbered line tires faster, the stronger one
+  // slower. See `BATTLE_OVERTIME_WEIGHT_CAP` — the symmetric version decided fights by a coin-flip.
+  const ourMenNow = Math.max(1, ours.reduce((n, h) => n + totalUnits(h), 0));
+  const theirMenNow = Math.max(1, theirs.reduce((n, h) => n + totalUnits(h), 0));
+  const cap = BATTLE_OVERTIME_WEIGHT_CAP;
+  const ourGrind = grind * Math.min(cap, Math.max(1 / cap, theirMenNow / ourMenNow));
+  const theirGrind = grind * Math.min(cap, Math.max(1 / cap, ourMenNow / theirMenNow));
   for (const host of ours) {
-    setMorale(host, host.morale - ourDrop - ourCountered - grind + momentMorale + (wonExchange ? BATTLE_MORALE_WIN_GAIN : 0));
+    setMorale(host, host.morale - ourDrop - ourCountered - ourGrind + momentMorale + (wonExchange ? BATTLE_MORALE_WIN_GAIN : 0));
   }
   for (const host of theirs) {
-    setMorale(host, host.morale - theirDrop - theirCountered - grind + (wonExchange ? 0 : BATTLE_MORALE_WIN_GAIN));
+    setMorale(host, host.morale - theirDrop - theirCountered - theirGrind + (wonExchange ? 0 : BATTLE_MORALE_WIN_GAIN));
   }
   battle.ourMorale = defender.morale;
   battle.theirMorale = invader.morale;
@@ -1904,9 +1913,22 @@ export function fightRound(state: GameState): void {
   // The proclamation holds the line exactly as the capstone does, for one wave instead of forever.
   const eternal = hasCapstone(state, 'binh') || proclamationInForce(state);
   const swornFloor = eternal ? 0 : tattooedArms(state) ? battle.ourStart * (SAT_THAT_ROUT_FLOOR / 100) : -1;
+  /**
+   * **Numbers break a line too.** A side whose men fall below `BATTLE_NUMBERS_FLOOR` of the other
+   * side's is broken outright, oath or no oath. The morale exemptions above are exemptions from
+   * *losing heart*; they were never meant to let a company hold against an army, and under the
+   * overtime grind that is exactly what they did — 528 men "won" against 3,412 because the
+   * enemy's morale dipped first. Both sides, both directions: a wave that has been cut to a
+   * fifteenth of the defence scatters just the same.
+   */
+  const menOurs = ours.reduce((n, h) => n + totalUnits(h), 0);
+  const menTheirs = theirs.reduce((n, h) => n + totalUnits(h), 0);
+  const oursOverwhelmed = menOurs > 0 && menTheirs > 0 && menOurs < menTheirs * BATTLE_NUMBERS_FLOOR;
+  const theirsOverwhelmed = menOurs > 0 && menTheirs > 0 && menTheirs < menOurs * BATTLE_NUMBERS_FLOOR;
   for (const host of [...ours, ...theirs]) {
-    if (swornFloor >= 0 && ours.includes(host) && battle.ourNow > swornFloor) continue;
-    if (host.morale > BATTLE_ROUT_MORALE) continue;
+    const overwhelmed = ours.includes(host) ? oursOverwhelmed : theirsOverwhelmed;
+    if (!overwhelmed && swornFloor >= 0 && ours.includes(host) && battle.ourNow > swornFloor) continue;
+    if (!overwhelmed && host.morale > BATTLE_ROUT_MORALE) continue;
     battle.brokenHostIds.push(host.id);
     brokeThisBeat.push(host.id);
     battle.log.push(t('ascent.battle.hostBreaks', { name: host.name }));
@@ -2281,11 +2303,21 @@ export function finishBattle(state: GameState, decision: 'press' | 'hold' | 'ret
   // Deliberately done by recovering losses rather than by weakening `hold`: making the standing
   // orders trade worse to justify retreat would have undone the dominated-option-free balance
   // that took two passes to earn. Withdrawal now earns its keep on its own terms.
-  // A field held is a field the wounded can be carried off: a share of a winning side's losses
-  // rejoin the host over the following days, exactly as they do after an orderly withdrawal.
-  // Without this every won battle still cost a fifth of the host, and a realm that fought and
-  // won each wave shrank as surely as one that lost — the roll it replaced never bled a winner.
-  if (decision === 'retreat' && battle.outcome !== 'we-rout' || battle.outcome === 'they-rout') {
+  /**
+   * Stragglers rejoin a host that withdrew in good order — and **only** that host.
+   *
+   * This also paid out on a *won* defence, and it was most of why a fight's last number and its
+   * next number never agreed. It landed *after* the last beat wrote `ourNow` and *before* the
+   * record read it, so the card said 1,379 while the hosts held 2,464; it landed on the levy as
+   * well as the field hosts, so the walls' casualties came back too; and `dissolveGarrisonLevies`
+   * then read the refunded survivors and charged the militia and the masonry for a fight less
+   * than half as bloody as the one that was fought. Measured: 62% losses read as 46%.
+   *
+   * A victory now costs what it cost. The note that put it here — "a realm that fought and won
+   * each wave shrank as surely as one that lost" — is answered by `GARRISON_RECOVER_SEASONS`: the
+   * turnout comes back, on a clock, from the province rather than from thin air.
+   */
+  if (decision === 'retreat' && battle.outcome !== 'we-rout' && battle.outcome !== 'they-rout') {
     const hosts = ourHosts(state, battle);
     const recovered = Math.round(battle.ourLostTotal * BATTLE_WITHDRAW_RECOVERY);
     if (hosts.length > 0 && recovered > 0) {
@@ -2295,6 +2327,8 @@ export function finishBattle(state: GameState, decision: 'press' | 'hold' | 'ret
         host.units.archers += Math.round(each * 0.25);
         host.units.heavyInfantry += Math.round(each * 0.15);
       }
+      // The record must say what the hosts actually hold.
+      battle.ourNow = hosts.reduce((total, host) => total + totalUnits(host), 0);
     }
   }
 

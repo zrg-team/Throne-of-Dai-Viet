@@ -13,7 +13,10 @@ import type { GameState, Land } from '../../state/types';
  * matches what an attacker actually has to beat.
  */
 export function landGarrisonPower(state: GameState, land: Land): number {
-  return (land.defense * masonryPowerPerDefense(state) + land.localSoldiers * militiaPowerPerMan(state))
+  // The walls' term is scaled by `garrisonExhaustion` exactly as `raiseGarrisonLevy` scales the
+  // levy it turns out, so the hidden roll and the fought battle agree about a spent province.
+  return (land.defense * masonryPowerPerDefense(state) * (1 - (land.garrisonExhaustion ?? 0))
+    + land.localSoldiers * militiaPowerPerMan(state))
     * terrainDefenseMultiplier(land)
     * getFocusDefenseMult(state, land);
 }

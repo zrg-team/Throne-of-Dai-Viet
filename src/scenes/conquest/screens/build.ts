@@ -28,7 +28,7 @@ import {
   upgradeDistrictBuilding,
 } from '../../../systems/ResourceSystem';
 import {
-  MILITIA_REGROW_DELAY, RETAKE_BONUS_WAVES, RETAKE_POWER_BONUS,
+  GARRISON_RECOVER_SEASONS, MILITIA_REGROW_DELAY, RETAKE_BONUS_WAVES, RETAKE_POWER_BONUS,
 } from '../../../game/ascentConfig';
 import { buildFocusRows } from '../../../ui/focusPanel';
 import { buildGovernorRows } from '../../../ui/governorPanel';
@@ -311,6 +311,13 @@ export function showBuildOptions(self: ConquestUIScene, landId: string): void {
     // The clock, on the sheet the player is standing on when they decide whether to buy another
     // course of wall or go and raise a host. It is the whole choice this round rebalanced.
     if (land.siege) notes.push(t('ascent.land.underSiege', { ticks: land.siege.ticksLeft }));
+    const spent = land.garrisonExhaustion ?? 0;
+    if (spent > 0.005) {
+      notes.push(t('ascent.land.garrisonSpent', {
+        pct: Math.round(spent * 100),
+        n: Math.ceil(spent * GARRISON_RECOVER_SEASONS),
+      }));
+    }
     const lostAt = land.lostAtWave;
     if (lostAt !== undefined && state.ascent) {
       const elapsed = state.ascent.wave - lostAt;

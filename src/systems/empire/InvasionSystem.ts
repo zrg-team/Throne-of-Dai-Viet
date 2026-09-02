@@ -7,6 +7,7 @@ import {
   CAMPAIGN_TICKS_ON_WIN,
   EARLY_WAVE_GRACE,
   GARRISON_LEVY_FLOOR,
+  LEVY_DEAD_POPULATION_SHARE,
   LEVY_POWER_PER_MAN,
   MAX_HOSTS_PER_KINGDOM,
   RELIEF_GOLD_REWARD,
@@ -1034,7 +1035,10 @@ export function raiseGarrisonLevy(state: GameState, land: Land): Army | undefine
   // A province set to raise soldiers turns out more of them; one set to defend turns out its walls.
   // Both multipliers are 1 for every other focus, and outside Ascent this whole function returns
   // early anyway.
-  const masonry = (land.localSoldiers * militiaPowerPerMan(state) + land.defense * masonryPowerPerDefense(state))
+  // The walls' share is what the province can still turn out, not what it could before the last
+  // fight — see `garrisonExhaustion`. The militia term is the men who actually exist.
+  const masonry = (land.localSoldiers * militiaPowerPerMan(state)
+    + land.defense * masonryPowerPerDefense(state) * (1 - (land.garrisonExhaustion ?? 0)))
     * getFocusGarrisonMult(state, land)
     * getFocusDefenseMult(state, land);
   // And the same share cap the hidden roll applies. `combinedDefencePower` is what `defenderPower`
@@ -1154,7 +1158,24 @@ export function dissolveGarrisonLevies(state: GameState): void {
     // At most what the province gave, and only the share of it that walked back. The militia is
     // real men and dies like real men; it is not a number that resets.
     const drawn = Math.min(levy.levyDrawn ?? survivors, survivors);
-    land.localSoldiers += Math.round(drawn * (1 - lostShare));
+    const militiaBack = Math.round(drawn * (1 - lostShare));
+    land.localSoldiers += militiaBack;
+    /**
+     * The dead were people. The militia is drawn from `land.population` (`militiaCapacity`), and
+     * the men who did not come back used to vanish from `localSoldiers` and from nowhere else, so
+     * the watch regrew out of the very people who had died. Charged here, bounded so a district
+     * can never be emptied by its own defence.
+     */
+    const militiaDead = Math.max(0, (levy.levyDrawn ?? 0) - militiaBack);
+    if (militiaDead > 0) {
+      const cost = Math.round(militiaDead * LEVY_DEAD_POPULATION_SHARE);
+      land.population = Math.max(Math.round(land.population * 0.25), land.population - cost);
+    }
+    // And the walls' turnout is spent in the same share it fell, to be made good over
+    // `GARRISON_RECOVER_SEASONS`. This — not the masonry breach below — is what makes the next
+    // contact meet a thinner turnout: measured before it, a 62% loss met 92% of the walls again
+    // on the very next fight.
+    land.garrisonExhaustion = Math.min(1, (land.garrisonExhaustion ?? 0) + lostShare);
 
     // And the masonry that stood in for the rest of the turnout. Floored rather than allowed to
     // reach nothing: a province with no walls left is a province that cannot be held at all, which
