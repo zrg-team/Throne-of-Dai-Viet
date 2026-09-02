@@ -1,5 +1,6 @@
 import type { Hero, HeroEra, HeroStats } from '../state/types';
 import { t } from '../i18n';
+import { getDynasty } from '../state/dynasty';
 
 /**
  * The rulers a run may open under.
@@ -75,12 +76,25 @@ const KING_STATS: HeroStats = {
  * serve the throne rather than sit on it.
  */
 export function generateKingHero(): Hero {
+  // **The one place the throne's identity is decided, and the Coronation's only integration.**
+  //
+  // The three fields hard-coded below are exactly the three the creator chooses — a fixed i18n
+  // name, `sex: 'man'`, no era — and they were hard-coded because the game had already refused
+  // to fabricate a king ("I'm the king. Not Nguyễn Hoàng."). Nothing about that refusal is being
+  // reversed here: the game still never invents who the king is, it now reads who the *player*
+  // said he is. A house that has not been crowned yet falls through to the blank figure exactly
+  // as before, so every run that predates the rite is unchanged.
+  //
+  // Stats, rarity and upkeep are untouched by design: looks are free, numbers are not.
+  const founder = getDynasty().founder;
+  const made = founder?.look ? founder : undefined;
   return {
     id: 'king',
-    name: t('heroes.king.name'),
+    name: made?.name ?? t('heroes.king.name'),
     type: 'general',
     rarity: 'Legendary',
-    sex: 'man',
+    sex: made?.sex ?? 'man',
+    ...(made?.era ? { era: made.era as Hero['era'] } : {}),
     upkeepGold: 12,
     description: t('heroes.king.description'),
     effect: t('heroes.king.effect'),

@@ -18,7 +18,7 @@ import { computeAscentPower, contestedDefencePower } from '../systems/ascent/Pow
 import { projectedWaveThreat } from '../systems/ascent/WaveDirector';
 import { getFounderPool } from './codex';
 import { applyLegacyPerks } from './legacy';
-import { founderOptionCount, hasTrait } from './dynasty';
+import { founderOptionCount, hasTrait, isCrowned } from './dynasty';
 import { initEmpireSim } from '../systems/empire/GreatPowersSystem';
 import type { Army, CampaignConfig, GameState, Hero, Kingdom, Land, LandTemplate, ResourceBag, TerrainSummary } from './types';
 import { landTypeLabel, t } from '../i18n';
@@ -683,6 +683,11 @@ export function createAscentGameState(config: CampaignConfig): GameState {
   // The Cabinet's opening hand, before the mandate card: the seals the house slotted arrive at
   // one stack each and pre-pay the mode's own threat counter (+2 ambition per slot).
   applyOpeningHand(state);
+  // Before everything, and once in a lifetime: the rite that makes the king. Gated on the
+  // dynasty store — `isCrowned` — rather than on a scene flag or a run field, because both of
+  // those come back on an HMR reload and a coronation that re-raises itself is the opposite of
+  // the thing it exists to be.
+  if (!isCrowned()) enqueueAscentPrompt(state, { kind: 'coronation' });
   offerMandateChoice(state);
   offerFounderChoice(state);
 

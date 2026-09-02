@@ -147,6 +147,9 @@ export function createAscentState(): AscentState {
  */
 const PROMPT_PRIORITY: Record<AscentPromptKind, number> = {
   'run-over': 0,
+  // Ahead of the mandate, which is ahead of the founding: the rite that makes the king comes
+  // before the throne is handed anything and before anybody rises beside him.
+  coronation: 0.4,
   // The ceremony, in the order it is walked. Both are raised by hand on the terminal path rather
   // than queued behind anything, so these numbers only ever decide a tie against a card the run
   // had already banked — and the ceremony wins it, because there is nothing left to answer.
@@ -223,6 +226,9 @@ const PROMPT_PRIORITY: Record<AscentPromptKind, number> = {
 const SUPERSEDED: ReadonlySet<AscentPromptKind> = new Set<AscentPromptKind>([
   'conquer-target', 'conquer-method', 'empire-response', 'wave-result', 'mandate', 'founder',
   'power-draft',
+  // There is only ever one coronation, and a second raise of it is the same rite, not a second
+  // one. Superseding rather than stacking is what keeps a reload mid-rite from queueing two.
+  'coronation',
 ]);
 
 /**

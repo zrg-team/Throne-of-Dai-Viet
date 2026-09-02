@@ -10,6 +10,7 @@ import type {
 } from '../state/types';
 import { enAscent, viAscent } from './catalogs/ascent';
 import { enCore, viCore } from './catalogs/core';
+import { enCoronation, viCoronation } from './catalogs/coronation';
 import { enEmpire, viEmpire } from './catalogs/empire';
 import { enGuide, viGuide } from './catalogs/guide';
 import { enHeroBios, viHeroBios } from './catalogs/heroBios';
@@ -31,6 +32,7 @@ const en = {
   ...enHeroBios,
   ...enEmpire,
   ...enAscent,
+  ...enCoronation,
   ...enGuide,
 } as const;
 
@@ -41,6 +43,7 @@ const vi = {
   ...viHeroBios,
   ...viEmpire,
   ...viAscent,
+  ...viCoronation,
   ...viGuide,
 } satisfies Record<keyof typeof en, string>;
 

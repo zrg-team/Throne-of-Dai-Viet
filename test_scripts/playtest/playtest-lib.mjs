@@ -25,6 +25,9 @@ window.__ptOptions = (forState) => {
   const p = st && st.pendingAscentPrompt;
   if (!p) return null;
   switch (p.kind) {
+    // Lễ Đăng Quang. Answered with anything — the sheet writes the founder into the dynasty
+    // store itself, and the resolver rolls a complete king when a driver skips through.
+    case 'coronation': return ['crowned'];
     case 'founder': return p.options;
     case 'power-draft': return [...p.cards, 'skip'];
     case 'conquer-target': return [...p.targets.map((t) => t.landId), 'hold'];

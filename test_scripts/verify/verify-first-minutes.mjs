@@ -104,7 +104,15 @@ while (Date.now() - t0 < WINDOW_MS && marks['power draft'] === undefined) {
     showing = now.kind;
     shownAt = Date.now();
     kinds.push(now.kind);
-    if (kinds.length === 1) firstCardPressable = now.pressable;
+    // The Coronation is measured differently, and only here.
+    //
+    // This check exists to catch a first card whose only control is "Continue". The rite is the
+    // opposite of that — it is the widest choice in the game — but it carries **no option ids**,
+    // because the four steps write the founder into the dynasty store themselves rather than
+    // asking the systems to pick between things they know about. Counting its option map would
+    // score a wardrobe as a confirmation dialog. What the check is about is the first card the
+    // player is asked to *answer*, so the rite is stepped over and the mandate is measured.
+    if (firstCardPressable === 0 && now.kind !== 'coronation') firstCardPressable = now.pressable;
     mark('first card');
     if (now.kind === 'power-draft') mark('power draft');
   }
@@ -127,8 +135,9 @@ while (Date.now() - t0 < WINDOW_MS && marks['power draft'] === undefined) {
 check('the game asks the player something inside half a minute',
   marks['first card'] !== undefined && marks['first card'] <= 30,
   marks['first card'] !== undefined ? `${marks['first card'].toFixed(1)}s (${kinds[0]})` : 'no card in the window');
+const firstAnswerable = kinds.find((kind) => kind !== 'coronation');
 check('the first card is a choice, not a confirmation', firstCardPressable > 1,
-  `${firstCardPressable} pressable on the ${kinds[0]} card`);
+  `${firstCardPressable} pressable on the ${firstAnswerable} card`);
 check('a power draft is offered inside three minutes',
   marks['power draft'] !== undefined && marks['power draft'] <= WINDOW_MS / 1000,
   marks['power draft'] !== undefined

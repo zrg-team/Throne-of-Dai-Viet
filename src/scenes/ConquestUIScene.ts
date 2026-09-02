@@ -9,6 +9,7 @@ import { AscentHud } from '../ui/ascent/AscentHud';
 import { AdvisorStrip } from '../ui/ascent/AdvisorStrip';
 import { WhisperLine } from '../ui/ascent/WhisperLine';
 import { Copilot, type CopilotStep } from '../ui/Copilot';
+import type { CoronationSheet } from '../ui/coronation/CoronationSheet';
 import { ActionBar } from '../ui/ActionBar';
 import { ResourceBar } from '../ui/ResourceBar';
 import type {
@@ -40,6 +41,7 @@ import * as lanesFrame from './conquest/lanes/frame';
 import * as lanesWidgets from './conquest/lanes/widgets';
 import * as promptsConquest from './conquest/prompts/conquest';
 import * as promptsCourt from './conquest/prompts/court';
+import * as promptsCoronation from './conquest/prompts/coronation';
 import * as promptsFrame from './conquest/prompts/frame';
 import * as promptsOptionCard from './conquest/prompts/optionCard';
 import * as promptsRealm from './conquest/prompts/realm';
@@ -342,6 +344,15 @@ export class ConquestUIScene extends Phaser.Scene {
    * orders only when what they offer changes. Rebuilding the lot every beat is what would make
    * the orders untappable — a card destroyed between press and release never fires.
    */
+  /**
+   * The coronation's own state, kept off the drawing.
+   *
+   * Every stepper tap rebuilds the sheet through `replaceLanePage`, which empties the modal layer
+   * — so anything held by the drawing is gone with it. The king being made lives here instead,
+   * for as long as the rite is open, and is dropped the moment it ends.
+   */
+  coronationSheet?: CoronationSheet;
+
   battleUi?: {
     content: UIBounds;
     fieldHeight: number;
@@ -952,6 +963,8 @@ export class ConquestUIScene extends Phaser.Scene {
   renderPrompt(prompt: AscentPrompt): void { promptsRouter.renderPrompt(this, prompt); }
 
   /* --------------------------------------------------------------- prompts run */
+
+  showCoronation(): void { promptsCoronation.showCoronation(this); }
 
   showFounder(prompt: Extract<AscentPrompt, { kind: 'founder' }>): void { promptsRun.showFounder(this, prompt); }
 

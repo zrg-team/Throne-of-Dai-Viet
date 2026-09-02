@@ -31,6 +31,43 @@ export interface DynastyFounder {
   sex: 'man' | 'woman';
   era?: string;
   monastic?: boolean;
+  /**
+   * The given name the player composed, without the họ. Kept beside `name` because `house` is
+   * derived from the family name and the two must not have to be re-split to be shown apart.
+   */
+  givenName?: string;
+  /**
+   * The portrait the player *made*, rather than the one a seed would have dealt.
+   *
+   * Stored resolved — the part keys and the three base colours — not as the picker's indices,
+   * because a pool that gains an entry between builds would otherwise shift a king's face. The
+   * renderer drops a key it no longer has, so a retired part costs one layer and never a crash.
+   * `choice` rides along only so the Temple can reopen the steppers where they were left.
+   */
+  look?: DynastyLook;
+  /** Two colours and a mark — the house's chrome, never a map-flag system. */
+  banner?: DynastyBanner;
+  /**
+   * The era the *forces* are styled in, taken from the họ. Decoupled from `era`, which is the
+   * court the king himself dresses in: a Lê house may crown a king in Trần court dress.
+   */
+  armyEra?: string;
+}
+
+/** A part stack and its three base colours. The shade ramps are derived, never stored. */
+export interface DynastyLook {
+  parts: Array<{ key: string; tint: string }>;
+  skin: number;
+  hair: number;
+  robe: number;
+  /** The picker's own stepper positions. Advisory: the parts above are what actually renders. */
+  choice?: Record<string, number | string>;
+}
+
+export interface DynastyBanner {
+  field: number;
+  trim: number;
+  emblem: string;
 }
 
 export interface DynastyStore {
@@ -74,10 +111,67 @@ function canUseLocalStorage(): boolean {
   return typeof localStorage !== 'undefined';
 }
 
+/**
+ * The made king's part stack, or nothing.
+ *
+ * Parsed the same defensive way the rest of this file is: a hand-edited or half-written look
+ * must degrade to "no look" — which falls the portrait back to the seed path — rather than
+ * take the Tông Phả sheet down. The 240 cap is far past any composed portrait (the real ones
+ * run about 20 parts) and exists only so a pasted array cannot make the renderer walk for ever.
+ */
+function readLook(raw: unknown): DynastyLook | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const value = raw as Partial<DynastyLook>;
+  if (!Array.isArray(value.parts)) return undefined;
+  const parts = value.parts
+    .filter((part): part is { key: string; tint: string } => Boolean(part)
+      && typeof (part as { key?: unknown }).key === 'string'
+      && typeof (part as { tint?: unknown }).tint === 'string')
+    .slice(0, 240)
+    .map((part) => ({ key: part.key, tint: part.tint }));
+  if (parts.length === 0) return undefined;
+  const colour = (input: unknown, fallback: number): number => {
+    const parsed = Math.floor(Number(input));
+    if (!Number.isFinite(parsed)) return fallback;
+    return Math.max(0, Math.min(0xffffff, parsed));
+  };
+  const choice = value.choice && typeof value.choice === 'object'
+    ? Object.fromEntries(Object.entries(value.choice)
+      .filter(([, entry]) => typeof entry === 'string'
+        || (typeof entry === 'number' && Number.isFinite(entry)))
+      .slice(0, 40))
+    : undefined;
+  return {
+    parts,
+    skin: colour(value.skin, 0xe8c39a),
+    hair: colour(value.hair, 0x1d160f),
+    robe: colour(value.robe, 0x2f5170),
+    ...(choice ? { choice } : {}),
+  };
+}
+
+function readBanner(raw: unknown): DynastyBanner | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const value = raw as Partial<DynastyBanner>;
+  if (typeof value.emblem !== 'string') return undefined;
+  const colour = (input: unknown, fallback: number): number => {
+    const parsed = Math.floor(Number(input));
+    if (!Number.isFinite(parsed)) return fallback;
+    return Math.max(0, Math.min(0xffffff, parsed));
+  };
+  return {
+    field: colour(value.field, 0xaa3a2c),
+    trim: colour(value.trim, 0xb08a3a),
+    emblem: value.emblem.slice(0, 24),
+  };
+}
+
 function readFounder(raw: unknown): DynastyFounder | undefined {
   if (!raw || typeof raw !== 'object') return undefined;
   const value = raw as Partial<DynastyFounder>;
   if (typeof value.id !== 'string' || typeof value.name !== 'string') return undefined;
+  const look = readLook(value.look);
+  const banner = readBanner(value.banner);
   return {
     id: value.id,
     name: value.name,
@@ -85,6 +179,10 @@ function readFounder(raw: unknown): DynastyFounder | undefined {
     sex: value.sex === 'woman' ? 'woman' : 'man',
     ...(typeof value.era === 'string' ? { era: value.era } : {}),
     ...(value.monastic === true ? { monastic: true as const } : {}),
+    ...(typeof value.givenName === 'string' ? { givenName: value.givenName } : {}),
+    ...(typeof value.armyEra === 'string' ? { armyEra: value.armyEra } : {}),
+    ...(look ? { look } : {}),
+    ...(banner ? { banner } : {}),
   };
 }
 
@@ -136,11 +234,43 @@ export function levelForXp(xp: number): number {
   return walkLevels(xp).level;
 }
 
+/**
+ * The memoised parse, and why this file needed one the day the Coronation landed.
+ *
+ * `hasTrait` was always a per-call read, and that was affordable: a handful of call sites, none
+ * of them per frame. The rite changed the shape of the traffic. `resolveHeroLook` now asks this
+ * store who the made king is, and `heroFaceTextureKey` builds its cache *identity* from the
+ * king's look stamp — which runs **before** the `textures.exists` hit, so it happens on every
+ * portrait lookup, including the cache hits `ArmyRenderer` makes for every marching host on the
+ * map, every redraw. A `getItem` plus a `JSON.parse` plus a trait filter on that path is the
+ * same defect the i18n cache was written for (measured there at 191–566 storage reads a tick).
+ *
+ * Memoised the way `cabinet.ts` does it, for the same reason and with the same guard: the memo
+ * is only trusted while the *raw string* in localStorage is the one it was parsed from. Under
+ * Vite's HMR a dev page can hold two instances of this module, and a memo that never re-checks
+ * would make the second instance's writes invisible — the dual-module trap, which cost
+ * verify-cabinet four checks the first time it was met. `getItem` is microseconds; the string
+ * comparison buys the parse back without creating a second source of truth.
+ */
+let cachedRaw: string | null | undefined;
+let cached: DynastyStore | undefined;
+
+/** Test hook: forget the memo so a harness that pokes localStorage directly is believed. */
+export function resetDynastyCache(): void {
+  cached = undefined;
+  cachedRaw = undefined;
+}
+
 export function getDynasty(): DynastyStore {
   if (!canUseLocalStorage()) return emptyStore();
   try {
     const raw = localStorage.getItem(DYNASTY_KEY);
-    if (!raw) return emptyStore();
+    if (cached && raw === cachedRaw) return cached;
+    cachedRaw = raw;
+    if (!raw) {
+      cached = emptyStore();
+      return cached;
+    }
     const parsed = JSON.parse(raw) as Partial<DynastyStore>;
     // Traits are filtered against the live table rather than merely against `string`: a trait id
     // retired between builds would otherwise sit in the save for ever, unreadable and unchoosable,
@@ -150,7 +280,7 @@ export function getDynasty(): DynastyStore {
       ? Array.from(new Set(parsed.traits.filter((id): id is string => typeof id === 'string' && known.has(id))))
       : [];
     const xp = finite(parsed.xp, MAX_XP);
-    return {
+    cached = {
       xp,
       // **Derived, never trusted.** `xp` is lifetime and never spent, so the level is a pure
       // function of it — which makes the stored copy redundant state that can disagree with the
@@ -168,17 +298,23 @@ export function getDynasty(): DynastyStore {
       ...(typeof parsed.house === 'string' ? { house: parsed.house } : {}),
       respecs: finite(parsed.respecs),
     };
+    return cached;
   } catch {
-    return emptyStore();
+    cached = emptyStore();
+    return cached;
   }
 }
 
 function writeDynasty(store: DynastyStore): void {
+  cached = store;
   if (!canUseLocalStorage()) return;
   try {
-    localStorage.setItem(DYNASTY_KEY, JSON.stringify(store));
+    const raw = JSON.stringify(store);
+    localStorage.setItem(DYNASTY_KEY, raw);
+    cachedRaw = raw;
   } catch {
-    // A full or locked quota must not take the run down on its way out of it.
+    // A full or locked quota must not take the run down on its way out of it. The memo still
+    // carries the session, and the un-updated `cachedRaw` forces the next read to try again.
   }
 }
 
@@ -200,8 +336,14 @@ export function addRunXp(score: number, reign?: { founder?: DynastyFounder; hous
   store.xp += Math.max(0, Math.round(score));
   store.reigns += 1;
   store.bestScore = Math.max(store.bestScore, Math.max(0, Math.round(score)));
-  if (reign?.founder) store.founder = reign.founder;
-  if (reign?.house) store.house = reign.house;
+  // **A made king is never overwritten by the champion who served him.**
+  //
+  // Before the Coronation the sheet's face was the run's founding champion, because the run's
+  // king was a deliberately blank figure and a champion was the only face the house had. Once
+  // the player has made a king, that king *is* the house — for every reign after this one — so
+  // the run's champion may only fill the seat while it is still empty.
+  if (reign?.founder && !store.founder?.look) store.founder = reign.founder;
+  if (reign?.house && !store.founder?.look) store.house = reign.house;
 
   const before = store.level;
   store.level = levelForXp(store.xp);
@@ -292,4 +434,43 @@ export function dynastyRankRarity(level: number): 'Common' | 'Rare' | 'Epic' | '
   if (level >= 12) return 'Epic';
   if (level >= 5) return 'Rare';
   return 'Common';
+}
+
+/**
+ * Crowns the house's founder — the one write the Coronation makes.
+ *
+ * Also sets `house`, because the họ the player chose is what the sheet, the ceremony and the
+ * Chronicle call this line for ever after; deriving it here rather than at the call site keeps
+ * the two fields from ever disagreeing about which family this is.
+ */
+export function setDynastyFounder(founder: DynastyFounder, house?: string): void {
+  const store = getDynasty();
+  store.founder = founder;
+  store.house = house ?? founder.name.trim().split(/\s+/)[0];
+  writeDynasty(store);
+}
+
+/** True once a king has been made. The Coronation is gated on this and nothing else. */
+export function isCrowned(store: DynastyStore = getDynasty()): boolean {
+  return Boolean(store.founder?.look);
+}
+
+/**
+ * A short stamp of the made king's look, for the portrait cache.
+ *
+ * `heroFaceTextureKey` bakes a portrait once per identity string, and the king's identity —
+ * id, name, era, sex, type, rarity — does not change when the player re-dresses him in the
+ * Temple. Without this the Temple would appear to do nothing: the stored look would change and
+ * every screen would keep drawing the cached face from before it.
+ */
+export function dynastyLookStamp(store: DynastyStore = getDynasty()): string {
+  const look = store.founder?.look;
+  if (!look) return '';
+  let hash = 2166136261;
+  const source = `${look.skin}|${look.hair}|${look.robe}|${look.parts.map((p) => `${p.key}:${p.tint}`).join(',')}`;
+  for (let index = 0; index < source.length; index += 1) {
+    hash ^= source.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36);
 }

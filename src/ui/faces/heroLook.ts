@@ -3,6 +3,7 @@ import {
   rankWings, robeColour, womanHairStylesFor,
 } from './wardrobe';
 import { HAIRS, ROBES, SKINS, shade, type FacePalette } from './palette';
+import { dynastyRankRarity, getDynasty } from '../../state/dynasty';
 import type { Hero, HeroEra } from '../../state/types';
 import type { FaceTintSlot } from './parts.generated';
 
@@ -82,7 +83,7 @@ function inferSex(hero: Hero): 'man' | 'woman' {
 
 
 /** Headwear that covers the whole head, so no long hair may be drawn under it. */
-const COVERING_HATS = new Set([
+export const COVERING_HATS = new Set([
   'hat-moqua', 'hat-moqua-brown', 'hat-moqua-tied', 'hat-vanhday', 'hat-khanxep', 'hat-veil',
 ]);
 
@@ -102,45 +103,112 @@ export function neckForHead(headKey: string): 'neck-slim' | 'neck' | 'neck-broad
 
 // Feature pools. These carry no historical claim — unlike a hat, a nose is not an office — so
 // they are the widest lists in the wardrobe and are shared across every era.
-const BROWS_MAN = [
+export const BROWS_MAN = [
   'brow-flat', 'brow-angled', 'brow-thick', 'brow-straight', 'brow-bushy', 'brow-heavy',
   'brow-low', 'brow-sharp', 'brow-short', 'brow-arched',
 ] as const;
-const BROWS_WOMAN = [
+export const BROWS_WOMAN = [
   'brow-arched', 'brow-thin', 'brow-soft', 'brow-sparse', 'brow-raised', 'brow-flat',
   'brow-short', 'brow-straight',
 ] as const;
-const EYES = [
+export const EYES = [
   'eyes-almond', 'eyes-wide', 'eyes-narrow', 'eyes-hooded', 'eyes-round', 'eyes-upturned',
   'eyes-downturned', 'eyes-sharp', 'eyes-gentle', 'eyes-deepset', 'eyes-bright', 'eyes-crescent', 'eyes-keen',
 ] as const;
-const EYES_ELDER = [
+export const EYES_ELDER = [
   'eyes-hooded', 'eyes-narrow', 'eyes-tired', 'eyes-deepset', 'eyes-crescent', 'eyes-almond', 'eyes-gentle',
 ] as const;
-const NOSES = [
+export const NOSES = [
   'nose-straight', 'nose-long', 'nose-soft', 'nose-broad', 'nose-snub', 'nose-aquiline',
   'nose-narrow', 'nose-flat', 'nose-round', 'nose-fine', 'nose-strong', 'nose-short',
 ] as const;
-const MOUTHS = [
+export const MOUTHS = [
   'mouth-neutral', 'mouth-smile', 'mouth-firm', 'mouth-wide', 'mouth-small', 'mouth-downturned',
   'mouth-pursed', 'mouth-thin', 'mouth-full', 'mouth-grim', 'mouth-soft', 'mouth-broad-smile',
 ] as const;
-const LACQUERED_MOUTHS = ['mouth-lacquered', 'mouth-lacquered-smile', 'mouth-lacquered-firm'] as const;
+export const LACQUERED_MOUTHS = ['mouth-lacquered', 'mouth-lacquered-smile', 'mouth-lacquered-firm'] as const;
 // Empty entries are most of these pools on purpose: a clean-shaven prime-age man is the
 // commonest face in the roster, and a beard on every one of them reads as a costume shop.
-const BEARDS_PRIME = [
+export const BEARDS_PRIME = [
   '', '', '', 'beard-moustache', 'beard-moustache-thin', 'beard-goatee', 'beard-stubble',
   'beard-chinstrap', 'beard-full-short', 'beard-moustache-wide',
 ] as const;
-const BEARDS_ELDER = [
+export const BEARDS_ELDER = [
   '', 'beard-long', 'beard-full', 'beard-threepart', 'beard-forked', 'beard-wispy',
   'beard-patriarch', 'beard-goatee-long', 'beard-moustache', 'beard-threepart',
 ] as const;
-const EARRINGS_PLAIN = ['earring-jade', 'earring-gold', 'earring-pearl'] as const;
-const EARRINGS_FINE = ['earring-drop', 'earring-jade', 'earring-gold', 'earring-pearl'] as const;
+export const EARRINGS_PLAIN = ['earring-jade', 'earring-gold', 'earring-pearl'] as const;
+export const EARRINGS_FINE = ['earring-drop', 'earring-jade', 'earring-gold', 'earring-pearl'] as const;
+
+/**
+ * Head shapes an identity admits — a narrower jaw on a woman, a slighter one on an elder.
+ *
+ * Exported because the Coronation's face stepper has to page *this* list rather than a copy: a
+ * second head pool would drift from this one and put faces in the creator that no generated
+ * champion can wear, which is the same class of bug as a raw part-list picker.
+ */
+export function headPoolFor(woman: boolean, age: 'young' | 'prime' | 'elder'): readonly string[] {
+  if (woman) return ['head-soft', 'head-narrow', 'head-oval', 'head-heart', 'head-tapered', 'head-fine', 'head-round'];
+  if (age === 'elder') return ['head-narrow', 'head-oval', 'head-soft', 'head-long', 'head-slim', 'head-fine'];
+  return ['head-oval', 'head-broad', 'head-square', 'head-angular', 'head-wide', 'head-full', 'head-blunt', 'head-stern', 'head-round', 'head-long'];
+}
+
+/**
+ * The Coronation's king, when this hero is him.
+ *
+ * Keyed on the **name**, not on the id: the throne's hero carries the constant id `'king'`, so
+ * anything keyed on that id is keyed on nothing — the same trap `heroBio` is written around and
+ * the reason the seed path below hashes `king:${name}`. A hero who merely shares the founder's
+ * name and is not the throne's own is vanishingly unlikely and would, at worst, be drawn as the
+ * king he is named after; keying on the id alone would instead dress *every* run's king in the
+ * made look even after an ascension replaced him.
+ */
+function madeKingLook(hero: Hero): HeroLook | undefined {
+  const store = getDynasty();
+  const founder = store.founder;
+  const look = founder?.look;
+  if (!founder || !look) return undefined;
+  if (hero.id !== founder.id && hero.name !== founder.name) return undefined;
+
+  // **The rank is the house's, not the hero's.** It is what makes the crown step's promise true:
+  // the same face, the plate stepping Common → Rare → Epic → Legendary and the dragonfly wings
+  // lengthening as the ledger fills. Rank-carrying parts are therefore rebuilt here rather than
+  // read from the store — see `storedLook`, which strips them on the way in.
+  const rank = RARITY_RANK[dynastyRankRarity(store.level)];
+  const parts: HeroLookPart[] = [{ key: PLATE[rank], tint: 'none' }];
+  for (const part of look.parts) {
+    // The store keeps `tint` as a plain string so `state/` never has to import the part
+    // manifest; the renderer looks each key up and drops what it does not know, so an
+    // unrecognised slot costs one layer rather than a throw.
+    parts.push({ key: rankWings(part.key, rank), tint: part.tint as FaceTintSlot });
+  }
+  const seal = RANK_SEAL[rank];
+  if (seal) parts.push({ key: seal, tint: 'none' });
+
+  return {
+    parts,
+    palette: {
+      skin: look.skin,
+      skinShadow: shade(look.skin, -30),
+      skinLight: shade(look.skin, 20),
+      hair: look.hair,
+      robe: look.robe,
+      robeDark: shade(look.robe, -34),
+      robeLight: shade(look.robe, 30),
+    },
+    sex: founder.sex,
+    monastic: founder.monastic === true,
+    era: (founder.era as HeroEra) ?? 'le',
+    age: 'prime',
+    rank,
+  };
+}
 
 // ── the resolver ────────────────────────────────────────────────────────────
 export function resolveHeroLook(hero: Hero): HeroLook {
+  // A king the player *made* is not a king the seed may re-roll.
+  const made = madeKingLook(hero);
+  if (made) return made;
   // The throne's hero keeps the id `king` across every run, so seeding the portrait on the id
   // alone drew the same face for Ngô Quyền and for Minh Mạng. Anything whose id is fixed by
   // role rather than by person has to be seeded on the person.
@@ -167,12 +235,7 @@ export function resolveHeroLook(hero: Hero): HeroLook {
 
   // Head shape carries sex and age before any feature does — a narrower jaw on a woman, a
   // slighter one on an elder — which is what stops a roster reading as one man in many hats.
-  const headPool = woman
-    ? (['head-soft', 'head-narrow', 'head-oval', 'head-heart', 'head-tapered', 'head-fine', 'head-round'] as const)
-    : age === 'elder'
-      ? (['head-narrow', 'head-oval', 'head-soft', 'head-long', 'head-slim', 'head-fine'] as const)
-      : (['head-oval', 'head-broad', 'head-square', 'head-angular', 'head-wide', 'head-full', 'head-blunt', 'head-stern', 'head-round', 'head-long'] as const);
-  const head = pick(headPool, next);
+  const head = pick(headPoolFor(woman, age), next);
   parts.push({ key: neckForHead(head), tint: 'skinShadow' });
   // The long lobe is iconography, not a face shape: it marks a Buddhist teacher and nobody else.
   parts.push({ key: ears, tint: 'skinShadow' });

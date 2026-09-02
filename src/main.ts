@@ -271,6 +271,10 @@ window.render_game_to_text = () => {
 /** Option ids of the open Dragon Ascent prompt, so a driver can answer it blind. */
 function describeAscentPromptOptions(state: GameState, prompt: NonNullable<GameState['pendingAscentPrompt']>): string[] {
   switch (prompt.kind) {
+    // The rite writes its own result into the dynasty store, so there is no option to name; the
+    // resolver takes any id and rolls a king when nothing was made. Listed anyway, because a
+    // kind missing from an option map is how a driver wedges on the first screen of the game.
+    case 'coronation': return ['crowned'];
     case 'founder': return prompt.options;
     case 'power-draft': return [...prompt.cards, 'skip'];
     case 'conquer-target': return [...prompt.targets.map((target) => target.landId), 'hold'];

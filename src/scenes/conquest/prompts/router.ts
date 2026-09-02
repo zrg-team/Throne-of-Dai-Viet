@@ -16,6 +16,7 @@ import type { ConquestUIScene } from '../../ConquestUIScene';
 
 export function renderPrompt(self: ConquestUIScene, prompt: AscentPrompt): void {
   switch (prompt.kind) {
+    case 'coronation': self.showCoronation(); break;
     case 'mandate': self.showMandate(prompt); break;
     case 'founder': self.showFounder(prompt); break;
     case 'power-draft': self.showPowerDraft(prompt); break;

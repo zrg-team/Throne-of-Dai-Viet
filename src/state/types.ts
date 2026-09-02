@@ -1742,6 +1742,17 @@ export interface EnvoyOption {
 /** Every pausing decision Dragon Ascent can raise. Exactly one is live at a time. */
 export type AscentPrompt =
   /**
+   * Lễ Đăng Quang — the rite that makes the king, before anything else in the run.
+   *
+   * Raised exactly once in a player's life, gated on the dynasty store rather than on any scene
+   * flag: an HMR dual instance of a scene flag re-raises it, and a store does not. It carries no
+   * options because it is not a choice between things the systems know about — the four steps
+   * are drawn by hand and write the founder into the dynasty store themselves. The resolver
+   * accepts *any* answer and, if nothing was made, writes a rolled king, so a driver that
+   * answers blind and a player who taps Skip leave the store in the same shape.
+   */
+  | { kind: 'coronation' }
+  /**
    * The first card of a run: which advantage the reign opens with.
    *
    * You are not choosing who you are — you are the king, and that was never in question. You are
