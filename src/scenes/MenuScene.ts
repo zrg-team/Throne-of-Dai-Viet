@@ -3745,9 +3745,10 @@ export class MenuScene extends Phaser.Scene {
         const pillW = Math.max(22, Math.ceil(count.width) + 12);
         const pill = this.add.graphics();
         pill.fillStyle(INK_UI.cinnabar, 1);
-        pill.fillRoundedRect(PAD + W - 12 - pillW, y + 6, pillW, 20, 10);
+        // On the row's midline: a pill in the top half read as a corner mark, not the row's count.
+        pill.fillRoundedRect(PAD + W - 12 - pillW, y + ROW / 2 - 10, pillW, 20, 10);
         body.add(pill);
-        count.setPosition(PAD + W - 12 - pillW / 2, y + 16);
+        count.setPosition(PAD + W - 12 - pillW / 2, y + ROW / 2);
         body.add(count);
       }
       y += ROW + 6;
