@@ -868,7 +868,7 @@ ${t('cabinet.grid.unfound')}`,
     // Pity, printed under the card the way the mock has it — the counter as it stood before
     // this pull, which is the number that explains what just happened.
     this.keep(this.ui.label(GAME_WIDTH / 2, cardY + cardH + 28,
-      reveal.pityUsed ? t('cabinet.rub.pityUsed') : t('cabinet.rub.pity', { n: getCabinet().rubbingPity }),
+      reveal.pityUsed ? t('cabinet.rub.pityUsed') : getCabinet().rubbingPity >= PITY_HARD_CAP ? t('cabinet.rub.pityDue') : t('cabinet.rub.pity', { n: getCabinet().rubbingPity, cap: PITY_HARD_CAP }),
       'caption', { fontSize: '9.5px', align: 'center', color: '#8a5f1c' }).setOrigin(0.5, 0));
 
     // The rub: pointer movement over the card clears the strip under it and its neighbours.

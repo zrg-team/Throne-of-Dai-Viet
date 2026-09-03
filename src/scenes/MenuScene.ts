@@ -3228,10 +3228,16 @@ export class MenuScene extends Phaser.Scene {
     const body = area.content;
     let y = 0;
 
+    // Verbs first. The doors used to close the page, under the lineage strip, the open reign's
+    // epitaph and every trait row — six hundred units down, below the fold on every phone —
+    // and the report was *why has the history become more important than the deck? the player
+    // needs to do something immediately, not scroll before a tap.* The page is the hub between
+    // runs: what can be done now leads, and the history follows as what it was all for.
     y = this.drawDynastyHeader(body, store, PAD, W, y, measure);
+    y = this.drawDynastyDoors(body, store, legacy, PAD, W, y);
     y = this.drawDynastyLineage(body, store, PAD, W, y, measure, bodyTop);
     y = this.drawDynastyTraits(body, store, PAD, W, y, measure);
-    y = this.drawDynastyDoors(body, store, legacy, PAD, W, y);
+    y = this.drawDynastyCode(body, legacy, PAD, W, y);
 
     // ── The overflow row: the one way back ──────────────────────────────────
     // Traits are a biography, not a loadout, so a respec is earned by ascending and never
@@ -3415,7 +3421,10 @@ export class MenuScene extends Phaser.Scene {
     const cardW = Math.floor((W - GAP * (cards.length - 1)) / cards.length);
     const maxScore = Math.max(1, ...history.map((record) => record.score), live?.score ?? 0);
 
-    cards.forEach((card, index) => {
+    // One reign is not a trend: the strip's only card would repeat the epitaph's own number a
+    // finger's width above it. The strip starts at the second reign, when there is a comparison.
+    const strip = cards.length > 1;
+    if (strip) cards.forEach((card, index) => {
       const x = PAD + index * (cardW + GAP);
       const open = index === selected;
       const accent = card.kind === 'live' ? INK_UI.jade : open ? INK_UI.gold : INK_UI.softBrush;
@@ -3462,8 +3471,8 @@ export class MenuScene extends Phaser.Scene {
     });
     // A swipe across the row browses it: the finger moves the open card left or right. Read off
     // the move stream, which nothing swallows, and measured against the row's own rectangle.
-    this.lineageSwipe = { top: bodyTop + y, bottom: bodyTop + y + CARD_H, count: cards.length, selected, handled: -1 };
-    y += CARD_H + 8;
+    this.lineageSwipe = strip ? { top: bodyTop + y, bottom: bodyTop + y + CARD_H, count: cards.length, selected, handled: -1 } : undefined;
+    if (strip) y += CARD_H + 8;
 
     // ── The open card's epitaph ─────────────────────────────────────────────
     const card = cards[selected];
@@ -3658,11 +3667,14 @@ export class MenuScene extends Phaser.Scene {
   }
 
   /**
-   * The doors to the other stores, at one weight.
+   * What the player can do right now — first on the page, above the biography.
    *
-   * The ancestral code, the Cabinet of Seals, the Legacy vault and the Temple are all things the
-   * next reign carries, and the old sheet gave them four different treatments. One row each, the
-   * same height, the number that matters on the second line.
+   * A hub between runs leads with its verbs: the deck when draws wait, the vault when something
+   * can be bought, the king. Whatever is owed comes first and wears the page's one primary, and
+   * the count sits on the row as a pill so the reason to tap is read before the label is. At one
+   * height, in one place, so the eye learns where "do" lives on this page. The uncrowned king's
+   * door stays, disabled and last, because its sub-label is the one sentence that says how a
+   * king comes to exist.
    */
   private drawDynastyDoors(
     body: Phaser.GameObjects.Container,
@@ -3672,54 +3684,96 @@ export class MenuScene extends Phaser.Scene {
     W: number,
     y: number,
   ): number {
-    const ROW = 38;
-    const codeCount = (legacy.codes ?? []).length;
-    body.add(this.ui.panel({ x: PAD, y, width: W, height: ROW },
-      { border: codeCount > 0 ? INK_UI.jade : INK_UI.softBrush, fillAlpha: 0.9 }));
-    body.add(this.ui.label(PAD + 10, y + 6, t('dynasty.codeLabel'), 'label',
-      { fontSize: '11.5px', ...(codeCount > 0 ? { color: '#1c6b58' } : {}) }));
-    body.add(this.ui.label(PAD + 10, y + 22, codeCount > 0 ? t('dynasty.next.codeSome', { n: codeCount }) : t('dynasty.next.codeNone'),
-      'caption', { fontSize: '9.5px', wordWrap: { width: W - 20 } }));
-    y += ROW + 6;
-
+    const ROW = 46;
     const cabinet = getCabinet();
     const seals = cabinetProgress();
-    // Rubbings waiting are the one thing on this page that asks for a tap: the door is drawn as
-    // the page's primary control while they wait, and says what to do with them. Reported as
-    // *played eleven waves and got nothing to do with the Cabinet* — the eight rubbings were there.
-    body.add(this.ui.button({ x: PAD, y, width: W, height: ROW },
-      t('dynasty.openCabinet'), () => this.scene.start('CabinetScene'),
-      {
-        variant: cabinet.rubbings > 0 ? 'primary' : 'secondary',
-        fontSize: '12px',
-        subLabel: cabinet.rubbings > 0
-          ? t('dynasty.openCabinetNow', { n: cabinet.rubbings, found: seals.found, total: seals.total })
-          : t('cabinet.subCount', { found: seals.found, total: seals.total }),
-      }));
-    y += ROW + 6;
+    // The cheapest next step on any ladder: the vault is "affordable" when one thing on it is.
+    const cheapest = LEGACY_PERKS
+      .map((perk) => nextPerkCost(perk, perkLevel(perk.id, legacy)))
+      .filter((cost): cost is number => cost !== undefined)
+      .reduce((min, cost) => Math.min(min, cost), Infinity);
+    const affordable = Number.isFinite(cheapest) && legacy.points >= cheapest;
+    const crowned = isCrowned(store);
 
+    type Door = { label: string; sub: string; pending?: string; enabled: boolean; open: () => void };
+    const doors: Door[] = [{
+      label: t('dynasty.openCabinet'),
+      sub: cabinet.rubbings > 0
+        ? t('dynasty.openCabinetNow', { n: cabinet.rubbings, found: seals.found, total: seals.total })
+        : t('cabinet.subCount', { found: seals.found, total: seals.total }),
+      ...(cabinet.rubbings > 0 ? { pending: String(cabinet.rubbings) } : {}),
+      enabled: true,
+      open: () => this.scene.start('CabinetScene'),
+    }];
     if (legacy.points > 0 || legacy.bestScore > 0) {
-      body.add(this.ui.button({ x: PAD, y, width: W, height: ROW },
-        t('dynasty.openShop'), () => { this.mode = 'legacy'; this.render(); },
-        { variant: 'secondary', fontSize: '12px', subLabel: t('dynasty.shopSubPerks', { total: legacy.points, n: legacy.loadout.length, max: LOADOUT_MAX }) }));
+      doors.push({
+        label: t('dynasty.openShop'),
+        sub: affordable
+          ? t('dynasty.shopAfford', { total: legacy.points })
+          : Number.isFinite(cheapest)
+            ? t('dynasty.shopShort', { total: legacy.points, n: cheapest - legacy.points })
+            : t('dynasty.shopSubPerks', { total: legacy.points, n: legacy.loadout.length, max: LOADOUT_MAX }),
+        ...(affordable ? { pending: '✓' } : {}),
+        enabled: true,
+        open: () => { this.mode = 'legacy'; this.render(); },
+      });
+    }
+    doors.push({
+      label: t('coronation.temple'),
+      sub: crowned ? t('coronation.temple.sub') : t('coronation.temple.uncrowned'),
+      enabled: crowned,
+      open: () => { this.mode = 'temple'; this.render(); },
+    });
+    // Owed rows first; otherwise the order above. Both halves keep it, so the page is stable.
+    const ordered = [...doors.filter((door) => door.pending), ...doors.filter((door) => !door.pending)];
+
+    const header = this.ui.label(PAD, y, t('dynasty.page.actNow'), 'caption',
+      { fontSize: '10px', backgroundColor: 'rgba(243,230,196,0.82)', padding: { x: 4, y: 1 } });
+    body.add(header);
+    y += header.height + 5;
+
+    let primaryGiven = false;
+    for (const door of ordered) {
+      const primary = Boolean(door.pending) && !primaryGiven;
+      if (primary) primaryGiven = true;
+      body.add(this.ui.button({ x: PAD, y, width: W, height: ROW }, door.label,
+        () => { if (door.enabled) door.open(); },
+        { variant: !door.enabled ? 'disabled' : primary ? 'primary' : 'secondary', fontSize: '12.5px', subLabel: door.sub }));
+      if (door.pending) {
+        // The pill: the count on the row's right end, in the page's own cinnabar.
+        const count = this.ui.label(0, 0, door.pending, 'label', { fontSize: '11px', color: '#f3e6c4', align: 'center' }).setOrigin(0.5);
+        const pillW = Math.max(22, Math.ceil(count.width) + 12);
+        const pill = this.add.graphics();
+        pill.fillStyle(INK_UI.cinnabar, 1);
+        pill.fillRoundedRect(PAD + W - 12 - pillW, y + 6, pillW, 20, 10);
+        body.add(pill);
+        count.setPosition(PAD + W - 12 - pillW / 2, y + 16);
+        body.add(count);
+      }
       y += ROW + 6;
     }
+    return y + 6;
+  }
 
-    const crowned = isCrowned(store);
-    body.add(this.ui.button({ x: PAD, y, width: W, height: ROW },
-      t('coronation.temple'),
-      () => {
-        if (!crowned) return;
-        this.mode = 'temple';
-        this.render();
-      },
-      {
-        variant: crowned ? 'secondary' : 'disabled',
-        fontSize: '12px',
-        subLabel: crowned ? t('coronation.temple.sub') : t('coronation.temple.uncrowned'),
-      }));
-    y += ROW + 10;
-    return y;
+  /**
+   * The law that carries over, when there is any. A row that said "none yet" under the doors
+   * taught nothing and pushed them further down; the next-reign screen still says it there.
+   */
+  private drawDynastyCode(
+    body: Phaser.GameObjects.Container,
+    legacy: ReturnType<typeof getLegacy>,
+    PAD: number,
+    W: number,
+    y: number,
+  ): number {
+    const codeCount = (legacy.codes ?? []).length;
+    if (codeCount === 0) return y;
+    const ROW = 38;
+    body.add(this.ui.panel({ x: PAD, y, width: W, height: ROW }, { border: INK_UI.jade, fillAlpha: 0.9 }));
+    body.add(this.ui.label(PAD + 10, y + 6, t('dynasty.codeLabel'), 'label', { fontSize: '11.5px', color: '#1c6b58' }));
+    body.add(this.ui.label(PAD + 10, y + 22, t('dynasty.next.codeSome', { n: codeCount }), 'caption',
+      { fontSize: '9.5px', wordWrap: { width: W - 20 } }));
+    return y + ROW + 10;
   }
 
   /**

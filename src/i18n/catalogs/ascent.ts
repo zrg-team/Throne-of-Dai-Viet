@@ -1850,6 +1850,9 @@ export const enAscent = {
   "dynasty.openCabinet": "Dynasty Deck ›",
 
   "dynasty.page.lineage": "Reigns",
+  "dynasty.page.actNow": "Do now",
+  "dynasty.shopAfford": "{total} banked · something is affordable",
+  "dynasty.shopShort": "{total} banked · {n} short of the cheapest step",
   "dynasty.page.best": "best {score}",
   "dynasty.page.earlier": "{n} earlier",
   "dynasty.page.reign": "Reign {n}",
@@ -3910,6 +3913,9 @@ export const viAscent = {
   "dynasty.next.handSome": "{cards} · +{n} dã tâm lúc dựng nước",
 
   "dynasty.page.lineage": "Các đời",
+  "dynasty.page.actNow": "Làm ngay",
+  "dynasty.shopAfford": "{total} điểm · mua được ngay",
+  "dynasty.shopShort": "{total} điểm · thiếu {n} cho mục rẻ nhất",
   "dynasty.page.best": "cao nhất {score}",
   "dynasty.page.earlier": "{n} đời trước",
   "dynasty.page.reign": "Đời {n}",
