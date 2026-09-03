@@ -101,6 +101,8 @@ export class CabinetScene extends Phaser.Scene {
   private viewObjects: Phaser.GameObjects.GameObject[] = [];
   /** Set while the combine's fold plays, so the action cannot fire twice. */
   private combining = false;
+  /** Whether the "ways to earn more" list is open; unset means open only when nothing waits. */
+  private faucetsOpen?: boolean;
 
   constructor() {
     super('CabinetScene');
@@ -180,34 +182,33 @@ export class CabinetScene extends Phaser.Scene {
     const W = GAME_WIDTH - PAD * 2;
     let y = 4;
 
-    // ── Rubbings and the rub button ─────────────────────────────────────────
-    const rubH = 52;
-    scroll.content.add(this.ui.panel({ x: PAD, y, width: W, height: rubH },
-      { border: INK_UI.gold, borderWidth: 1.4, fillAlpha: 0.6 }));
-    scroll.content.add(this.ui.label(PAD + 12, y + 9,
-      store.rubbings > 0 ? t('cabinet.rubbings', { n: store.rubbings }) : t('cabinet.rubbingsNone'),
-      'label', { fontSize: '13px' }));
-    scroll.content.add(this.ui.label(PAD + 12, y + 30,
-      t('cabinet.rub.pity', { n: store.rubbingPity }), 'caption', { fontSize: '9.5px' }));
-    if (store.rubbings > 0) {
-      scroll.content.add(this.ui.button(
-        { x: PAD + W - 118, y: y + 8, width: 110, height: 36 },
-        t('cabinet.rubOne'),
-        () => {
-          this.reveal = revealRubbing();
-          if (!this.reveal) return;
-          this.mode = 'rubbing';
-          this.pendingScroll = 0;
-          this.render();
-        },
-        { variant: 'primary', fontSize: '12px' },
-      ));
-    }
-    // The pity ring beside the button: the lottery shows its odds. It fills toward the hard
+    // ── What you have, and the one thing to do with it ─────────────────────
+    //
+    // The page opened on a 52-unit strip and a list of "faucets" captioned in the game's own
+    // coinages, and the report was *how do I get something here? it is meaningless*. It now
+    // opens the way a shop counter does: how many rubbings you hold, what one does, and the
+    // button that does it — then three short steps for the whole loop, and the ways to earn more
+    // folded away until asked for.
+    const hero = store.rubbings > 0;
+    const heroTitle = hero ? t('cabinet.hero.title', { n: store.rubbings }) : t('cabinet.hero.none');
+    const heroBody = this.ui.label(PAD + 12, 0, hero ? t('cabinet.hero.body') : t('cabinet.hero.noneBody'), 'caption',
+      { fontSize: '10px', wordWrap: { width: W - 24 } });
+    const pityLine = this.ui.label(PAD + 12, 0, store.rubbingPity >= PITY_HARD_CAP
+      ? t('cabinet.rub.pityDue')
+      : t('cabinet.rub.pity', { n: store.rubbingPity, cap: PITY_HARD_CAP }), 'caption', { fontSize: '9px', color: '#8a5f1c', wordWrap: { width: W - 60 } });
+    const heroH = 12 + 20 + 4 + heroBody.height + 6 + pityLine.height + (hero ? 8 + 44 : 0) + 12;
+    scroll.content.add(this.ui.panel({ x: PAD, y, width: W, height: heroH },
+      { border: hero ? INK_UI.cinnabar : INK_UI.softBrush, borderWidth: hero ? 1.6 : 1.2, fillAlpha: 0.72 }));
+    scroll.content.add(this.ui.label(PAD + 12, y + 12, heroTitle, 'label', { fontSize: '15px', ...(hero ? { color: '#a4402c' } : {}) }));
+    heroBody.setY(y + 12 + 20 + 4);
+    scroll.content.add(heroBody);
+    pityLine.setY(heroBody.y + heroBody.height + 6);
+    scroll.content.add(pityLine);
+    // The pity ring beside its line: the lottery shows its odds. It fills toward the hard
     // guarantee of gold-or-better, and it is gold when it is one pull away.
     {
-      const cx = PAD + W - 118 - 18;
-      const cy = y + rubH / 2;
+      const cx = PAD + W - 24;
+      const cy = pityLine.y + 6;
       const share = Math.min(1, store.rubbingPity / PITY_HARD_CAP);
       const ring = this.add.graphics();
       ring.lineStyle(3, INK_UI.softBrush, 0.35);
@@ -221,44 +222,82 @@ export class CabinetScene extends Phaser.Scene {
       ring.setData('pityRing', share);
       scroll.content.add(ring);
     }
-    y += rubH + 12;
-
-    // ── The faucets: every way a rubbing is earned, on one page ─────────────
-    y = this.sectionHeader(scroll, y, t('cabinet.faucets'));
-    y = this.faucetRow(scroll, y, t('cabinet.faucet.run'), t('cabinet.deed.done'), INK_UI.gold);
-    y = this.faucetRow(scroll, y, t('cabinet.faucet.wave'), '', INK_UI.gold);
-    for (const deed of CABINET_DEEDS) {
-      const done = deedDone(deed);
-      y = this.faucetRow(scroll, y,
-        t(`cabinet.deed.${deed}` as Parameters<typeof t>[0]),
-        done ? t('cabinet.deed.done') : t('cabinet.deed.pending'),
-        done ? INK_UI.jade : INK_UI.softBrush);
-    }
-    // The Legacy pack: the dead surplus finally has a job. The price climbs per purchase.
-    const packCost = rubbingPackPrice();
-    const legacy = getLegacy();
-    const packH = 46;
-    scroll.content.add(this.ui.panel({ x: PAD, y, width: W, height: packH },
-      { border: INK_UI.softBrush, fillAlpha: 0.45 }));
-    scroll.content.add(this.ui.label(PAD + 12, y + 7, t('cabinet.pack', { cost: packCost }), 'label',
-      { fontSize: '12px' }));
-    scroll.content.add(this.ui.label(PAD + 12, y + 26,
-      legacy.points >= packCost ? t('cabinet.pack.note', { step: 40 }) : t('cabinet.pack.poor', { have: legacy.points }),
-      'caption', { fontSize: '9px' }));
-    if (legacy.points >= packCost) {
+    if (hero) {
       scroll.content.add(this.ui.button(
-        { x: PAD + W - 118, y: y + 6, width: 110, height: 32 },
-        t('cabinet.pack.buy'),
+        { x: PAD + 12, y: pityLine.y + pityLine.height + 8, width: W - 24, height: 44 },
+        t('cabinet.hero.rub', { n: store.rubbings }),
         () => {
-          if (!spendLegacyPoints(rubbingPackPrice())) return;
-          recordRubbingPack();
+          this.reveal = revealRubbing();
+          if (!this.reveal) return;
+          this.mode = 'rubbing';
           this.pendingScroll = 0;
           this.render();
         },
-        { variant: 'secondary', fontSize: '10.5px' },
+        { variant: 'primary', fontSize: '14px' },
       ));
     }
-    y += packH + 16;
+    y += heroH + 10;
+
+    // The loop, in three steps a first visit can read: play to earn, scratch to reveal, three
+    // copies climb a level and the hand carries the seals into the next reign.
+    const stepW = Math.floor((W - 12) / 3);
+    (['1', '2', '3'] as const).forEach((step, index) => {
+      const x = PAD + index * (stepW + 6);
+      const text = this.ui.label(x + 6, y + 18, t(`cabinet.steps.${step}` as Parameters<typeof t>[0]), 'caption',
+        { fontSize: '9px', wordWrap: { width: stepW - 12 } });
+      const h = 18 + text.height + 8;
+      scroll.content.add(this.ui.panel({ x, y, width: stepW, height: h }, { border: INK_UI.softBrush, fillAlpha: 0.4 }));
+      scroll.content.add(this.ui.label(x + 6, y + 5, step, 'label', { fontSize: '11px', color: '#8a5f1c' }));
+      scroll.content.add(text);
+      if (index === 2) y += h + 12;
+    });
+
+    // ── Ways to earn more, folded: open by tap, and open by default only when there is nothing to scratch ──
+    const earnOpen = this.faucetsOpen ?? !hero;
+    y = this.sectionHeader(scroll, y, `${t('cabinet.faucets')}  ${earnOpen ? '▾' : '▸'}`);
+    this.gridTap(scroll, PAD, y - 26, W, 24, () => {
+      this.faucetsOpen = !earnOpen;
+      this.pendingScroll = this.scroll ? -this.scroll.content.y : 0;
+      this.render();
+    });
+    if (earnOpen) {
+      y = this.faucetRow(scroll, y, t('cabinet.faucet.run'), '', INK_UI.gold);
+      y = this.faucetRow(scroll, y, t('cabinet.faucet.wave'), '', INK_UI.gold);
+      for (const deed of CABINET_DEEDS) {
+        const done = deedDone(deed);
+        y = this.faucetRow(scroll, y,
+          t(`cabinet.deed.${deed}` as Parameters<typeof t>[0]),
+          done ? t('cabinet.deed.done') : t('cabinet.deed.pending'),
+          done ? INK_UI.jade : INK_UI.softBrush);
+      }
+      // The Legacy pack: the dead surplus finally has a job. The price climbs per purchase.
+      const packCost = rubbingPackPrice();
+      const legacy = getLegacy();
+      const packH = 46;
+      scroll.content.add(this.ui.panel({ x: PAD, y, width: W, height: packH },
+        { border: INK_UI.softBrush, fillAlpha: 0.45 }));
+      scroll.content.add(this.ui.label(PAD + 12, y + 7, t('cabinet.pack', { cost: packCost }), 'label',
+        { fontSize: '12px' }));
+      scroll.content.add(this.ui.label(PAD + 12, y + 26,
+        legacy.points >= packCost ? t('cabinet.pack.note', { step: 40 }) : t('cabinet.pack.poor', { have: legacy.points }),
+        'caption', { fontSize: '9px' }));
+      if (legacy.points >= packCost) {
+        scroll.content.add(this.ui.button(
+          { x: PAD + W - 118, y: y + 6, width: 110, height: 32 },
+          t('cabinet.pack.buy'),
+          () => {
+            if (!spendLegacyPoints(rubbingPackPrice())) return;
+            recordRubbingPack();
+            this.pendingScroll = 0;
+            this.render();
+          },
+          { variant: 'secondary', fontSize: '10.5px' },
+        ));
+      }
+      y += packH + 16;
+    } else {
+      y += 6;
+    }
 
     // ── The opening hand ────────────────────────────────────────────────────
     y = this.sectionHeader(scroll, y, t('cabinet.hand.title'));
