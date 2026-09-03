@@ -2780,7 +2780,7 @@ export interface AscentState {
    */
   barHintsMuted?: boolean;
   /**
-   * Toàn thủ — the fully manual run. No card the lanes could do for you is raised (the province
+   * Hands-on rule (tự tay cai trị) — the fully manual run. No card the lanes could do for you is raised (the province
    * asking for orders, the court asking for a seat, the muster and claim proposals, the expansion
    * and envoy nudges), and the autopilot does not build, march, recruit or claim. Events with
    * consequences — invasions, famines, demands, stories, the draft, the ceremony — still come.

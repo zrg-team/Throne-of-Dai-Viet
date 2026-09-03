@@ -99,7 +99,7 @@ export function showSystemMenu(self: ConquestUIScene): void {
     },
   );
 
-  // Toàn thủ, on or off for this run — the same switch the mandate card offers at the founding.
+  // Hands-on rule (tự tay cai trị), on or off for this run — the same switch the mandate card offers at the founding.
   const hardcore = self.state.ascent?.hardcore ?? false;
   item(
     hardcore ? t('ascent.sys.hardcoreOn') : t('ascent.sys.hardcoreOff'),

@@ -3,7 +3,7 @@
  *
  * The vault: twenty perks on a three-step ladder, a loadout of three, and only the loadout applied
  * to a fresh reign — with the old one-time store read as level one so nobody's purchases vanish.
- * Toàn thủ: a fully manual run raises none of the cards a lane can do for you, keeps the events
+ * Hands-on rule (tự tay cai trị): a fully manual run raises none of the cards a lane can do for you, keeps the events
  * that have consequences, and the autopilot does nothing but hold the ground.
  *
  * Usage: node test_scripts/verify/verify-legacy.mjs   (a dev server must already be running)
@@ -73,7 +73,7 @@ check('a fourth perk is refused a slot', vault.fourth === false && vault.loadout
 check('only the loadout reaches a fresh reign: gold from the carried purse, none from the set-down settlers', vault.goldDelta === vault.expectedGold && vault.humansDelta === 0, `gold +${vault.goldDelta} (want ${vault.expectedGold}), people +${vault.humansDelta}`);
 check('a carried modifier perk stands as a court modifier, a set-down one does not', vault.hasSalt === true && vault.hasMasons === false, `salt ${vault.hasSalt}, masons ${vault.hasMasons}`);
 
-console.log('\n=== TOÀN THỦ ===');
+console.log('\n=== HANDS-ON RULE ===');
 const manual = await page.evaluate(async () => {
   const { createAscentGameState } = await import('/src/state/GameState.ts');
   const { enqueueAscentPrompt } = await import('/src/systems/ascent/AscentState.ts');
@@ -98,9 +98,9 @@ const manual = await page.evaluate(async () => {
   const off = { ...st.ascent.autopilotStats };
   return { silenced, kept, unchanged: JSON.stringify(stats) === JSON.stringify(after), moved: JSON.stringify(after) !== JSON.stringify(off) };
 });
-check('toàn thủ silences the cards a lane can do for you', manual.silenced === 0, `${manual.silenced} queued`);
+check('hands-on rule silences the cards a lane can do for you', manual.silenced === 0, `${manual.silenced} queued`);
 check('and keeps the events with consequences', manual.kept === 1, `${manual.kept} queued`);
-check('the autopilot does nothing while toàn thủ stands, and moves again when it is lifted', manual.unchanged && manual.moved);
+check('the autopilot does nothing while hands-on rule stands, and moves again when it is lifted', manual.unchanged && manual.moved);
 
 check('no page errors', errors.length === 0, errors.slice(0, 3).join(' | '));
 await browser.close();

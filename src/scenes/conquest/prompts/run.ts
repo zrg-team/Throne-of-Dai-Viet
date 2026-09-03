@@ -139,7 +139,7 @@ export function showMandate(self: ConquestUIScene, prompt: Extract<AscentPrompt,
   const headHeight = 44 + Math.max(...built.map((b) => b.title.height)) + 6;
   const height = headHeight + Math.max(...built.map((b) => b.desc.height)) + 12;
 
-  // The toàn thủ row, measured before the hall is drawn: the hall gets what the cards and the
+  // The hands-on rule row, measured before the hall is drawn: the hall gets what the cards and the
   // row leave, so this page never scrolls — reported the moment the row was added.
   const note = self.ui.label(12, 0, t('ascent.mandate.hardcoreNote'), 'caption', { fontSize: '9px', wordWrap: { width: bodyWidth - 24 } });
   const ROW_H = 26 + note.height + 8;
@@ -176,7 +176,7 @@ export function showMandate(self: ConquestUIScene, prompt: Extract<AscentPrompt,
   });
   staggerIn(self, cards);
 
-  // Toàn thủ: the run with no cards the lanes could do for you, and no autopilot. A checkbox at
+  // Hands-on rule (tự tay cai trị): the run with no cards the lanes could do for you, and no autopilot. A checkbox at
   // the foot of the first card of the reign, where the player decides how they will play it, and
   // again on the run menu, so it can be turned either way once the run is under way.
   const rowY = top + height + 14;

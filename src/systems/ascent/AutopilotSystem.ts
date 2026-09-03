@@ -795,7 +795,7 @@ function autoDefend(state: GameState): void {
 export function tickAscentAutopilot(state: GameState): void {
   const ascent = state.ascent;
   if (!ascent) return;
-  // Toàn thủ: the hosts still hold their own ground, and nothing else moves without an order.
+  // Hands-on rule (tự tay cai trị): the hosts still hold their own ground, and nothing else moves without an order.
   if (ascent.hardcore) {
     autoDefend(state);
     return;
