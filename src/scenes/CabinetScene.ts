@@ -24,6 +24,7 @@ import {
 import { getLegacy, spendLegacyPoints } from '../state/legacy';
 import { AMBITION_PER_POWER_CARD, PITY_HARD_CAP } from '../game/ascentConfig';
 import { motionMs } from '../game/lifeSettings';
+import { liftForInput, quietUntilNextFrame, swallowRestOfPress } from '../ui/inputGeneration';
 import { BACK_BAR_HEIGHT, InkUI, INK_UI, scrollGestureConsumedTap, type InkScrollArea } from '../ui/InkUI';
 import { CARD_FACE_H, CARD_FACE_W, cardFaceOverlay, stampCardFace } from '../ui/cardFace';
 import { createMapRenderer, type MapRenderer } from '../ui/MapRenderer';
@@ -145,6 +146,10 @@ export class CabinetScene extends Phaser.Scene {
   }
 
   private render(): void {
+    // A page rebuilt inside a press must not answer that press's release with what it just built,
+    // and nothing built this frame may be pressed this frame. See `ui/inputGeneration`.
+    swallowRestOfPress(this);
+    quietUntilNextFrame(this);
     this.clear();
     if (this.mode === 'combine' && this.combineId) {
       this.renderCombine(this.combineId);
@@ -683,6 +688,12 @@ ${t('cabinet.grid.unfound')}`,
     keep(this.ui.panel({ x: PAD - 8, y: bigY - 12, width: GAME_WIDTH - PAD * 2 + 16, height: by + 12 - (bigY - 12) },
       { border: INK_UI.gold, borderWidth: 1.4, fillAlpha: 1 })).setDepth(DEPTH - 1);
 
+    // Fresh furniture sorts at the BOTTOM of Phaser's hit list until it has been rendered once
+    // (the list is last frame's); lifted, the sheet is on top from the moment it exists, and the
+    // page is quiet until the frame after next.
+    liftForInput(this, this.viewObjects);
+    quietUntilNextFrame(this);
+
     // Everything but the veil and the face rises into place behind the face's flip: the sheet is
     // opened, not switched on.
     this.viewObjects.forEach((object, index) => {
@@ -697,6 +708,13 @@ ${t('cabinet.grid.unfound')}`,
   }
 
   private closeCardView(): void {
+    if (this.viewObjects.length === 0) return;
+    // Close fires on the press (every InkUI button does), and the release that follows was
+    // delivered to whatever the close had just revealed — the binder's tiles and the hand's slots
+    // act on release. Reported as *click on the modal also clicks the bottom*. The rest of the
+    // gesture is swallowed, and the page stays quiet until it has been drawn once.
+    swallowRestOfPress(this);
+    quietUntilNextFrame(this);
     for (const object of this.viewObjects) object.destroy();
     this.viewObjects = [];
   }
