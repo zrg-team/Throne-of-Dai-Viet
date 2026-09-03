@@ -2731,6 +2731,16 @@ export interface AscentState {
    */
   sideBattles?: AscentBattle[];
   /**
+   * Provinces whose field defence was routed, by the wave it happened in.
+   *
+   * Once the line at a province has broken, a further enemy column reaching the same walls this
+   * wave settles by dispatch instead of raising a fresh field: without this, the next column
+   * re-opened a fight against the beaten militia's remnant — measured, a defence lost 1,394 →
+   * 253 at one tick and a new fight with 253 against 3,734 the tick after, on a province whose
+   * walls were already carried. A field host of ours arriving (relief) lifts the rule.
+   */
+  routedGround?: Record<string, number>;
+  /**
    * The standing answer to *who holds the dials* — remembered across fights.
    *
    * **Default: the generals.** A run is a realm, not a duel: waves land on three provinces at
@@ -2764,6 +2774,19 @@ export interface AscentState {
   autoClaimSilently?: boolean;
   /** The turn before which the autopilot will not propose another claim — a declined sheet. */
   claimDeclinedUntil?: number;
+  /**
+   * The bar's hint card — the advisor's line said once over the lane it points at — turned off
+   * for this run from the ledger sheet. Off means the dots alone, as before.
+   */
+  barHintsMuted?: boolean;
+  /**
+   * Toàn thủ — the fully manual run. No card the lanes could do for you is raised (the province
+   * asking for orders, the court asking for a seat, the muster and claim proposals, the expansion
+   * and envoy nudges), and the autopilot does not build, march, recruit or claim. Events with
+   * consequences — invasions, famines, demands, stories, the draft, the ceremony — still come.
+   * Set from the mandate card's checkbox and from the run menu.
+   */
+  hardcore?: boolean;
   /**
    * This state exists to fight one battle and nothing else — see `BattleArenaScene`.
    *

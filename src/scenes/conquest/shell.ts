@@ -31,6 +31,7 @@ import {
 import { playWaveBanner } from '../../ui/ascent/waveBanner';
 import { AscentHud } from '../../ui/ascent/AscentHud';
 import { AdvisorStrip } from '../../ui/ascent/AdvisorStrip';
+import { BarHint } from '../../ui/ascent/BarHint';
 import { InheritanceChip } from '../../ui/ascent/InheritanceChip';
 import { WhisperLine } from '../../ui/ascent/WhisperLine';
 import { hasSeenRunTour, takeGuidedRun } from '../../state/tour';
@@ -112,6 +113,9 @@ export function create(self: ConquestUIScene): void {
   // The next reign, read from this one. Above the bar and beside the map controls, and never in
   // the layout: it floats over the map exactly as the paused badge does.
   self.inheritance = new InheritanceChip(self, () => renderActionBar(self));
+  // The advisor's line again, over the lane it wants pressed, for a few seconds. Fed from the
+  // strip's own reading in `renderActionBar`, so the two can never point at different things.
+  self.barHint = new BarHint(self, () => layoutInheritanceChip(self));
 
   // Taken once, here, rather than read where it is used: the flag is a one-shot handoff from the
   // manual and any second reader would find it already spent.
@@ -129,6 +133,7 @@ export function create(self: ConquestUIScene): void {
     self.advisor.destroy();
     self.whispers.destroy();
     self.inheritance.destroy();
+    self.barHint.destroy();
     self.runTour?.destroy();
     self.runTour = undefined;
     self.waveBanner?.destroy();
@@ -173,9 +178,7 @@ export function refresh(self: ConquestUIScene): void {
   self.whispers.render(self.state, self.advisor.bottom());
   // Same guard as the advisor: hidden under every card and lane, so re-reading the stores for
   // an invisible chip is pure cost. Its floor follows the inspect card the way the controls do.
-  if (!self.state.pendingAscentPrompt && self.openPromptKey === '') {
-    self.inheritance.render(self.state, inspectCardTop(self) ?? GAME_HEIGHT - ACTION_BAR_HEIGHT);
-  }
+  layoutInheritanceChip(self);
 
   // A lane that renders nothing has stranded the player: the bar and the map controls are
   // torn down before the screen is built, so an empty modal layer means no UI at all and no
@@ -280,6 +283,16 @@ export function refresh(self: ConquestUIScene): void {
   // often *already on the battle screen* when the war spreads, and that is precisely the moment
   // they need telling. The battle lane is the one overlay this may replace, because it is the
   // same lane — it re-renders as the board and its own Close still leads home.
+  //
+  // **Unless the player is already on a fight.** Reported: *when I am in a battle and multiple
+  // battles happen, do not automatically move me to the new battle*. The field they are watching
+  // has its own fronts chip listing every live fight, so the announcement is read there; the
+  // board replaces the lane only when the lane is showing the board already. The hold the
+  // announcement asked for is released with it — nothing is on screen to explain a stopped world.
+  if (self.state.ascent?.frontsOpened && !prompt && self.openPromptKey === 'lane:battle' && self.battleUi) {
+    self.state.ascent.frontsOpened = undefined;
+    if (!self.lanePauseBeforeOpen && !self.battleAwaitingOrder) self.state.isStrategyPause = false;
+  }
   if (self.state.ascent?.frontsOpened && !prompt
     && (!overlayOpen || self.openPromptKey === 'lane:battle')) {
     self.openLane('battle');
@@ -381,6 +394,22 @@ function playPendingWaveCue(self: ConquestUIScene): void {
  * Keeps the bar current and hides it while something owns the modal layer — behind the dim
  * its buttons would be half-visible and untappable.
  */
+/**
+ * The chip's floor: the inspect card, and the bar's hint card while one is up — both sit in the
+ * chip's row, and the chip stands above whichever is there rather than printing through it.
+ * Same guard as the advisor: hidden under every card and lane, so re-reading the stores for an
+ * invisible chip is pure cost.
+ */
+function layoutInheritanceChip(self: ConquestUIScene): void {
+  if (self.state.pendingAscentPrompt || self.openPromptKey !== '') return;
+  const barTop = GAME_HEIGHT - ACTION_BAR_HEIGHT;
+  const floor = Math.min(inspectCardTop(self) ?? barTop, self.barHint.top() ?? barTop);
+  self.inheritance.render(self.state, floor);
+  // The tap guard and the paused badge both read the chip's rectangle.
+  window.__hudTapBounds = [...self.mapControlBounds, ...self.advisor.tapBounds(), ...self.whispers.tapBounds(),
+    ...self.inheritance.tapBounds()];
+}
+
 export function renderActionBar(self: ConquestUIScene): void {
   const hidden = Boolean(self.state.pendingAscentPrompt) || self.openPromptKey !== '';
   self.actionBar.setVisible(!hidden);
@@ -388,6 +417,9 @@ export function renderActionBar(self: ConquestUIScene): void {
   self.advisor.setVisible(!hidden);
   self.whispers.setVisible(!hidden);
   self.inheritance.setVisible(!hidden);
+  // Not while the run's tour is pointing at things: two cards with arrows is a page arguing.
+  self.barHint.render(self.state, self.advisor.shown(), (action) => self.actionBar.slotBounds(action),
+    hidden || Boolean(self.runTour));
   renderMapControls(self, hidden);
   // Composed wholesale on every refresh, from the stack's recorded rectangles plus whatever the
   // advisor and the whisper strip currently occupy. The controls themselves are keyed and only

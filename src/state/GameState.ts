@@ -17,8 +17,9 @@ import { applyOpeningHand } from '../systems/ascent/PowerDraftSystem';
 import { computeAscentPower, contestedDefencePower } from '../systems/ascent/PowerSystem';
 import { projectedWaveThreat } from '../systems/ascent/WaveDirector';
 import { getFounderPool } from './codex';
-import { applyLegacyPerks } from './legacy';
-import { founderOptionCount, hasTrait, isCrowned } from './dynasty';
+import { applyLegacyPerks, legacyStartRubbings } from './legacy';
+import { addRubbings } from './cabinet';
+import { founderOptionCount, hasTrait, isCrowned, noteTraitUse } from './dynasty';
 import { initEmpireSim } from '../systems/empire/GreatPowersSystem';
 import type { Army, CampaignConfig, GameState, Hero, Kingdom, Land, LandTemplate, ResourceBag, TerrainSummary } from './types';
 import { landTypeLabel, t } from '../i18n';
@@ -277,9 +278,11 @@ function findLargestConnectedComponent(lands: Land[]): Land[] {
 const RIVAL_KINGDOM_IDS_FOR_CAMPAIGN = ['northern-rival', 'southern-rival', 'eastern-rival'];
 
 const ROYAL_NAMES = [
-  'Lý Công', 'Trần Hưng', 'Nguyễn Văn', 'Lê Lợi', 'Đinh Bộ',
-  'Trịnh Kiểm', 'Nguyễn Hoàng', 'Lê Thánh', 'Phùng Hưng', 'Triệu Quang',
-  'Bùi Thị', 'Quách Mãnh', 'Đoàn Thượng', 'Hồ Quý', 'Mạc Đăng',
+  // The neighbours' rulers, never the player's own history: reported as *those enemies must not
+  // be Vietnamese kingdoms*. Northern courts, Chăm kings, Khmer and Lao and Tai rulers.
+  'Lưu Cung', 'Triệu Quang Nghĩa', 'Thoát Hoan', 'Trương Phụ', 'Tôn Sĩ Nghị', 'Liễu Thăng',
+  'Chế Bồng Nga', 'Chế Mân', 'Chế Củ', 'Harivarman', 'Indravarman',
+  'Jayavarman', 'Suryavarman', 'Fa Ngum', 'Phra Naret', 'Setthathirath',
 ];
 
 function pickRoyalName(): string {
@@ -627,6 +630,7 @@ export function createEmpireGameState(config: CampaignConfig): GameState {
 
   applyFounder(state, config.founderId);
   applyLegacyPerks(state);
+  addRubbings(legacyStartRubbings());
   initDirectives(state);
   refreshAllLandOutputs(state);
   refreshPlayerVisibility(state);
@@ -789,6 +793,7 @@ function offerFounderChoice(state: GameState): void {
   // dynasty store rather than off `GameState`, because a trait chosen in the ceremony has to be
   // true for the very run the ceremony is about to start.
   const options = pickFounderOptions(candidates, founderOptionCount());
+  if (options.length > 3) noteTraitUse('second-founder');
 
   if (options.length > 0) {
     enqueueAscentPrompt(state, { kind: 'founder', options });
@@ -930,6 +935,7 @@ function seedAscentOpening(state: GameState): void {
    * head start it buys.
    */
   if (hasTrait('old-roads')) {
+    noteTraitUse('old-roads');
     addCourtModifier(state, {
       id: 'dynasty-old-roads',
       label: t('dynasty.trait.old-roads'),

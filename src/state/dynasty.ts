@@ -1,4 +1,4 @@
-import { DYNASTY_TRAITS, findDynastyTrait } from '../data/dynastyTraits';
+import { DYNASTY_TRAITS, DYNASTY_TRAITS_LIVE, DYNASTY_TRAITS_PENDING, RANK_TWO_MIN_LEVEL, findDynastyTrait, type DynastyTrait } from '../data/dynastyTraits';
 
 /**
  * Tông Phả — the persistent king.
@@ -88,7 +88,68 @@ export interface DynastyStore {
   house?: string;
   /** Respecs already taken, against `legacy.ascensions` — one per ascension, never casually. */
   respecs: number;
+  /**
+   * The reigns, most recent last, capped at `HISTORY_CAP`.
+   *
+   * The sheet used to know only a count and a best score, which is why no surface could show a
+   * trend: "5 đời · cao nhất 4,052" is a fact, "2,900 → 3,400 → 3,120" is progress. Each entry
+   * carries what its epitaph is written from, as numbers rather than sentences, so the line reads
+   * in whichever language the player opens the sheet in.
+   */
+  history: ReignRecord[];
+  /**
+   * The reign being played right now, as it would bank if it ended this moment.
+   *
+   * Written whenever the run is written down (the away pause, Save & Exit's autosave) and at every
+   * wave held; cleared when the reign banks or is walked out of. It is what lets the home page show
+   * a paused run's progress instead of nothing — and it is a floor, not a forecast: every term of
+   * the run score is a peak or a count, so this can only rise until the reign ends.
+   */
+  liveReign?: LiveReign;
+  /**
+   * How often each held trait has actually paid, by id — counted at the read site when the rule
+   * fires, so the detail sheet can say "used 7 times" rather than promise a number it cannot show.
+   */
+  traitUses: Record<string, number>;
 }
+
+/** One finished reign, as the sheet and the ceremony tell it. Numbers only; the words are keys. */
+export interface ReignRecord {
+  /** Reign ordinal, 1-based. */
+  n: number;
+  score: number;
+  /** House level after this reign banked. */
+  levelAfter: number;
+  /** ISO date the reign ended. */
+  at: string;
+  waves: number;
+  lands: number;
+  founderName?: string;
+  founderId?: string;
+  /** The fight that decided the reign: the largest one won, else the largest fought. */
+  fight?: { land: string; theirStart: number; won: boolean };
+  /** How it ended. `conquest` is the seat lost; `collapse` is the realm failing from within. */
+  ending: 'conquest' | 'collapse';
+  /** The trait chosen at this reign's ceremony, if a level came. */
+  trait?: string;
+  /** The champion who raised this reign, as the portrait system needs him. */
+  founder?: { id: string; name: string; type: string; sex: 'man' | 'woman'; era?: string };
+  /** The cards the reign held at its end, so the rubbing lottery can aim at what was found this run. */
+  cards?: string[];
+  /** The reign's chronicle, as sentences in the language it was played in. */
+  chronicle?: string[];
+}
+
+export interface LiveReign {
+  n: number;
+  score: number;
+  /** House level the reign would leave behind if it ended now. */
+  levelAfter: number;
+  waves: number;
+  savedAt: string;
+}
+
+const HISTORY_CAP = 12;
 
 /**
  * XP to gain level `n`, counting from 1.
@@ -104,7 +165,56 @@ export function dynastyXpStep(level: number): number {
 }
 
 function emptyStore(): DynastyStore {
-  return { xp: 0, level: 0, traits: [], pendingPicks: 0, reigns: 0, bestScore: 0, respecs: 0 };
+  return { xp: 0, level: 0, traits: [], pendingPicks: 0, reigns: 0, bestScore: 0, respecs: 0, history: [], traitUses: {} };
+}
+
+/** A stored reign, or nothing: the same defensive read every other field of the store gets. */
+function readRecord(value: unknown): ReignRecord | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  const raw = value as Record<string, unknown>;
+  const num = (v: unknown, cap = 1e9): number => (typeof v === 'number' && Number.isFinite(v) ? Math.max(0, Math.min(cap, Math.round(v))) : 0);
+  const fight = raw.fight && typeof raw.fight === 'object' ? raw.fight as Record<string, unknown> : undefined;
+  return {
+    n: num(raw.n, 1e6),
+    score: num(raw.score),
+    levelAfter: num(raw.levelAfter, 1e4),
+    at: typeof raw.at === 'string' ? raw.at.slice(0, 40) : '',
+    waves: num(raw.waves, 1e5),
+    lands: num(raw.lands, 1e4),
+    ...(typeof raw.founderName === 'string' ? { founderName: raw.founderName.slice(0, 80) } : {}),
+    ...(typeof raw.founderId === 'string' ? { founderId: raw.founderId.slice(0, 80) } : {}),
+    ...(fight && typeof fight.land === 'string'
+      ? { fight: { land: fight.land.slice(0, 80), theirStart: num(fight.theirStart), won: fight.won === true } }
+      : {}),
+    ending: raw.ending === 'collapse' ? 'collapse' : 'conquest',
+    ...(typeof raw.trait === 'string' && findDynastyTrait(raw.trait) ? { trait: raw.trait } : {}),
+    ...(readReignFounder(raw.founder) ? { founder: readReignFounder(raw.founder) } : {}),
+    ...(Array.isArray(raw.cards) ? { cards: raw.cards.filter((id): id is string => typeof id === 'string').slice(0, 40) } : {}),
+    ...(Array.isArray(raw.chronicle)
+      ? { chronicle: raw.chronicle.filter((line): line is string => typeof line === 'string').map((line) => line.slice(0, 240)).slice(0, 16) }
+      : {}),
+  };
+}
+
+function readReignFounder(value: unknown): ReignRecord['founder'] | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  const raw = value as Record<string, unknown>;
+  if (typeof raw.id !== 'string' || typeof raw.name !== 'string') return undefined;
+  return {
+    id: raw.id.slice(0, 80),
+    name: raw.name.slice(0, 80),
+    type: typeof raw.type === 'string' ? raw.type : 'general',
+    sex: raw.sex === 'woman' ? 'woman' : 'man',
+    ...(typeof raw.era === 'string' ? { era: raw.era } : {}),
+  };
+}
+
+function readLiveReign(value: unknown): LiveReign | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  const raw = value as Record<string, unknown>;
+  const num = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? Math.max(0, Math.round(v)) : 0);
+  if (typeof raw.savedAt !== 'string') return undefined;
+  return { n: num(raw.n), score: num(raw.score), levelAfter: num(raw.levelAfter), waves: num(raw.waves), savedAt: raw.savedAt.slice(0, 40) };
 }
 
 function canUseLocalStorage(): boolean {
@@ -297,12 +407,40 @@ export function getDynasty(): DynastyStore {
       ...(readFounder(parsed.founder) ? { founder: readFounder(parsed.founder) } : {}),
       ...(typeof parsed.house === 'string' ? { house: parsed.house } : {}),
       respecs: finite(parsed.respecs),
+      history: Array.isArray(parsed.history)
+        ? parsed.history.map(readRecord).filter((record): record is ReignRecord => Boolean(record)).slice(-HISTORY_CAP)
+        : [],
+      ...(readLiveReign(parsed.liveReign) ? { liveReign: readLiveReign(parsed.liveReign) } : {}),
+      traitUses: parsed.traitUses && typeof parsed.traitUses === 'object'
+        ? Object.fromEntries(Object.entries(parsed.traitUses as Record<string, unknown>)
+          .filter(([id]) => known.has(id)).map(([id, n]) => [id, finite(n, 1e6)]))
+        : {},
     };
     return cached;
   } catch {
     cached = emptyStore();
     return cached;
   }
+}
+
+/** The reigns on record, oldest first. */
+export function dynastyHistory(store: DynastyStore = getDynasty()): ReignRecord[] {
+  return store.history;
+}
+
+/** Writes down the reign in progress. Called from the autosave and from every wave held. */
+export function noteLiveReign(live: Omit<LiveReign, 'savedAt' | 'n'>): void {
+  const store = getDynasty();
+  store.liveReign = { ...live, n: store.reigns + 1, savedAt: new Date().toISOString() };
+  writeDynasty(store);
+}
+
+/** The reign is over, or was walked out of: nothing is being written any more. */
+export function clearLiveReign(): void {
+  const store = getDynasty();
+  if (!store.liveReign) return;
+  delete store.liveReign;
+  writeDynasty(store);
 }
 
 function writeDynasty(store: DynastyStore): void {
@@ -325,17 +463,34 @@ export function dynastyProgress(store: DynastyStore = getDynasty()): { into: num
 }
 
 /**
+ * The same reading for an arbitrary XP total — what the bar looked like before the last reign
+ * poured in, or what it will look like once the reign in play does. The tablet's pour and the
+ * page's hatched segment both draw from this, so neither can disagree with `dynastyProgress`.
+ */
+export function dynastyProgressForXp(xp: number): { level: number; into: number; need: number } {
+  const safe = finite(xp, MAX_XP);
+  const { level, spent } = walkLevels(safe);
+  return { level, into: Math.max(0, safe - spent), need: dynastyXpStep(level + 1) };
+}
+
+/**
  * Pours a finished run's score into the house.
  *
  * Returns the number of level-ups it produced, which is what the ceremony has to walk the player
  * through before it lets them leave. Called from `endAscentRun` inside the same `legacyBanked`
  * guard Legacy banks under — a re-entrant tick that paid this twice would hand out free traits.
  */
-export function addRunXp(score: number, reign?: { founder?: DynastyFounder; house?: string }): number {
+export function addRunXp(
+  score: number,
+  reign?: { founder?: DynastyFounder; house?: string },
+  record?: Omit<ReignRecord, 'n' | 'score' | 'levelAfter' | 'at' | 'trait'>,
+): number {
   const store = getDynasty();
   store.xp += Math.max(0, Math.round(score));
   store.reigns += 1;
   store.bestScore = Math.max(store.bestScore, Math.max(0, Math.round(score)));
+  // The reign is over: whatever the live line said, the banked number is the truth now.
+  delete store.liveReign;
   // **A made king is never overwritten by the champion who served him.**
   //
   // Before the Coronation the sheet's face was the run's founding champion, because the run's
@@ -351,9 +506,27 @@ export function addRunXp(score: number, reign?: { founder?: DynastyFounder; hous
   // Capped by the table, not by the curve: a house that has taken all eight has nothing left to
   // be asked, and banking picks it can never spend would open a ceremony step with no options on
   // it every single run. The XP still accrues, so a longer table later pays the backlog out.
-  const room = DYNASTY_TRAITS.length - store.traits.length - store.pendingPicks;
+  // Room is measured against the traits that can actually be taken — a pending trait that the
+  // roll never offers must not hold a pick open that no ceremony can spend.
+  const room = offerable(store, store.level).length - store.pendingPicks;
   const gained = Math.max(0, Math.min(room, store.level - before));
   store.pendingPicks += gained;
+  // The reign, written down: what the sheet's strip and the ceremony's epitaph read.
+  store.history = [...store.history, {
+    n: store.reigns,
+    score: Math.max(0, Math.round(score)),
+    levelAfter: store.level,
+    at: new Date().toISOString(),
+    waves: record?.waves ?? 0,
+    lands: record?.lands ?? 0,
+    ...(record?.founderName ? { founderName: record.founderName } : {}),
+    ...(record?.founderId ? { founderId: record.founderId } : {}),
+    ...(record?.fight ? { fight: record.fight } : {}),
+    ...(record?.founder ? { founder: record.founder } : {}),
+    ...(record?.cards && record.cards.length > 0 ? { cards: record.cards.slice(0, 40) } : {}),
+    ...(record?.chronicle && record.chronicle.length > 0 ? { chronicle: record.chronicle.slice(0, 16) } : {}),
+    ending: record?.ending ?? 'conquest',
+  }].slice(-HISTORY_CAP);
   writeDynasty(store);
   return gained;
 }
@@ -364,9 +537,12 @@ export function addRunXp(score: number, reign?: { founder?: DynastyFounder; hous
  * A pick has to be a fork rather than a menu. Offering the whole remaining table would make every
  * house converge on the same order — the strongest first, every run, for ever — and a level-up
  * that always answers itself is a loading screen with a button on it.
+ *
+ * Only traits something reads. A pending trait dealt onto the card was a level a player could
+ * spend on nothing — `long-memory` was dealt for a round while the Hall it waits on did not exist.
  */
 export function rollTraitOffer(store: DynastyStore = getDynasty()): string[] {
-  const pool = DYNASTY_TRAITS.filter((trait) => !store.traits.includes(trait.id)).map((t) => t.id);
+  const pool = offerable(store, store.level).map((t) => t.id);
   for (let i = pool.length - 1; i > 0; i -= 1) {
     const j = Math.floor(Math.random() * (i + 1));
     [pool[i], pool[j]] = [pool[j], pool[i]];
@@ -378,11 +554,43 @@ export function rollTraitOffer(store: DynastyStore = getDynasty()): string[] {
 export function chooseTrait(id: string): boolean {
   const store = getDynasty();
   if (store.pendingPicks <= 0) return false;
-  if (!findDynastyTrait(id) || store.traits.includes(id)) return false;
+  if (!findDynastyTrait(id) || DYNASTY_TRAITS_PENDING.has(id) || store.traits.includes(id)) return false;
+  const trait = findDynastyTrait(id);
+  if (trait?.rank === 2 && (!trait.base || !store.traits.includes(trait.base))) return false;
   store.traits.push(id);
   store.pendingPicks -= 1;
+  // The ceremony runs straight after the reign banks, so the last record is this reign's; the
+  // trait it chose is part of its story ("Để lại: Quan Quân Nhu").
+  const last = store.history[store.history.length - 1];
+  if (last && !last.trait) last.trait = id;
   writeDynasty(store);
   return true;
+}
+
+/**
+ * The traits a house at `level` could still be dealt: every un-held live trait, and past level 8
+ * the Rank II step of each held base. What the ceremony rolls from and what the sheet lists as
+ * "on the table" — one function, so the two never disagree.
+ */
+export function offerable(store: DynastyStore = getDynasty(), level = store.level): DynastyTrait[] {
+  return DYNASTY_TRAITS_LIVE.filter((trait) => {
+    if (store.traits.includes(trait.id)) return false;
+    if (trait.rank === 2) return level >= RANK_TWO_MIN_LEVEL && Boolean(trait.base) && store.traits.includes(trait.base as string);
+    return true;
+  });
+}
+
+/** Counts one payout of a held trait. Called beside the rule, never instead of it. */
+export function noteTraitUse(id: string): void {
+  const store = getDynasty();
+  if (!store.traits.includes(id)) return;
+  store.traitUses = { ...store.traitUses, [id]: (store.traitUses[id] ?? 0) + 1 };
+  writeDynasty(store);
+}
+
+/** How often a held trait has paid so far. */
+export function traitUses(id: string, store: DynastyStore = getDynasty()): number {
+  return store.traitUses[id] ?? 0;
 }
 
 /**

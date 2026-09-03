@@ -1,4 +1,5 @@
-import type { GameState } from './types';
+import type { CourtModifier, GameState } from './types';
+import { PLAYER_KINGDOM_ID } from '../game/constants';
 import { applyResourceDelta } from '../systems/ResourceSystem';
 import { addCourtModifier } from '../systems/CourtSystem';
 import { REALM_PROJECTS } from '../data/edicts';
@@ -10,8 +11,16 @@ interface LegacyStore {
   points: number;
   bestScore: number;
   ascensions: number;
-  /** Ids of permanently-purchased ascension perks (the meta-progression spend sink). */
+  /** Ids of perks at level one or more. Kept for every reader that predates the ladder. */
   perks: string[];
+  /** Each perk's level, 0–3. The ladder replaced the one-time buy: a perk is bought three times. */
+  perkLevels: Record<string, number>;
+  /**
+   * The perks carried into the next reign — at most `LOADOUT_MAX`. Twenty perks and three slots
+   * make the vault a choice about *this* reign rather than a pile that only grows; the rest stay
+   * bought and wait their turn.
+   */
+  loadout: string[];
   /**
    * Schools whose capstone a past reign completed — the quốc bảo, an ancestral law.
    *
@@ -24,52 +33,153 @@ interface LegacyStore {
 }
 
 /**
- * A permanent, cross-run upgrade bought with banked Legacy points. Each is a one-time
- * unlock that seeds every future empire run a little stronger — the roguelite payoff the
- * rank ladder always implied but that nothing previously spent points on.
+ * What one level of a perk does to a fresh reign. Numbers only; the words are catalog keys.
+ *
+ * The first table had five perks, each a one-time buy, and each worth far more than it cost —
+ * +220 gold for 120 points on a vault that banks a tenth of every score. Reported: *price too
+ * cheap compared with the advantage; support upgrades, not one-time buys; at least twenty, but
+ * only three carried into a new game.* So: twenty perks, each bought three times, each level a
+ * third of the old value, and a loadout of three. Everything a perk touches is an existing lever
+ * — an opening seed, a court modifier the edicts already use, the capital's own numbers — so no
+ * system learns a new rule.
  */
-export interface LegacyPerk {
-  id: string;
-  cost: number;
-  /** Seeds applied to a fresh empire GameState at creation. */
-  startGold?: number;
-  startHumans?: number;
-  startFood?: number;
-  startSupplies?: number;
-  startEdictPoints?: number;
+export interface LegacyPerkLevel {
+  gold?: number;
+  humans?: number;
+  food?: number;
+  supplies?: number;
+  edictPoints?: number;
+  /** Court influence at the founding. */
+  influence?: number;
+  /** The capital's walls and its standing militia. */
+  capitalDefense?: number;
+  capitalSoldiers?: number;
+  /** Rubbings banked into the Cabinet as the reign opens. */
+  rubbings?: number;
+  /** A standing court modifier, in force from the founding. */
+  modifier?: Partial<Omit<CourtModifier, 'id' | 'label' | 'remainingTicks'>>;
 }
 
+export interface LegacyPerk {
+  id: string;
+  /** Points for level one, two and three. */
+  cost: [number, number, number];
+  levels: [LegacyPerkLevel, LegacyPerkLevel, LegacyPerkLevel];
+  /** The numbers the description prints, per level — `{a}` and `{b}` in the catalog. */
+  params: (level: LegacyPerkLevel) => Record<string, number>;
+}
+
+/** How many perks ride into a reign. */
+export const LOADOUT_MAX = 3;
+export const PERK_MAX_LEVEL = 3;
+
+const ladder = (base: number): [number, number, number] => [base, Math.round(base * 1.6), Math.round(base * 2.4)];
+const pct = (value: number | undefined): number => Math.round(Math.abs(value ?? 0) * 100);
+const three = <T extends LegacyPerkLevel>(a: T, b: T, c: T): [T, T, T] => [a, b, c];
+
 export const LEGACY_PERKS: LegacyPerk[] = [
-  { id: 'founders-purse', cost: 120, startGold: 220 },
-  { id: 'settlers', cost: 150, startHumans: 260 },
-  { id: 'full-granary', cost: 110, startFood: 130, startSupplies: 55 },
-  { id: 'mandate-of-birth', cost: 220, startEdictPoints: 2 },
-  { id: 'war-chest', cost: 300, startGold: 180, startSupplies: 90, startEdictPoints: 1 },
+  { id: 'founders-purse', cost: ladder(60), levels: three({ gold: 60 }, { gold: 120 }, { gold: 180 }), params: (l) => ({ a: l.gold ?? 0 }) },
+  { id: 'settlers', cost: ladder(70), levels: three({ humans: 80 }, { humans: 160 }, { humans: 240 }), params: (l) => ({ a: l.humans ?? 0 }) },
+  { id: 'full-granary', cost: ladder(55), levels: three({ food: 40, supplies: 15 }, { food: 80, supplies: 30 }, { food: 120, supplies: 45 }), params: (l) => ({ a: l.food ?? 0, b: l.supplies ?? 0 }) },
+  { id: 'mandate-of-birth', cost: ladder(110), levels: three({ edictPoints: 1 }, { edictPoints: 1 }, { edictPoints: 2 }), params: (l) => ({ a: l.edictPoints ?? 0 }) },
+  { id: 'war-chest', cost: ladder(120), levels: three({ gold: 40, supplies: 20 }, { gold: 80, supplies: 40 }, { gold: 120, supplies: 60 }), params: (l) => ({ a: l.gold ?? 0, b: l.supplies ?? 0 }) },
+  { id: 'salt-charter', cost: ladder(80), levels: three({ modifier: { marketGoldOutputModifier: 0.03 } }, { modifier: { marketGoldOutputModifier: 0.06 } }, { modifier: { marketGoldOutputModifier: 0.09 } }), params: (l) => ({ a: pct(l.modifier?.marketGoldOutputModifier) }) },
+  { id: 'quartermaster-corps', cost: ladder(80), levels: three({ modifier: { recruitSpeedModifier: 0.05 } }, { modifier: { recruitSpeedModifier: 0.10 } }, { modifier: { recruitSpeedModifier: 0.15 } }), params: (l) => ({ a: pct(l.modifier?.recruitSpeedModifier) }) },
+  { id: 'masons-guild', cost: ladder(80), levels: three({ modifier: { buildingCostModifier: -0.04 } }, { modifier: { buildingCostModifier: -0.08 } }, { modifier: { buildingCostModifier: -0.12 } }), params: (l) => ({ a: pct(l.modifier?.buildingCostModifier) }) },
+  { id: 'corvee-rolls', cost: ladder(80), levels: three({ modifier: { buildSpeedBonus: 0.05 } }, { modifier: { buildSpeedBonus: 0.10 } }, { modifier: { buildSpeedBonus: 0.15 } }), params: (l) => ({ a: pct(l.modifier?.buildSpeedBonus) }) },
+  { id: 'tribute-treaties', cost: ladder(90), levels: three({ modifier: { acquisitionCostModifier: -0.04 } }, { modifier: { acquisitionCostModifier: -0.08 } }, { modifier: { acquisitionCostModifier: -0.12 } }), params: (l) => ({ a: pct(l.modifier?.acquisitionCostModifier) }) },
+  { id: 'veterans-pensions', cost: ladder(80), levels: three({ modifier: { armyGoldUpkeepModifier: -0.04 } }, { modifier: { armyGoldUpkeepModifier: -0.08 } }, { modifier: { armyGoldUpkeepModifier: -0.12 } }), params: (l) => ({ a: pct(l.modifier?.armyGoldUpkeepModifier) }) },
+  { id: 'drill-yards', cost: ladder(80), levels: three({ modifier: { armyXpModifier: 0.05 } }, { modifier: { armyXpModifier: 0.10 } }, { modifier: { armyXpModifier: 0.15 } }), params: (l) => ({ a: pct(l.modifier?.armyXpModifier) }) },
+  { id: 'border-forts', cost: ladder(70), levels: three({ capitalDefense: 4 }, { capitalDefense: 8 }, { capitalDefense: 12 }), params: (l) => ({ a: l.capitalDefense ?? 0 }) },
+  { id: 'first-levy', cost: ladder(70), levels: three({ capitalSoldiers: 20 }, { capitalSoldiers: 40 }, { capitalSoldiers: 60 }), params: (l) => ({ a: l.capitalSoldiers ?? 0 }) },
+  { id: 'rubbing-press', cost: ladder(90), levels: three({ rubbings: 1 }, { rubbings: 1 }, { rubbings: 2 }), params: (l) => ({ a: l.rubbings ?? 0 }) },
+  { id: 'court-favor', cost: ladder(80), levels: three({ influence: 3 }, { influence: 6 }, { influence: 9 }), params: (l) => ({ a: l.influence ?? 0 }) },
+  { id: 'granary-wagons', cost: ladder(70), levels: three({ modifier: { buildingSuppliesUpkeepModifier: -0.04 } }, { modifier: { buildingSuppliesUpkeepModifier: -0.08 } }, { modifier: { buildingSuppliesUpkeepModifier: -0.12 } }), params: (l) => ({ a: pct(l.modifier?.buildingSuppliesUpkeepModifier) }) },
+  { id: 'loyal-guards', cost: ladder(120), levels: three({ modifier: { armyPowerModifier: 0.01 } }, { modifier: { armyPowerModifier: 0.02 } }, { modifier: { armyPowerModifier: 0.03 } }), params: (l) => ({ a: pct(l.modifier?.armyPowerModifier) }) },
+  { id: 'census-scribes', cost: ladder(70), levels: three({ modifier: { courtCardSpeedModifier: 0.05 } }, { modifier: { courtCardSpeedModifier: 0.10 } }, { modifier: { courtCardSpeedModifier: 0.15 } }), params: (l) => ({ a: pct(l.modifier?.courtCardSpeedModifier) }) },
+  { id: 'thrifty-stewards', cost: ladder(70), levels: three({ modifier: { buildingGoldUpkeepModifier: -0.04 } }, { modifier: { buildingGoldUpkeepModifier: -0.08 } }, { modifier: { buildingGoldUpkeepModifier: -0.12 } }), params: (l) => ({ a: pct(l.modifier?.buildingGoldUpkeepModifier) }) },
 ];
 
 export function getLegacyPerk(id: string): LegacyPerk | undefined {
   return LEGACY_PERKS.find((p) => p.id === id);
 }
 
+/** The level a perk stands at, 0–3. */
+export function perkLevel(id: string, store: LegacyStore = getLegacy()): number {
+  return Math.max(0, Math.min(PERK_MAX_LEVEL, store.perkLevels[id] ?? 0));
+}
+
+/** What the next level of a perk costs, or undefined at the top of the ladder. */
+export function nextPerkCost(perk: LegacyPerk, level: number): number | undefined {
+  return level >= PERK_MAX_LEVEL ? undefined : perk.cost[level];
+}
+
+/** The description a perk prints at `level` (level 0 reads as what level one would do). */
+export function perkDescription(perk: LegacyPerk, level: number): string {
+  const entry = perk.levels[Math.max(0, Math.min(PERK_MAX_LEVEL, level) - 1)] ?? perk.levels[0];
+  return t(`empire.legacy.perk.${perk.id}.d` as Parameters<typeof t>[0], perk.params(entry));
+}
+
+export function isEquipped(id: string, store: LegacyStore = getLegacy()): boolean {
+  return store.loadout.includes(id);
+}
+
+/** Carries a bought perk into the next reign, or sets it down. Refuses a fourth. */
+export function toggleLoadout(id: string): boolean {
+  const store = getLegacy();
+  if (store.loadout.includes(id)) {
+    store.loadout = store.loadout.filter((held) => held !== id);
+  } else {
+    if (perkLevel(id, store) <= 0 || store.loadout.length >= LOADOUT_MAX) return false;
+    store.loadout = [...store.loadout, id];
+  }
+  writeLegacy(store);
+  return true;
+}
+
 function canUseLocalStorage(): boolean {
   return typeof localStorage !== 'undefined';
 }
 
+function emptyLegacy(): LegacyStore {
+  return { points: 0, bestScore: 0, ascensions: 0, perks: [], perkLevels: {}, loadout: [], codes: [] };
+}
+
 export function getLegacy(): LegacyStore {
-  if (!canUseLocalStorage()) return { points: 0, bestScore: 0, ascensions: 0, perks: [], codes: [] };
+  if (!canUseLocalStorage()) return emptyLegacy();
   try {
     const raw = localStorage.getItem(LEGACY_KEY);
-    if (!raw) return { points: 0, bestScore: 0, ascensions: 0, perks: [] };
+    if (!raw) return emptyLegacy();
     const parsed = JSON.parse(raw) as Partial<LegacyStore>;
+    const known = new Set(LEGACY_PERKS.map((perk) => perk.id));
+    // Levels first; a store from before the ladder lists bought perks by id, and each is level one.
+    const perkLevels: Record<string, number> = {};
+    if (parsed.perkLevels && typeof parsed.perkLevels === 'object') {
+      for (const [id, level] of Object.entries(parsed.perkLevels as Record<string, unknown>)) {
+        if (!known.has(id)) continue;
+        const n = Math.floor(Number(level));
+        if (Number.isFinite(n) && n > 0) perkLevels[id] = Math.min(PERK_MAX_LEVEL, n);
+      }
+    }
+    if (Array.isArray(parsed.perks)) {
+      for (const id of parsed.perks) if (typeof id === 'string' && known.has(id) && !perkLevels[id]) perkLevels[id] = 1;
+    }
+    const owned = Object.keys(perkLevels);
+    // A loadout from before the slots existed: the first three bought perks ride, as they always did.
+    const loadout = Array.isArray(parsed.loadout)
+      ? parsed.loadout.filter((id): id is string => typeof id === 'string' && Boolean(perkLevels[id])).slice(0, LOADOUT_MAX)
+      : owned.slice(0, LOADOUT_MAX);
     return {
       points: Math.max(0, Math.floor(parsed.points ?? 0)),
       bestScore: Math.max(0, Math.floor(parsed.bestScore ?? 0)),
       ascensions: Math.max(0, Math.floor(parsed.ascensions ?? 0)),
-      perks: Array.isArray(parsed.perks) ? parsed.perks.filter((id) => typeof id === 'string') : [],
+      perks: owned,
+      perkLevels,
+      loadout,
       codes: Array.isArray(parsed.codes) ? parsed.codes.filter((id) => typeof id === 'string') : [],
     };
   } catch {
-    return { points: 0, bestScore: 0, ascensions: 0, perks: [] };
+    return emptyLegacy();
   }
 }
 
@@ -79,7 +189,7 @@ function writeLegacy(store: LegacyStore): void {
 }
 
 export function ownsPerk(id: string): boolean {
-  return getLegacy().perks.includes(id);
+  return perkLevel(id) > 0;
 }
 
 /** Banks points outside a run's own payout — a cabinet copy past Lv3 melting, for one. */
@@ -99,32 +209,69 @@ export function spendLegacyPoints(points: number): boolean {
   return true;
 }
 
-/** Attempts to buy a perk with banked points. Returns true if purchased. */
+/** Buys the next level of a perk with banked points. Returns true if the level was bought. */
 export function purchaseLegacyPerk(id: string): boolean {
   const perk = getLegacyPerk(id);
   if (!perk) return false;
   const store = getLegacy();
-  if (store.perks.includes(id) || store.points < perk.cost) return false;
-  store.points -= perk.cost;
-  store.perks.push(id);
+  const level = perkLevel(id, store);
+  const cost = nextPerkCost(perk, level);
+  if (cost === undefined || store.points < cost) return false;
+  store.points -= cost;
+  store.perkLevels = { ...store.perkLevels, [id]: level + 1 };
+  if (!store.perks.includes(id)) store.perks = [...store.perks, id];
+  // The first perk bought rides by default: a vault with one thing in it should not need a
+  // second tap to mean anything.
+  if (!store.loadout.includes(id) && store.loadout.length < LOADOUT_MAX) store.loadout = [...store.loadout, id];
   writeLegacy(store);
   return true;
 }
 
-/** Applies every owned perk to a freshly-created empire GameState. */
-export function applyLegacyPerks(state: GameState): void {
-  const owned = getLegacy().perks;
-  for (const id of owned) {
+/** The player's capital, for the perks that build on it. */
+function playerCapital(state: GameState) {
+  const byId = state.ascent?.capitalLandId ? state.lands.find((land) => land.id === state.ascent?.capitalLandId) : undefined;
+  return byId ?? state.lands.filter((land) => land.ownerId === PLAYER_KINGDOM_ID).sort((a, b) => b.defense - a.defense)[0];
+}
+
+/** The rubbings the loadout banks at the founding — paid by the caller, which owns the cabinet. */
+export function legacyStartRubbings(): number {
+  const store = getLegacy();
+  return store.loadout.reduce((sum, id) => {
     const perk = getLegacyPerk(id);
-    if (!perk) continue;
+    const level = perkLevel(id, store);
+    return sum + (perk && level > 0 ? perk.levels[level - 1].rubbings ?? 0 : 0);
+  }, 0);
+}
+
+/** Applies the perks carried into this reign, at their levels, to a freshly-created GameState. */
+export function applyLegacyPerks(state: GameState): void {
+  const store = getLegacy();
+  for (const id of store.loadout) {
+    const perk = getLegacyPerk(id);
+    const level = perkLevel(id, store);
+    if (!perk || level <= 0) continue;
+    const entry = perk.levels[level - 1];
     applyResourceDelta(state, {
-      gold: perk.startGold ?? 0,
-      humans: perk.startHumans ?? 0,
-      food: perk.startFood ?? 0,
-      supplies: perk.startSupplies ?? 0,
+      gold: entry.gold ?? 0,
+      humans: entry.humans ?? 0,
+      food: entry.food ?? 0,
+      supplies: entry.supplies ?? 0,
     });
-    if (perk.startEdictPoints && state.mandate) {
-      state.mandate.edictPoints += perk.startEdictPoints;
+    if (entry.edictPoints && state.mandate) state.mandate.edictPoints += entry.edictPoints;
+    if (entry.influence && state.court) state.court.influence += entry.influence;
+    if (entry.capitalDefense || entry.capitalSoldiers) {
+      const capital = playerCapital(state);
+      if (capital) {
+        capital.defense += entry.capitalDefense ?? 0;
+        capital.localSoldiers += entry.capitalSoldiers ?? 0;
+      }
+    }
+    if (entry.modifier) {
+      addCourtModifier(state, {
+        id: `legacy-${id}`,
+        label: t(`empire.legacy.perk.${id}` as Parameters<typeof t>[0]),
+        ...entry.modifier,
+      });
     }
   }
   applyAncestralCodes(state);
@@ -227,6 +374,10 @@ const RANKS: Rank[] = [
   { minScore: 1600, key: 'king' },
   { minScore: 3000, key: 'sonOfHeaven' },
   { minScore: 5000, key: 'emperor' },
+  // Two above the old ceiling: the median autopilot run scores ~4,000 and a strong one ~8,600, so
+  // a ladder that ended at 5,000 stopped naming a rank exactly when a player got good.
+  { minScore: 8000, key: 'greatEmperor' },
+  { minScore: 12000, key: 'dragonThrone' },
 ];
 
 export function rankForScore(bestScore: number): string {

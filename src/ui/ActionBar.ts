@@ -1,7 +1,9 @@
 import Phaser from 'phaser';
 import { ACTION_BAR_HEIGHT, GAME_HEIGHT, GAME_WIDTH, isCampaignMode } from '../game/constants';
 import type { GameState } from '../state/types';
-import { markControlBorn, releaseNotOwnedBy, setContainerInputEnabled } from './inputGeneration';
+import {
+  markControlBorn, noteControlFired, pressIsEchoOnto, releaseNotOwnedBy, setContainerInputEnabled,
+} from './inputGeneration';
 import { InkUI, INK_UI, INK_UI_HEX } from './InkUI';
 import { CARD_ICON_SIZE, drawCardIcon, type CardIconId } from './CardIcons';
 import { sawtoothBand } from './ink/devices';
@@ -313,6 +315,13 @@ export class ActionBar extends Phaser.GameObjects.Container {
   /** Extra state the key set depends on. Supplied by the scene, read on every refresh. */
   context: () => ActionBarContext = () => ({});
 
+  /** Where a lane's button stands, so a card can point at it. Undefined for a lane not on the bar. */
+  slotBounds(action: string): { x: number; y: number; width: number; height: number } | undefined {
+    const slot = actionBarSlots(this.gameMode, this.context()).find((candidate) => candidate.action === action);
+    if (!slot) return undefined;
+    return { x: slot.x, y: ACTION_BUTTON_Y - ACTION_BUTTON_HEIGHT / 2, width: slot.width, height: ACTION_BUTTON_HEIGHT };
+  }
+
   constructor(
     scene: Phaser.Scene,
     private readonly gameState: GameState,
@@ -591,6 +600,10 @@ export class ActionBar extends Phaser.GameObjects.Container {
       // this the release of that same press lands on a lane that was not on screen when the
       // player decided to press anything — reported as *click Close, also click the menu behind*.
       if (releaseNotOwnedBy(hit)) return;
+      // A bar rebuilt by the press that closed a sheet, then pressed again by that press's echo
+      // (a phone's compat mouse pair, a ghost click) — see `pressIsEchoOnto`.
+      if (pressIsEchoOnto(hit, p)) return;
+      noteControlFired(p);
       onClick();
     });
     markControlBorn(hit);

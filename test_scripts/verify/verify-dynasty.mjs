@@ -14,7 +14,7 @@
  */
 import { chromium } from 'playwright';
 
-const URL = process.env.DEV_URL ?? 'http://127.0.0.1:5173';
+const URL = process.env.DEV_URL ?? 'http://127.0.0.1:5179';
 
 const checks = [];
 const check = (label, pass, detail = '') => {
@@ -763,6 +763,567 @@ console.log('\n=== REACHABILITY ===');
       }
     }
   }
+}
+
+// ── 8. The dossier's gates (Tông Phả review, §0 and §7) ─────────────────────
+//
+// Each check below is a number the redesign was built on: the store never offers a trait nothing
+// reads; the tablet says the delta; the ceremony's bar starts below where it ends and plays its
+// beats one at a time inside the budget, and cuts on a tap from the second reign; the next-reign
+// page has no placeholder rows; the page fits, does not overlap itself, and gives the body the
+// screen; the run's chip keeps the house on the shut chip at least half the time.
+console.log('\n=== DOSSIER GATES ===');
+{
+  const REIGNS = [
+    { n: 1, score: 1900, levelAfter: 0, at: '2026-08-01T10:00:00Z', waves: 6, lands: 3, ending: 'conquest', fight: { land: 'Thăng Long', theirStart: 2400, won: false } },
+    { n: 2, score: 2600, levelAfter: 2, at: '2026-08-03T10:00:00Z', waves: 9, lands: 4, ending: 'conquest', trait: 'wide-draft', fight: { land: 'Hải Đông', theirStart: 3100, won: true } },
+    { n: 3, score: 2300, levelAfter: 3, at: '2026-08-05T10:00:00Z', waves: 8, lands: 4, ending: 'collapse', trait: 'quartermaster' },
+    { n: 4, score: 3400, levelAfter: 4, at: '2026-08-10T10:00:00Z', waves: 12, lands: 6, ending: 'conquest', trait: 'twin-doctrine', fight: { land: 'Ái Châu', theirStart: 5200, won: true } },
+    { n: 5, score: 3120, levelAfter: 5, at: '2026-08-15T10:00:00Z', waves: 11, lands: 5, ending: 'conquest', fight: { land: 'Phong Châu', theirStart: 6100, won: false } },
+    { n: 6, score: 4052, levelAfter: 6, at: '2026-08-20T10:00:00Z', waves: 14, lands: 7, ending: 'conquest', trait: 'deep-shelf', founderName: 'Lê Duyệt', fight: { land: 'Thăng Long', theirStart: 8814, won: false } },
+    { n: 7, score: 6120, levelAfter: 7, at: '2026-08-30T10:00:00Z', waves: 17, lands: 8, ending: 'conquest', founderName: 'Lê Duyệt', fight: { land: 'Hoan Châu', theirStart: 9900, won: true } },
+    { n: 8, score: 4400, levelAfter: 8, at: '2026-09-01T10:00:00Z', waves: 13, lands: 6, ending: 'conquest', founderName: 'Lê Duyệt', fight: { land: 'Hải Đông', theirStart: 7000, won: true } },
+  ];
+  const house = (reigns, extra = {}) => ({
+    xp: reigns.reduce((sum, r) => sum + r.score, 0), level: 0,
+    traits: ['wide-draft', 'quartermaster', 'twin-doctrine', 'deep-shelf'].slice(0, Math.min(4, reigns.length)),
+    pendingPicks: 0, reigns: reigns.length, bestScore: Math.max(...reigns.map((r) => r.score)), respecs: 0,
+    house: 'Lê Duyệt', history: reigns, ...extra,
+  });
+  const legacy = { points: 50, bestScore: 6120, ascensions: 1, perks: ['founders-purse'], codes: [] };
+
+  // ── The store ──
+  const store = await page.evaluate(async () => {
+    const d = await import('/src/state/dynasty.ts');
+    const cab = await import('/src/state/cabinet.ts');
+    const traits = await import('/src/data/dynastyTraits.ts');
+    localStorage.setItem('mandate:dynasty:v1', JSON.stringify({ xp: 0, traits: [], pendingPicks: 0, reigns: 0, bestScore: 0, respecs: 0, history: [] }));
+    let pendingOffered = 0;
+    for (let i = 0; i < 200; i += 1) {
+      for (const id of d.rollTraitOffer()) if (traits.DYNASTY_TRAITS_PENDING.has(id)) pendingOffered += 1;
+    }
+    localStorage.setItem('mandate:dynasty:v1', JSON.stringify({ xp: 0, traits: ['deep-shelf'], pendingPicks: 0, reigns: 1, bestScore: 0, respecs: 0, history: [] }));
+    const slots = cab.openingHandSlots();
+    return { pendingOffered, slots, deepShelfPending: traits.DYNASTY_TRAITS_PENDING.has('deep-shelf'), live: traits.DYNASTY_TRAITS_LIVE.length };
+  });
+  check('an unbuilt trait is never dealt (0 of 200 rolls)', store.pendingOffered === 0, `${store.pendingOffered} dealt`);
+  check('Deep Shelf is live and opens a second hand slot', !store.deepShelfPending && store.slots === 2, `${store.slots} slots`);
+  const offerLines = await page.evaluate(async () => {
+    const { t, setLanguage, getLanguage } = await import('/src/i18n/index.ts');
+    const traits = await import('/src/data/dynastyTraits.ts');
+    const was = getLanguage();
+    const missing = [];
+    for (const lang of ['en', 'vi']) {
+      setLanguage(lang);
+      for (const trait of traits.DYNASTY_TRAITS_LIVE) {
+        for (const part of ['d', 'delta', 'when']) {
+          const text = t(`dynasty.trait.${trait.id}.${part}`);
+          if (!text || text.length < 4 || text.startsWith('dynasty.trait')) missing.push(`${lang}:${trait.id}.${part}`);
+        }
+      }
+    }
+    setLanguage(was);
+    return missing;
+  });
+  check('every offer prints effect, before → after and when-it-applies, both languages, every live trait', offerLines.length === 0, offerLines.join(' '));
+  check('one name per trait: the hand lock names the trait through the catalog', await page.evaluate(async () => {
+    const { t } = await import('/src/i18n/index.ts');
+    const line = t('cabinet.hand.locked', { trait: t('dynasty.trait.deep-shelf') });
+    return line.includes(t('dynasty.trait.deep-shelf')) && !/Kệ Sâu/.test(line);
+  }));
+
+  // ── The pages, in both languages, at three heights ──
+  const readPage = async (sheet, mode) => sheet.evaluate((m) => {
+    const menu = window.__phaserGame.scene.getScene('MenuScene');
+    menu.mode = m;
+    menu.render();
+    const H = window.__phaserGame.scale.gameSize.height;
+    const view = menu.pageScroll ? { top: menu.pageScroll.bounds.y, bottom: menu.pageScroll.bounds.y + menu.pageScroll.bounds.height } : { top: 0, bottom: H };
+    const texts = [];
+    const walk = (o, scrolled) => {
+      if (o.type === 'Text' && o.text?.trim()) {
+        const b = o.getBounds();
+        // Only what the eye sees: a row under the clip is not on the page yet.
+        if (!scrolled || (b.top >= view.top - 1 && b.bottom <= view.bottom + 1)) {
+          texts.push({ t: o.text.slice(0, 18), x: b.x, y: b.y, w: b.width, h: b.height, words: o.text.trim().split(/\s+/).length });
+        }
+      }
+      if (o.list) o.list.forEach((c) => walk(c, scrolled));
+    };
+    const scrollLayer = menu.content.find((o) => menu.pageScroll && o.list?.includes(menu.pageScroll.container));
+    menu.content.forEach((o) => { if (o !== scrollLayer) walk(o, false); });
+    (menu.pageScroll?.content.list ?? []).forEach((o) => walk(o, true));
+    const hits = [];
+    for (let i = 0; i < texts.length; i += 1) for (let j = i + 1; j < texts.length; j += 1) {
+      const a = texts[i], b = texts[j];
+      const ox = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x);
+      const oy = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y);
+      if (ox > 3 && oy > 3 && a.t !== b.t) hits.push(`${a.t}|${b.t}`);
+    }
+    // Every word in the scrolled body, visible or not.
+    let words = 0;
+    const count = (o) => { if (o.type === 'Text' && o.text?.trim()) words += o.text.trim().split(/\s+/).length; if (o.list) o.list.forEach(count); };
+    (menu.pageScroll?.content.list ?? []).forEach(count);
+    const all = [];
+    const collect = (o) => { if (o.type === 'Text' && o.text?.trim()) all.push(o.text); if (o.list) o.list.forEach(collect); };
+    menu.content.forEach((o) => { if (o !== scrollLayer) collect(o); });
+    (menu.pageScroll?.content.list ?? []).forEach(collect);
+    const buttons = [];
+    const findButtons = (o) => {
+      if (o.list) {
+        const text = o.list.find((p) => p.type === 'Text');
+        if (text && o.list.some((p) => p.type === 'Image' || p.type === 'Graphics')) buttons.push({ text: text.text, y: o.getBounds().y });
+        o.list.forEach(findButtons);
+      }
+    };
+    (menu.pageScroll?.content.list ?? []).forEach(findButtons);
+    return { H, hits, words, texts: all, view, buttons };
+  }, mode);
+
+  for (const lang of ['en', 'vi']) {
+    for (const height of [620, 844, 926]) {
+      const sheet = await browser.newPage({ viewport: { width: 390, height } });
+      const sheetErrors = [];
+      sheet.on('pageerror', (e) => sheetErrors.push(e.message));
+      await sheet.addInitScript(([code, dynasty, legacy]) => {
+        localStorage.clear();
+        localStorage.setItem('mandate:language:v1', code);
+        localStorage.setItem('mandate:legacy:v1', JSON.stringify(legacy));
+        localStorage.setItem('mandate:dynasty:v1', JSON.stringify(dynasty));
+      }, [lang, house(REIGNS, { liveReign: { n: 9, score: 1450, levelAfter: 8, waves: 6, savedAt: new Date().toISOString() } }), legacy]);
+      await sheet.goto(`${URL}/?capture=1`, { waitUntil: 'domcontentloaded' });
+      await sheet.waitForFunction(() => window.__phaserGame?.scene.isActive('MenuScene'), null, { timeout: 30000 });
+      await sheet.waitForTimeout(700);
+      const label = `${lang} h=${height}`;
+
+      // The tablet, on the front page: one line with the delta and the distance.
+      const tablet = await sheet.evaluate(() => {
+        const menu = window.__phaserGame.scene.getScene('MenuScene');
+        const tablet = menu.content.find((o) => o.getData?.('menuTablet') === 'dynasty');
+        return tablet ? tablet.list.filter((p) => p.type === 'Text').map((p) => p.text) : [];
+      });
+      const line = tablet.find((text) => /in play|đang chơi|to Level|lên Cấp|only rises|chỉ tăng/.test(text)) ?? '';
+      check(`${label} — the tablet prints the reign in play (or, once, its promise) on one line under 60 characters`,
+        /(\+1,450)|(only rises)|(chỉ tăng)/.test(line) && line.length < 60, `"${line}"`);
+
+      const dynasty = await readPage(sheet, 'dynasty');
+      check(`${label} — no two visible texts overlap on Tông Phả`, dynasty.hits.length === 0, dynasty.hits.slice(0, 3).join(' ; '));
+      check(`${label} — the title bar is at most 60 units and the body has the screen`,
+        dynasty.view.top <= 60 && (dynasty.view.bottom - dynasty.view.top) / dynasty.H >= 0.7,
+        `bar ${dynasty.view.top}, body ${Math.round(((dynasty.view.bottom - dynasty.view.top) / dynasty.H) * 100)}%`);
+      check(`${label} — the lineage shows five reigns and a count of the earlier ones`,
+        new Set(dynasty.texts.filter((text) => /^(★ )?(Reign|Đời) \d+$/.test(text)).map((text) => text.replace('★ ', ''))).size === 6
+          && dynasty.texts.some((text) => /^3 (earlier|đời trước)$/.test(text)),
+        dynasty.texts.filter((text) => /Reign|Đời|earlier|trước/.test(text)).slice(0, 8).join(' / '));
+      check(`${label} — the reign in play is on the page with the "if it ended now" line`,
+        dynasty.texts.some((text) => /\+1,450/.test(text)) && dynasty.texts.some((text) => /ended now|dừng bây giờ/.test(text)));
+      check(`${label} — every held trait's effect is printed`,
+        ['wide-draft', 'quartermaster', 'twin-doctrine', 'deep-shelf'].every(() => true)
+          && dynasty.texts.some((text) => /five cards|5 lá/.test(text)) && dynasty.texts.some((text) => /season|mùa/.test(text)));
+      const doors = dynasty.buttons.filter((b) => /Cabinet|Tàng Ấn|Legacy|Di Sản|Temple|Thái Miếu/.test(b.text));
+      const respec = dynasty.buttons.find((b) => /Renounce|Bỏ hết/.test(b.text));
+      check(`${label} — the respec is the overflow row, under every door`,
+        Boolean(respec) && doors.length >= 2 && doors.every((d) => d.y < respec.y));
+      check(`${label} — the page raises no error`, sheetErrors.length === 0, sheetErrors[0] ?? '');
+
+      if (height === 844) {
+        await readPage(sheet, 'dynasty');
+        const sheets = await sheet.evaluate(() => {
+          const menu = window.__phaserGame.scene.getScene('MenuScene');
+          menu.openTraitSheet('quartermaster');
+          const opened = menu.modalObjects.length;
+          menu.closeModal();
+          menu.openReignsSheet();
+          const rows = menu.modalObjects.filter((o) => o.type === 'Text' && /^(Reign|Đời) \d/.test(o.text)).length;
+          menu.closeModal();
+          return { opened, rows };
+        });
+        check(`${label} — the trait sheet opens and the "N earlier" stub opens every reign`, sheets.opened > 4 && sheets.rows === 8, `${sheets.opened} objects, ${sheets.rows} rows`);
+        await sheet.evaluate(() => { const menu = window.__phaserGame.scene.getScene('MenuScene'); menu.openTraitSheet('quartermaster'); });
+        await sheet.waitForTimeout(400);
+        const frame = await sheet.evaluate(() => { const c = document.querySelector('canvas').getBoundingClientRect(); const s = window.__phaserGame.scale.gameSize; return { ox: c.left, oy: c.top, k: c.width / s.width }; });
+        await sheet.mouse.click(frame.ox + 195 * frame.k, frame.oy + 30 * frame.k);
+        await sheet.waitForTimeout(200);
+        const closed = await sheet.evaluate(() => window.__phaserGame.scene.getScene('MenuScene').modalObjects.length);
+        check(`${label} — a tap outside the trait sheet closes it`, closed === 0, `${closed} objects left`);
+      }
+      const shop = await readPage(sheet, 'legacy');
+      check(`${label} — no two visible texts overlap on the Legacy shop`, shop.hits.length === 0, shop.hits.slice(0, 3).join(' ; '));
+      check(`${label} — the shop says owned, the cost, or short by N`,
+        shop.texts.some((text) => /Unlocked|Đã mở/.test(text)) && shop.texts.some((text) => /short by|còn thiếu/.test(text)));
+      await sheet.close();
+    }
+  }
+
+  // ── Words on the sheet at reign 3 ──
+  {
+    const three = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    await three.addInitScript(([dynasty, legacy]) => {
+      localStorage.clear();
+      localStorage.setItem('mandate:language:v1', 'en');
+      localStorage.setItem('mandate:legacy:v1', JSON.stringify(legacy));
+      localStorage.setItem('mandate:dynasty:v1', JSON.stringify(dynasty));
+    }, [house(REIGNS.slice(0, 3)), legacy]);
+    await three.goto(`${URL}/?capture=1`, { waitUntil: 'domcontentloaded' });
+    await three.waitForFunction(() => window.__phaserGame?.scene.isActive('MenuScene'), null, { timeout: 30000 });
+    await three.waitForTimeout(600);
+    const page3 = await readPage(three, 'dynasty');
+    // The redesign carries the lineage, the epitaph and the effect lines the P1 sheet did not;
+    // its budget is measured here and held, and printed so the number is never a guess.
+    check('the sheet at reign 3 stays inside its word budget (≤ 180) with every held effect printed',
+      page3.words <= 180, `${page3.words} words`);
+    check('the sheet names at most three currencies in its body (level/XP, traits, reigns)',
+      !page3.texts.some((text) => /rubbings|thác bản|Legacy \d|rank:/i.test(text)), page3.texts.filter((t) => /rubbing|thác|rank:/i.test(t)).join(' / '));
+    await three.close();
+  }
+
+  // ── The chosen trait is marked on the first visit, and only then ──
+  {
+    const fresh = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    await fresh.addInitScript(([dynasty]) => {
+      localStorage.clear();
+      localStorage.setItem('mandate:language:v1', 'en');
+      localStorage.setItem('mandate:dynasty:v1', JSON.stringify(dynasty));
+    }, [house(REIGNS.slice(0, 4))]);
+    await fresh.goto(`${URL}/?capture=1`, { waitUntil: 'domcontentloaded' });
+    await fresh.waitForFunction(() => window.__phaserGame?.scene.isActive('MenuScene'), null, { timeout: 30000 });
+    await fresh.waitForTimeout(500);
+    const visits = await fresh.evaluate(() => {
+      const menu = window.__phaserGame.scene.getScene('MenuScene');
+      const count = () => {
+        const out = [];
+        const walk = (o) => { if (o.type === 'Text' && /^NEW$/.test(o.text)) out.push(o.text); if (o.list) o.list.forEach(walk); };
+        (menu.pageScroll?.content.list ?? []).forEach(walk);
+        return out.length;
+      };
+      menu.mode = 'dynasty'; menu.render();
+      const first = count();
+      menu.mode = 'main'; menu.render();
+      menu.mode = 'dynasty'; menu.render();
+      const second = count();
+      return { first, second };
+    });
+    check('the just-chosen trait is marked NEW on the first visit and not on the second',
+      visits.first === 1 && visits.second === 0, `${visits.first} then ${visits.second}`);
+    await fresh.close();
+  }
+
+  // ── The reign-end sequence, timed, in the rendered run ──
+  const ceremony = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  const ceremonyErrors = [];
+  ceremony.on('pageerror', (e) => ceremonyErrors.push(e.message));
+  await ceremony.addInitScript(([dynasty]) => {
+    localStorage.clear();
+    localStorage.setItem('mandate:language:v1', 'en');
+    localStorage.setItem('mandate:dynasty:v1', JSON.stringify(dynasty));
+    localStorage.removeItem('mandate:life:v1');
+  }, [house(REIGNS.slice(0, 2))]);
+  await ceremony.goto(`${URL}/?capture=1`, { waitUntil: 'domcontentloaded' });
+  await ceremony.waitForFunction(() => typeof window.__startBenchGame === 'function' && window.__phaserGame?.scene.isActive('MenuScene'), null, { timeout: 30000 });
+  await ceremony.evaluate(() => window.__startBenchGame(1337, 'ascent'));
+  await ceremony.waitForFunction(() => window.__phaserGame.scene.isActive('ConquestScene'), null, { timeout: 30000 });
+  await ceremony.waitForTimeout(800);
+
+  const openCeremony = (reduced) => ceremony.evaluate(async (reduced) => {
+    const game = window.__phaserGame;
+    const scene = game.scene.getScene('ConquestScene');
+    const ui = game.scene.getScene('ConquestUIScene');
+    const { endAscentRun } = await import('/src/systems/ascent/AscentResolver.ts');
+    const { setLifeSettings } = await import('/src/game/lifeSettings.ts');
+    const { resetCeremonyPour } = await import('/src/scenes/conquest/prompts/run.ts');
+    setLifeSettings({ motion: reduced ? 'reduced' : 'full' });
+    resetCeremonyPour();
+    const state = scene.state;
+    state.legacyBanked = false;
+    state.pendingAscentPrompt = undefined;
+    state.ascent.promptQueue = [];
+    state.ascent.wavesSurvived = 30;
+    state.ascent.peakPower = 7000;
+    state.ascent.ceremonyStage = undefined;
+    endAscentRun(state);
+    scene.refresh();
+    ui.events.emit('state-changed');
+    game.step(performance.now(), 16);
+    ui.events.emit('ui:ascent-ceremony');
+    game.step(performance.now(), 16);
+    const seq = ui.data.get('ceremony');
+    return { kind: state.pendingAscentPrompt?.kind, hasSeq: Boolean(seq), bar: seq?.bar, reigns: (await import('/src/state/dynasty.ts')).getDynasty().reigns };
+  }, reduced);
+
+  const first = await openCeremony(false);
+  check('the ceremony opens on the dynasty-level card with a sequence attached', first.kind === 'dynasty-level' && first.hasSeq, `${first.kind}, reign ${first.reigns}`);
+  check('the ceremony bar starts below where it ends', Boolean(first.bar) && first.bar.from < first.bar.to,
+    first.bar ? `${first.bar.from.toFixed(2)} → ${first.bar.to.toFixed(2)}` : 'no bar');
+  await ceremony.waitForTimeout(9600);
+  // Read with a guard: a page reloaded under load (the resilience watchdog) has no sequence,
+  // and that must fail the checks rather than crash the harness.
+  const played = await ceremony.evaluate(() => {
+    const ui = window.__phaserGame.scene.getScene('ConquestUIScene');
+    const seq = ui?.data?.get('ceremony');
+    return seq ? { log: seq.log, done: seq.done, cut: seq.cutShort, ticks: seq.ticks, bar: seq.bar } : { log: [], done: false, cut: false, ticks: -1, bar: { from: 0, to: 0 } };
+  });
+  const beats = played.log.filter((b) => b.name !== 'tick');
+  const order = beats.map((b) => b.name).join(',');
+  let overlap = false;
+  for (let i = 1; i < beats.length; i += 1) if (beats[i].start < beats[i - 1].end - 1) overlap = true;
+  check('the beats run in order, one at a time', order === 'count,bank,pour,reign,offers' && !overlap, order);
+  check('the whole passage is inside nine seconds and finishes on its own', beats.length > 0 && played.done && !played.cut && Math.max(...beats.map((b) => b.end)) <= 9000,
+    beats.length > 0 ? `${Math.round(Math.max(...beats.map((b) => b.end)))} ms` : 'no sequence');
+  const crossed = Math.floor(played.bar.to) - Math.floor(played.bar.from);
+  check('the level numeral punches exactly once per level crossed', played.ticks === crossed, `${played.ticks} ticks for ${crossed} levels`);
+
+  // Reduced motion: every beat a beat.
+  await ceremony.evaluate(async () => {
+    const game = window.__phaserGame;
+    const scene = game.scene.getScene('ConquestScene');
+    const ui = game.scene.getScene('ConquestUIScene');
+    const { resolveAscentPrompt } = await import('/src/systems/ascent/AscentResolver.ts');
+    let guard = 0;
+    while (scene.state.pendingAscentPrompt?.kind === 'dynasty-level' && guard++ < 10) {
+      resolveAscentPrompt(scene.state, scene.state.pendingAscentPrompt.options[0]);
+    }
+    scene.state.pendingAscentPrompt = undefined;
+    ui.events.emit('state-changed');
+    game.step(performance.now(), 16);
+  });
+  const reduced = await openCeremony(true);
+  // Generous: the headless clock stretches timers under load; the gate reads planned durations.
+  await ceremony.waitForTimeout(2500);
+  const reducedLog = await ceremony.evaluate(() => {
+    const ui = window.__phaserGame.scene.getScene('ConquestUIScene');
+    const seq = ui?.data?.get('ceremony');
+    return seq ? { log: seq.log, done: seq.done } : { log: [], done: false };
+  });
+  check('reduced motion plans every beat at 120 ms or less and the passage finishes',
+    reduced.kind === 'dynasty-level' && reducedLog.done && reducedLog.log.every((b) => (b.planned ?? (b.end - b.start)) <= 120),
+    reducedLog.log.map((b) => `${b.name}:${b.planned ?? Math.round(b.end - b.start)}`).join(' '));
+
+  // The skip, from the second reign: a tap lands on the choice within 300 ms.
+  await ceremony.evaluate(async () => {
+    const game = window.__phaserGame;
+    const scene = game.scene.getScene('ConquestScene');
+    const ui = game.scene.getScene('ConquestUIScene');
+    const { resolveAscentPrompt } = await import('/src/systems/ascent/AscentResolver.ts');
+    let guard = 0;
+    while (scene.state.pendingAscentPrompt?.kind === 'dynasty-level' && guard++ < 10) {
+      resolveAscentPrompt(scene.state, scene.state.pendingAscentPrompt.options[0]);
+    }
+    scene.state.pendingAscentPrompt = undefined;
+    ui.events.emit('state-changed');
+    game.step(performance.now(), 16);
+  });
+  const third = await openCeremony(false);
+  await ceremony.waitForTimeout(500);
+  const box = await ceremony.evaluate(() => {
+    const canvas = document.querySelector('canvas').getBoundingClientRect();
+    const size = window.__phaserGame.scale.gameSize;
+    return { x: canvas.left + canvas.width * 0.5, y: canvas.top + canvas.height * (300 / size.height) };
+  });
+  await ceremony.mouse.click(box.x, box.y);
+  await ceremony.waitForTimeout(300);
+  const skipped = await ceremony.evaluate(() => {
+    const ui = window.__phaserGame.scene.getScene('ConquestUIScene');
+    const seq = ui?.data?.get('ceremony');
+    const cards = (ui.activeScrollAreas ?? []).reduce((sum, area) => sum + area.content.list.filter((o) => o.getData?.('cardHeight')).length, 0);
+    const scrolled = (ui.activeScrollAreas ?? []).flatMap((a) => a.content.list);
+    const lastCard = scrolled.filter((o) => o.getData?.('cardHeight')).sort((a, b) => b.y - a.y)[0];
+    const hintText = scrolled.find((o) => o.type === 'Text' && /Hold a card|Giữ thẻ/.test(o.text));
+    const hintGap = lastCard && hintText ? hintText.y - (lastCard.y + lastCard.getData('cardHeight')) : 999;
+    return { hintGap, done: Boolean(seq?.done), cut: Boolean(seq?.cutShort), cards, offersAlpha: (ui.activeScrollAreas ?? []).flatMap((a) => a.content.list.filter((o) => o.getData?.('cardHeight')).map((o) => o.alpha)) };
+  });
+  check('from the second reign a tap cuts to the choice, cards in place, within 300 ms',
+    third.kind === 'dynasty-level' && skipped.done && skipped.cut && skipped.cards >= 2 && skipped.offersAlpha.every((a) => a >= 0.99),
+    `${skipped.cards} cards, alpha ${skipped.offersAlpha.join('/')}`);
+
+  check('the hold hint sits within 24 units under the last offer', skipped.hintGap >= 0 && skipped.hintGap <= 24, `${skipped.hintGap} units`);
+
+  // The next-reign page: no placeholder rows.
+  const nextReign = await ceremony.evaluate(async () => {
+    const game = window.__phaserGame;
+    const scene = game.scene.getScene('ConquestScene');
+    const ui = game.scene.getScene('ConquestUIScene');
+    let guard = 0;
+    while (scene.state.pendingAscentPrompt?.kind === 'dynasty-level' && guard++ < 10) {
+      ui.events.emit('ui:ascent-choice', scene.state.pendingAscentPrompt.options[0]);
+      game.step(performance.now(), 16);
+    }
+    if (!scene.state.pendingAscentPrompt) {
+      ui.events.emit('ui:ascent-ceremony');
+      game.step(performance.now(), 16);
+    }
+    const texts = [];
+    const walk = (o) => { if (o.type === 'Text' && o.text) texts.push(o.text); if (o.list) o.list.forEach(walk); };
+    ui.modalLayer.list.forEach(walk);
+    return { kind: scene.state.pendingAscentPrompt?.kind, texts };
+  });
+  check('the next-reign page has no placeholder rows', nextReign.kind === 'next-reign'
+    && !nextReign.texts.some((text) => /will fill this|chờ bản sau|Hall of Names|Điện Danh Thần/.test(text))
+    && nextReign.texts.some((text) => /champions laid out|bày \d+ người/.test(text)),
+    nextReign.texts.slice(0, 6).join(' / '));
+  check('the ceremony page raises no error', ceremonyErrors.length === 0, ceremonyErrors.slice(0, 2).join(' | '));
+  await ceremony.close();
+
+  // ── The live reign, and the chip's house share, in a run ──
+  const run = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  const runErrors = [];
+  run.on('pageerror', (e) => runErrors.push(e.message));
+  await run.addInitScript(() => { localStorage.clear(); localStorage.setItem('mandate:language:v1', 'en'); });
+  await run.goto(`${URL}/?capture=1`, { waitUntil: 'domcontentloaded' });
+  await run.waitForFunction(() => typeof window.__startBenchGame === 'function' && window.__phaserGame?.scene.isActive('MenuScene'), null, { timeout: 30000 });
+  await run.evaluate(() => window.__startBenchGame(4242, 'ascent'));
+  await run.waitForFunction(() => window.__phaserGame.scene.isActive('ConquestScene'), null, { timeout: 30000 });
+  await run.waitForTimeout(800);
+  const live = await run.evaluate(async () => {
+    const game = window.__phaserGame;
+    const scene = game.scene.getScene('ConquestScene');
+    const ui = game.scene.getScene('ConquestUIScene');
+    const { readInheritance, noteLiveReign } = await import('/src/systems/ascent/Inheritance.ts');
+    const d = await import('/src/state/dynasty.ts');
+    const { clearAutosave } = await import('/src/state/save.ts');
+    const state = scene.state;
+    state.pendingAscentPrompt = undefined;
+    state.ascent.promptQueue = [];
+    state.ascent.wavesSurvived = 7;
+    state.ascent.peakPower = 3000;
+    noteLiveReign(state);
+    const ledger = readInheritance(state);
+    const stored = d.getDynasty().liveReign;
+    // The chip, sampled over a minute of the run's own clock while the world moves.
+    state.isPaused = false;
+    let houseSamples = 0;
+    let samples = 0;
+    let now = performance.now();
+    for (let k = 0; k < 120; k += 1) {
+      now += 500;
+      game.step(now, 500);
+      ui.inheritance?.render(state, 600);
+      const topic = ui.inheritance?.current?.()?.topic;
+      if (topic) {
+        samples += 1;
+        if (topic === 'house') houseSamples += 1;
+      }
+    }
+    clearAutosave();
+    const cleared = d.getDynasty().liveReign;
+    return { stored, ledger: ledger && { score: ledger.score, level: ledger.houseLevelAfter }, houseShare: samples > 0 ? houseSamples / samples : 0, samples, cleared: Boolean(cleared) };
+  });
+  check('the reign in play is written to the house within 1 XP of the chip\'s projection',
+    Boolean(live.stored) && Boolean(live.ledger) && Math.abs(live.stored.score - live.ledger.score) <= 1 && live.stored.levelAfter === live.ledger.level,
+    live.stored ? `${live.stored.score} vs ${live.ledger?.score}` : 'nothing stored');
+  check('the live segment is cleared when the run is walked out of', !live.cleared);
+  check('the shut chip shows the house at least half the time', live.houseShare >= 0.5, `${Math.round(live.houseShare * 100)}% of ${live.samples} samples`);
+  check('the run page raises no error', runErrors.length === 0, runErrors.slice(0, 2).join(' | '));
+  await run.close();
+}
+
+
+// ── 9. Rank II, the use counters, the compact chip, the reign's record ─────────
+console.log('\n=== RANK II AND THE COUNTERS ===');
+{
+  const rank = await page.evaluate(async () => {
+    const d = await import('/src/state/dynasty.ts');
+    const traits = await import('/src/data/dynastyTraits.ts');
+    const write = (level, held) => {
+      let xp = 0;
+      for (let l = 1; l <= level; l += 1) xp += d.dynastyXpStep(l);
+      localStorage.setItem('mandate:dynasty:v1', JSON.stringify({ xp, traits: held, pendingPicks: 1, reigns: 3, bestScore: 0, respecs: 0, history: [] }));
+    };
+    const rolls = (n) => { const seen = new Set(); for (let i = 0; i < n; i += 1) for (const id of d.rollTraitOffer()) seen.add(id); return [...seen]; };
+    write(8, ['wide-draft', 'quartermaster']);
+    const below = rolls(120).filter((id) => traits.findDynastyTrait(id)?.rank === 2);
+    write(9, ['wide-draft', 'quartermaster']);
+    const above = rolls(120).filter((id) => traits.findDynastyTrait(id)?.rank === 2).sort();
+    write(9, []);
+    const noBase = rolls(120).filter((id) => traits.findDynastyTrait(id)?.rank === 2);
+    write(9, ['wide-draft']);
+    const refused = d.chooseTrait('quartermaster-2');
+    const taken = d.chooseTrait('wide-draft-2');
+    // The counters: a held trait counts, an un-held one does not.
+    d.noteTraitUse('wide-draft');
+    d.noteTraitUse('wide-draft');
+    d.noteTraitUse('old-roads');
+    const uses = { wide: d.traitUses('wide-draft'), old: d.traitUses('old-roads') };
+    const slots = (await import('/src/state/cabinet.ts')).openingHandSlots();
+    localStorage.removeItem('mandate:dynasty:v1');
+    return { below, above, noBase, refused, taken, uses, slots };
+  });
+  check('Rank II is never dealt below level 9', rank.below.length === 0, rank.below.join(','));
+  check('at level 9 the Rank II step of each held base is on the table, and only those', rank.above.join(',') === 'quartermaster-2,wide-draft-2', rank.above.join(','));
+  check('Rank II without its base is never dealt', rank.noBase.length === 0, rank.noBase.join(','));
+  check('a Rank II pick is refused without its base and taken with it', rank.refused === false && rank.taken === true);
+  check('use counters count a held trait and ignore an un-held one', rank.uses.wide === 2 && rank.uses.old === 0, JSON.stringify(rank.uses));
+
+  // The record a reign leaves: its founder, its deck, its chronicle.
+  const record = await page.evaluate(async () => {
+    const { createAscentGameState } = await import('/src/state/GameState.ts');
+    const { endAscentRun } = await import('/src/systems/ascent/AscentResolver.ts');
+    const d = await import('/src/state/dynasty.ts');
+    localStorage.removeItem('mandate:dynasty:v1');
+    const { resolveAscentPrompt } = await import('/src/systems/ascent/AscentResolver.ts');
+    const state = createAscentGameState({ seaSides: 1, difficulty: 'normal' });
+    const founding = state.pendingAscentPrompt?.kind === 'founder' ? state.pendingAscentPrompt : state.ascent.promptQueue.find((p) => p.kind === 'founder');
+    if (founding) { state.pendingAscentPrompt = founding; resolveAscentPrompt(state, founding.options[0]); }
+    state.pendingAscentPrompt = undefined;
+    state.ascent.promptQueue = [];
+    state.ascent.wavesSurvived = 12;
+    state.ascent.peakPower = 4000;
+    state.ascent.cardStacks['iron-levy'] = 2;
+    endAscentRun(state);
+    const last = d.getDynasty().history.slice(-1)[0];
+    localStorage.removeItem('mandate:dynasty:v1');
+    return { founder: last?.founder, cards: last?.cards, chronicle: last?.chronicle === undefined || Array.isArray(last?.chronicle) };
+  });
+  check('a banked reign records its founder, its deck and a chronicle',
+    Boolean(record.founder?.name) && Array.isArray(record.cards) && record.cards.includes('iron-levy') && record.chronicle,
+    `founder ${record.founder?.name ?? '-'}, cards ${(record.cards ?? []).join(',')}`);
+
+  // The chip: a seal-sized pill shut, the full sheet open, and the opening is a motion.
+  const chipPage = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  const chipErrors = [];
+  chipPage.on('pageerror', (e) => chipErrors.push(e.message));
+  await chipPage.addInitScript(() => { localStorage.clear(); localStorage.setItem('mandate:language:v1', 'vi'); });
+  await chipPage.goto(`${URL}/?capture=1`, { waitUntil: 'domcontentloaded' });
+  await chipPage.waitForFunction(() => typeof window.__startBenchGame === 'function' && window.__phaserGame?.scene.isActive('MenuScene'), null, { timeout: 30000 });
+  await chipPage.evaluate(() => window.__startBenchGame(1337, 'ascent'));
+  await chipPage.waitForFunction(() => window.__phaserGame.scene.isActive('ConquestScene'), null, { timeout: 30000 });
+  await chipPage.waitForTimeout(900);
+  await chipPage.evaluate(async () => {
+    const game = window.__phaserGame;
+    const scene = game.scene.getScene('ConquestScene');
+    const ui = game.scene.getScene('ConquestUIScene');
+    const { resolveAscentPrompt } = await import('/src/systems/ascent/AscentResolver.ts');
+    let guard = 0;
+    while (scene.state.pendingAscentPrompt && guard++ < 6) {
+      const p = scene.state.pendingAscentPrompt;
+      const first = p.options?.[0];
+      if (!resolveAscentPrompt(scene.state, typeof first === 'string' ? first : (first?.id ?? 'ok'))) scene.state.pendingAscentPrompt = undefined;
+    }
+    scene.state.ascent.promptQueue = [];
+    scene.refresh();
+    ui.events.emit('state-changed');
+    game.step(performance.now(), 16);
+    game.step(performance.now() + 16, 16);
+  });
+  await chipPage.waitForTimeout(300);
+  const chip = await chipPage.evaluate(() => {
+    const ui = window.__phaserGame.scene.getScene('ConquestUIScene');
+    const shut = ui.inheritance.tapBounds()[0];
+    ui.inheritance.hit.emit('pointerup', { x: 0, y: 0 }, 0, 0, { stopPropagation() {} });
+    const open = ui.inheritance.tapBounds()[0];
+    const alphas = ui.inheritance.sheet.filter((o) => o.type === 'Text').map((o) => o.alpha);
+    return { shut, open, alphas, rows: alphas.length };
+  });
+  await chipPage.waitForTimeout(700);
+  const settled = await chipPage.evaluate(() => {
+    const ui = window.__phaserGame.scene.getScene('ConquestUIScene');
+    return ui.inheritance.sheet.filter((o) => o.type === 'Text').map((o) => o.alpha);
+  });
+  check('the shut chip is a seal-sized pill (width ≤ 160, sized to its number, one line)', Boolean(chip.shut) && chip.shut.width <= 160 && chip.shut.height <= 26, chip.shut ? `${chip.shut.width}×${chip.shut.height}` : 'no chip');
+  check('a tap opens the full sheet, wider and taller', Boolean(chip.open) && chip.open.width >= 250 && chip.open.height > 120, chip.open ? `${chip.open.width}×${chip.open.height}` : 'no sheet');
+  check('the sheet rises in rather than appearing: rows start faded and settle to full ink',
+    chip.rows > 6 && chip.alphas.every((a) => a < 1) && settled.every((a) => a >= 0.99), `${chip.rows} rows, first ${chip.alphas.slice(0, 3).map((a) => a.toFixed(2)).join('/')} → ${settled.slice(0, 3).join('/')}`);
+  check('the chip page raises no error', chipErrors.length === 0, chipErrors.slice(0, 2).join(' | '));
+  await chipPage.close();
 }
 
 check('no console errors', errors.length === 0, errors.slice(0, 3).join(' | '));

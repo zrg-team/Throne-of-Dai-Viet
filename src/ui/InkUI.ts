@@ -1,7 +1,9 @@
 import Phaser from 'phaser';
 import { GAME_HEIGHT, GAME_WIDTH } from '../game/constants';
 import { addPressFeedback } from './animations';
-import { installPressWatch, liftForInput, markControlBorn, releaseNotOwnedBy } from './inputGeneration';
+import {
+  installPressWatch, liftForInput, markControlBorn, noteControlFired, pressIsEchoOnto, releaseNotOwnedBy,
+} from './inputGeneration';
 import { CARD_ICON_SIZE, drawCardIcon, type CardIconId } from './CardIcons';
 import { UI_FONT } from './fonts';
 import { RectClip } from './ink/clipRect';
@@ -824,7 +826,11 @@ export class InkUI {
       // reliable than trying to identify the duplicate by its type.
       const now = pointer.downTime || performance.now();
       if (now - firedAt < 120) return;
+      // The same duplicate landing on a DIFFERENT button — the one the first press revealed under
+      // the finger. Exit on the run's sheet, then Play on the front page: see `pressIsEchoOnto`.
+      if (pressIsEchoOnto(hitArea, pointer)) return;
       firedAt = now;
+      noteControlFired(pointer);
       // The court's paper, under every press. This is also the gesture that unlocks the audio
       // context on first touch — see SoundDirector.tap.
       soundDirector.tap();
@@ -948,6 +954,11 @@ export class InkUI {
       if (releaseNotOwnedBy(hitArea)) {
         return;
       }
+      // Or be the echo of the press that built it — see `pressIsEchoOnto`.
+      if (pressIsEchoOnto(hitArea, pointer)) {
+        return;
+      }
+      noteControlFired(pointer);
       soundDirector.tap();
       onClick();
     });

@@ -11,7 +11,9 @@
  */
 import Phaser from 'phaser';
 import { GAME_HEIGHT, PLAYER_KINGDOM_ID } from '../../../game/constants';
-import { powerCardView, skipRefundAmount } from '../../../systems/ascent/PowerDraftSystem';
+import { cardStack, powerCardView, skipRefundAmount } from '../../../systems/ascent/PowerDraftSystem';
+import { findPowerCard } from '../../../data/ascentCards';
+import { cabinetCard, cabinetLevel, combineCost, openingHand } from '../../../state/cabinet';
 import { buildAllConquestTargets, methodActorLine, methodHasActor }
   from '../../../systems/ascent/ConquestSystem';
 import { buildHeroPickerRows, buildHostPickerRows } from '../../../ui/heroPickerRows';
@@ -20,6 +22,7 @@ import { UI_FONT } from '../../../ui/fonts';
 import { INK_UI, type UIBounds } from '../../../ui/InkUI';
 import { iconForOption } from '../../../ui/CardIcons';
 import { staggerIn } from '../../../ui/animations';
+import { motionMs } from '../../../game/lifeSettings';
 import { formatResourceList, heroName, t } from '../../../i18n';
 import type { AscentPrompt, ConquestMethodOption, ConquestTarget } from '../../../state/types';
 import { PROMPT_FOOTER_HEIGHT, RARITY_COLOR } from '../constants';
@@ -72,7 +75,7 @@ export function showPowerDraft(self: ConquestUIScene, prompt: Extract<AscentProm
   const info = self.add.container(content.x, content.y);
   self.modalLayer.add(info);
 
-  const describe = (index: number): void => {
+  const describe = (index: number, merged = false): void => {
     info.removeAll(true);
     const view = views[index];
     info.add(self.ui.panel({ x: 0, y: 0, width: content.width, height: infoHeight },
@@ -87,9 +90,21 @@ export function showPowerDraft(self: ConquestUIScene, prompt: Extract<AscentProm
       { fontSize: '13px', wordWrap: { width: content.width - 28 } });
     info.add(title);
     cursor += title.height + 4;
-    info.add(self.ui.label(14, cursor,
-      `${t(`ascent.rarity.${view.rarity}` as Parameters<typeof t>[0])}  ${view.stackCount}`,
-      'caption', { fontSize: '10px' }));
+    // After a merge the stack line re-inks with the copy counted — "II" becomes "III" on the
+    // card the player is taking, not in a footer later.
+    const stackDef = findPowerCard(view.id);
+    const stackNow = self.state.ascent ? cardStack(self.state.ascent, view.id) : 0;
+    const stackLine = merged && stackDef
+      ? t('ascent.draft.stackCount', { n: Math.min(stackNow + 2, stackDef.maxStacks), max: stackDef.maxStacks })
+      : view.stackCount;
+    const stackText = self.ui.label(14, cursor,
+      `${t(`ascent.rarity.${view.rarity}` as Parameters<typeof t>[0])}  ${stackLine}`,
+      'caption', { fontSize: '10px', ...(merged ? { color: '#8a5f1c' } : {}) });
+    info.add(stackText);
+    if (merged) {
+      stackText.setAlpha(0);
+      self.tweens.add({ targets: stackText, alpha: 1, duration: motionMs(180), ease: 'Sine.easeOut' });
+    }
     cursor += 18;
     const body = self.add.text(14, cursor, view.description, {
       color: '#4a3a28', fontFamily: 'Georgia, serif', fontSize: '11.5px',
@@ -97,6 +112,24 @@ export function showPowerDraft(self: ConquestUIScene, prompt: Extract<AscentProm
     });
     info.add(body);
     cursor += body.height + 6;
+
+    // The next cabinet level's line, ghosted under the current one: what a combine would buy,
+    // read on the card the player is about to take rather than on a page between runs.
+    const def = findPowerCard(view.id);
+    const lv = cabinetLevel(view.id);
+    if (def && lv < 3 && def.levels.length > lv && cursor < infoHeight - 30) {
+      const ghost = self.add.text(14, cursor, t('ascent.draft.nextLevel', {
+        level: lv + 1,
+        text: t(`ascent.card.${view.id}.d` as Parameters<typeof t>[0], def.levels[lv].display),
+      }), {
+        color: '#8b7a5e', fontFamily: 'Georgia, serif', fontSize: '10px',
+        wordWrap: { width: content.width - 28 }, lineSpacing: 1,
+      }).setAlpha(0);
+      info.add(ghost);
+      // Ghosts in beneath the effect on the raise — compare before committing.
+      self.tweens.add({ targets: ghost, alpha: 0.8, duration: motionMs(180), ease: 'Sine.easeOut' });
+      cursor += ghost.height + 6;
+    }
 
     // The evolution call-out outranks the power preview: completing a pair is the headline
     // reward, and a bare percentage would undersell it.
@@ -125,13 +158,35 @@ export function showPowerDraft(self: ConquestUIScene, prompt: Extract<AscentProm
   // headline it opens on the centre card, which is what keeps the resting hand symmetric.
   const evo = views.findIndex((view) => view.evolutionReady);
   const initial = evo >= 0 ? evo : Math.floor((views.length - 1) / 2);
+  // Each card carries what the bake cannot: this run's stack, the cabinet's copies toward the
+  // next combine, and whether it rides in the opening hand. A held card is dealt last.
+  const ascent = self.state.ascent;
+  const hand = openingHand();
   const fan = new CardFan(self, {
     x: content.x, y: fanTop, width: content.width, height: fanHeight,
-    cards: views.map((view) => ({ id: view.id })),
+    cards: views.map((view) => {
+      const def = findPowerCard(view.id);
+      const stack = ascent ? cardStack(ascent, view.id) : 0;
+      const owned = cabinetCard(view.id);
+      return {
+        id: view.id,
+        held: stack > 0,
+        overlay: {
+          stack,
+          maxStack: def?.maxStacks ?? 0,
+          level: owned?.level ?? 1,
+          copies: owned?.copies ?? 0,
+          need: combineCost(owned?.level ?? 1),
+          inHand: hand.includes(view.id),
+        },
+      };
+    }),
     initial,
     onRaise: describe,
+    onMerge: (index) => describe(index, true),
     onTake: (index) => self.choose(views[index].id),
     takeLabel: t('ascent.fan.take'),
+    deal: true,
   });
   self.modalLayer.add(fan.view);
 

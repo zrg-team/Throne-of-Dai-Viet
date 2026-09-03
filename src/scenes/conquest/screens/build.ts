@@ -52,14 +52,41 @@ import type { ConquestUIScene } from '../../ConquestUIScene';
 // between decisions; these exist so the player can *overrule* it at any moment rather than
 // waiting for a card to offer the choice.
 
+/** The sheet's claim button: one full button row, the same height as the tax dial's rows. */
+const CLAIM_ACTION_HEIGHT = 44;
+
 /** Build / upgrade a district by hand, ahead of whatever the autopilot would have picked. */
 export function showBuildScreen(self: ConquestUIScene): void {
   const state = self.state;
   const lands = state.lands.filter((land) => land.ownerId === PLAYER_KINGDOM_ID);
+  // Read once, ahead of the frame: the sheet's action and the page's own claim row both say
+  // the same thing about the same provinces, and two readings could disagree by a tick.
+  const targets = buildAllConquestTargets(state);
+  const openTargets = targets.filter(
+    (target) => target.methods.some((method) => !method.blockedReason),
+  );
+  const claimBlocked = claimBlockedReason(state);
+  const canClaim = !claimBlocked && openTargets.length > 0;
   const { addRow, addHeading, addWidget, finish } = self.laneList(
     t('action.build'),
     t('ascent.screen.buildBody', { lands: lands.length }),
     {
+      // The sheet carries the page's one action, the way the court's sheet carries the tax dial
+      // and the course: *"the Build page's sheet must have an action, like the court's"*. It opens
+      // the provinces in reach, ordered by what the realm can actually do about each of them now.
+      footerWidget: {
+        height: CLAIM_ACTION_HEIGHT,
+        build: (holder, width) => {
+          holder.add(self.ui.button(
+            { x: 0, y: 0, width, height: CLAIM_ACTION_HEIGHT },
+            canClaim
+              ? `${t('ascent.claim.start')} · ${t('ascent.claim.startHint', { n: openTargets.length })}`
+              : `${t('ascent.claim.start')} · ${claimBlocked ?? t('ascent.claim.startNone')}`,
+            () => { if (canClaim) showClaimTargets(self); },
+            { variant: canClaim ? 'primary' : 'disabled', fontSize: '13px' },
+          ));
+        },
+      },
       footerToggle: {
         label: t('ascent.claim.autoAsk'),
         hint: t((state.ascent?.autoClaimSilently ?? false)
@@ -112,12 +139,6 @@ export function showBuildScreen(self: ConquestUIScene): void {
   // the screen went on offering an envoy under a heading that said there were none. A limit the
   // player can tap straight through is not a limit. Force is still reachable the classic way, by
   // selecting the province on the map — the inspect card raises the same sheet.
-  const targets = buildAllConquestTargets(state);
-  const openTargets = targets.filter(
-    (target) => target.methods.some((method) => !method.blockedReason),
-  );
-  const claimBlocked = claimBlockedReason(state);
-  const canClaim = !claimBlocked && openTargets.length > 0;
   addRow(
     {
       title: t('ascent.claim.start'),
@@ -179,7 +200,14 @@ export function showClaimTargets(self: ConquestUIScene): void {
 
   // The whole border, not the card prompt's short hand: a province left off this list did not
   // exist to the player. Open provinces first, then by odds — the same order as before.
-  const targets = buildAllConquestTargets(state);
+  // What the realm can do about each province *now* decides the order: the ones with an open way
+  // in first, the surest way first among those, and the ones nothing can reach at the foot. A
+  // list in map order made the player read every row to find the one worth pressing.
+  const targets = buildAllConquestTargets(state).slice().sort((a, b) => {
+    const bestOf = (target: typeof a): number => Math.max(0, ...target.methods
+      .filter((method) => !method.blockedReason).map((method) => method.chance));
+    return bestOf(b) - bestOf(a);
+  });
   const { addRow, finish } = self.laneList(t('ascent.claim.start'), `${t('ascent.claim.headingHint')}\n${t('ascent.claim.count', { n: targets.length })}`,
     { back: () => self.replaceLanePage(() => showBuildScreen(self)) },
   );

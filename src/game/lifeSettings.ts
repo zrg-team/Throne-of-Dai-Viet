@@ -18,6 +18,10 @@ export type TrafficDensity = 'none' | 'few' | 'normal' | 'busy';
 
 export const TRAFFIC_DENSITIES: TrafficDensity[] = ['none', 'few', 'normal', 'busy'];
 
+export type MotionLevel = 'full' | 'reduced';
+
+export const MOTION_LEVELS: MotionLevel[] = ['full', 'reduced'];
+
 export interface LifeSettings {
   /** Skeins of egrets crossing the map. */
   birds: boolean;
@@ -25,11 +29,21 @@ export interface LifeSettings {
   traffic: TrafficDensity;
   /** Whether the year turns visibly: the seasonal wash, the blossom, the weather. */
   seasons: boolean;
+  /**
+   * How much the interface itself moves. `reduced` cuts every choreographed duration to a beat
+   * (`motionMs`) and replaces the ceremony's pour with a cut — the reign-end sequence is where
+   * a setting like this became necessary, since a nine-second passage a player cannot shorten is
+   * a toll on the twentieth run and a hazard for anyone motion-sensitive.
+   */
+  motion: MotionLevel;
 }
 
 const STORAGE_KEY = 'mandate:life:v1';
 
-const DEFAULTS: LifeSettings = { birds: true, traffic: 'normal', seasons: true };
+const DEFAULTS: LifeSettings = { birds: true, traffic: 'normal', seasons: true, motion: 'full' };
+
+/** The longest a reduced-motion tween may run. Under it, motion reads as a change, not a passage. */
+const REDUCED_MOTION_MS = 120;
 
 /** Travellers and carts per road, by setting. `none` retires them entirely. */
 const TRAFFIC_PER_ROAD: Record<TrafficDensity, { travellers: number; carts: number }> = {
@@ -54,6 +68,7 @@ function read(): LifeSettings {
     if (typeof stored.birds === 'boolean') cached.birds = stored.birds;
     if (typeof stored.seasons === 'boolean') cached.seasons = stored.seasons;
     if (stored.traffic && TRAFFIC_DENSITIES.includes(stored.traffic)) cached.traffic = stored.traffic;
+    if (stored.motion && MOTION_LEVELS.includes(stored.motion)) cached.motion = stored.motion;
   } catch {
     // A corrupt entry is a defaulted entry. Nothing here is worth failing a boot over.
   }
@@ -83,4 +98,16 @@ export function birdsEnabled(): boolean {
 
 export function seasonsEnabled(): boolean {
   return read().seasons;
+}
+
+export function reducedMotion(): boolean {
+  return read().motion === 'reduced';
+}
+
+/**
+ * A choreographed duration, honouring the motion setting: the full length, or the reduced beat.
+ * Every tween in the dynasty page and the reign-end sequence asks this rather than a literal.
+ */
+export function motionMs(fullMs: number): number {
+  return read().motion === 'reduced' ? Math.min(REDUCED_MOTION_MS, fullMs) : fullMs;
 }

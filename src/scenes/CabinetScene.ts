@@ -22,13 +22,14 @@ import {
   type RubbingReveal,
 } from '../state/cabinet';
 import { getLegacy, spendLegacyPoints } from '../state/legacy';
-import { AMBITION_PER_POWER_CARD } from '../game/ascentConfig';
+import { AMBITION_PER_POWER_CARD, PITY_HARD_CAP } from '../game/ascentConfig';
+import { motionMs } from '../game/lifeSettings';
 import { BACK_BAR_HEIGHT, InkUI, INK_UI, scrollGestureConsumedTap, type InkScrollArea } from '../ui/InkUI';
-import { CARD_FACE_H, CARD_FACE_W, stampCardFace } from '../ui/cardFace';
+import { CARD_FACE_H, CARD_FACE_W, cardFaceOverlay, stampCardFace } from '../ui/cardFace';
 import { createMapRenderer, type MapRenderer } from '../ui/MapRenderer';
 import { applyPaperFX } from '../ui/ink/PaperFX';
 import { attachPaperSheet } from '../ui/ink/paperSheet';
-import { sawtoothBand } from '../ui/ink/devices';
+import { sawtoothBand, seal } from '../ui/ink/devices';
 import { TITLE_FONT, UI_FONT } from '../ui/fonts';
 import type { AscentRarity } from '../state/types';
 
@@ -70,6 +71,12 @@ const RARITY_COLOR: Record<AscentRarity, number> = {
   jade: INK_UI.jade,
 };
 
+/** The binder's sort: rarity first, then the cabinet level, so the strongest seals lead. */
+const RARITY_RANK: Record<AscentRarity, number> = { jade: 3, gold: 2, silver: 1, bronze: 0 };
+
+type BinderFilter = 'all' | 'held' | 'lv2' | 'ready';
+const BINDER_FILTERS: BinderFilter[] = ['all', 'held', 'lv2', 'ready'];
+
 export class CabinetScene extends Phaser.Scene {
   private ui!: InkUI;
   private mapRenderer!: MapRenderer;
@@ -88,6 +95,12 @@ export class CabinetScene extends Phaser.Scene {
   /** Where the list should stand after the next re-render, so a tap does not throw the reader
    *  back to the top of a seventeen-row grid. */
   private pendingScroll = 0;
+  /** Which seals the binder shows. Kept across re-renders; reset on leaving the scene. */
+  private filter: BinderFilter = 'all';
+  /** The open card view, above the page. */
+  private viewObjects: Phaser.GameObjects.GameObject[] = [];
+  /** Set while the combine's fold plays, so the action cannot fire twice. */
+  private combining = false;
 
   constructor() {
     super('CabinetScene');
@@ -113,6 +126,8 @@ export class CabinetScene extends Phaser.Scene {
     this.scroll = undefined;
     for (const item of this.content) item.destroy();
     this.content = [];
+    this.closeCardView();
+    this.combining = false;
     this.coverStrips = [];
     this.resultRows = [];
   }
@@ -188,6 +203,24 @@ export class CabinetScene extends Phaser.Scene {
         { variant: 'primary', fontSize: '12px' },
       ));
     }
+    // The pity ring beside the button: the lottery shows its odds. It fills toward the hard
+    // guarantee of gold-or-better, and it is gold when it is one pull away.
+    {
+      const cx = PAD + W - 118 - 18;
+      const cy = y + rubH / 2;
+      const share = Math.min(1, store.rubbingPity / PITY_HARD_CAP);
+      const ring = this.add.graphics();
+      ring.lineStyle(3, INK_UI.softBrush, 0.35);
+      ring.strokeCircle(cx, cy, 10);
+      if (share > 0) {
+        ring.lineStyle(3, share >= 1 - 1 / PITY_HARD_CAP ? INK_UI.gold : INK_UI.brush, 0.9);
+        ring.beginPath();
+        ring.arc(cx, cy, 10, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * share, false);
+        ring.strokePath();
+      }
+      ring.setData('pityRing', share);
+      scroll.content.add(ring);
+    }
     y += rubH + 12;
 
     // ── The faucets: every way a rubbing is earned, on one page ─────────────
@@ -258,7 +291,9 @@ export class CabinetScene extends Phaser.Scene {
         scroll.content.add(this.ui.label(x + slotW / 2, y + slotH / 2 - 8,
           locked ? '🔒' : '+', 'label', { fontSize: '16px', align: 'center' }).setOrigin(0.5, 0));
         scroll.content.add(this.ui.label(x + 6, y + slotH - 30,
-          locked ? t('cabinet.hand.locked') : t('cabinet.hand.empty'), 'caption',
+          // One name per trait, everywhere: the lock names the same trait the sheet and the
+          // ceremony do, rather than a second translation of it.
+          locked ? t('cabinet.hand.locked', { trait: t('dynasty.trait.deep-shelf') }) : t('cabinet.hand.empty'), 'caption',
           { fontSize: '8px', align: 'center', wordWrap: { width: slotW - 12 } }).setFixedSize(slotW - 12, 0));
       }
     }
@@ -271,16 +306,56 @@ export class CabinetScene extends Phaser.Scene {
     scroll.content.add(price);
     y += price.height + 16;
 
-    // ── The seals ───────────────────────────────────────────────────────────
-    y = this.sectionHeader(scroll, y, t('cabinet.grid.title'));
-    const hint = this.ui.label(PAD, y, t('cabinet.grid.hint'), 'caption',
+    // ── The binder ──────────────────────────────────────────────────────────
+    //
+    // Real faces for held seals, silhouettes for the unfound, sorted by rarity then level, with
+    // four filters. A ready-to-combine seal is edged cinnabar. Tapping a held seal opens it at
+    // full size with its ladder — the face is the object, the tile is its place.
+    y = this.sectionHeader(scroll, y, t('cabinet.binder.title', { found: progress.found, total: progress.total }));
+    const hint = this.ui.label(PAD, y, t('cabinet.binder.hint'), 'caption',
       { fontSize: '9px', wordWrap: { width: W } });
     scroll.content.add(hint);
     y += hint.height + 8;
 
+    const tileW = Math.floor((W - 3 * 6) / 4);
+    BINDER_FILTERS.forEach((id, index) => {
+      const x = PAD + index * (tileW + 6);
+      const selected = id === this.filter;
+      scroll.content.add(this.ui.crayonTile({ x, y, width: tileW, height: 28 }, { selected }));
+      scroll.content.add(this.ui.label(x + tileW / 2, y + 14, t(`cabinet.filter.${id}` as Parameters<typeof t>[0]), 'button', {
+        color: '#211103', fontSize: '10.5px', fontStyle: selected ? '700' : '400', align: 'center',
+      }).setOrigin(0.5));
+      this.gridTap(scroll, x, y, tileW, 28, () => {
+        this.filter = id;
+        this.pendingScroll = this.scroll ? -this.scroll.content.y : 0;
+        this.render();
+      });
+    });
+    y += 28 + 10;
+
+    const heldCards = POWER_CARDS.filter((card) => store.cards[card.id]);
+    const sorted = [...heldCards].sort((a, b) => {
+      const byRarity = RARITY_RANK[b.rarity] - RARITY_RANK[a.rarity];
+      if (byRarity !== 0) return byRarity;
+      return (store.cards[b.id]?.level ?? 1) - (store.cards[a.id]?.level ?? 1);
+    });
+    const shown = this.filter === 'all'
+      ? [...sorted, ...POWER_CARDS.filter((card) => !store.cards[card.id]).sort((a, b) => RARITY_RANK[b.rarity] - RARITY_RANK[a.rarity])]
+      : sorted.filter((card) => {
+        const held = store.cards[card.id];
+        if (!held) return false;
+        if (this.filter === 'lv2') return held.level >= 2;
+        if (this.filter === 'ready') return canCombine(card.id);
+        return true;
+      });
+
     const cellW = Math.floor((W - (GRID_COLS - 1) * 8) / GRID_COLS);
     const cellH = Math.round(cellW * (CARD_FACE_H / CARD_FACE_W));
-    POWER_CARDS.forEach((card, index) => {
+    if (shown.length === 0) {
+      scroll.content.add(this.ui.label(PAD, y, t('cabinet.filter.empty'), 'caption', { fontSize: '10px' }));
+      y += 24;
+    }
+    shown.forEach((card, index) => {
       const col = index % GRID_COLS;
       const row = Math.floor(index / GRID_COLS);
       const x = PAD + col * (cellW + 8);
@@ -289,31 +364,23 @@ export class CabinetScene extends Phaser.Scene {
       if (held) {
         const face = stampCardFace(this, card.id, { x, y: cy, width: cellW, height: cellH });
         if (face) scroll.content.add(face);
-        // Copies and the combine flag ride the face's foot, on their own paper so they read
-        // over any ink under them.
         const ready = canCombine(card.id);
-        const badge = this.add.text(x + cellW - 4, cy + 4,
-          `${t('cabinet.copies', { n: held.copies })}${ready ? ' ⇧' : ''}`, {
-            color: ready ? '#8a5f1c' : '#6f6250', fontFamily: UI_FONT, fontSize: '9px', fontStyle: '700',
-            backgroundColor: 'rgba(243,230,196,0.85)', padding: { x: 3, y: 1 },
-          }).setOrigin(1, 0);
-        scroll.content.add(badge);
-        if (hand.includes(card.id)) {
-          const tag = this.add.text(x + 4, cy + 4, t('cabinet.hand.slotted'), {
-            color: '#4a6a55', fontFamily: UI_FONT, fontSize: '8px', fontStyle: '700',
-            backgroundColor: 'rgba(243,230,196,0.85)', padding: { x: 3, y: 1 },
-          });
-          scroll.content.add(tag);
+        if (ready) {
+          const edge = this.add.graphics();
+          edge.lineStyle(2.5, INK_UI.cinnabar, 0.95);
+          edge.strokeRoundedRect(x - 1, cy - 1, cellW + 2, cellH + 2, 7);
+          scroll.content.add(edge);
         }
-        this.gridTap(scroll, x, cy, cellW, cellH, () => {
-          if (canCombine(card.id)) {
-            this.combineId = card.id;
-            this.mode = 'combine';
-            this.render();
-          } else {
-            this.toggleHand(card.id);
-          }
-        });
+        // The numbers the bake cannot carry: copies toward the next combine and the hand mark.
+        scroll.content.add(cardFaceOverlay(this, { x, y: cy, width: cellW, height: cellH }, {
+          level: held.level,
+          copies: held.copies,
+          need: combineCost(held.level),
+          inHand: hand.includes(card.id),
+        }));
+        this.gridTap(scroll, x, cy, cellW, cellH, () => this.openCardView(card.id, {
+          x, y: listTop + cy + (this.scroll?.content.y ?? 0), width: cellW, height: cellH,
+        }));
       } else {
         // The visible hunt: a dashed silhouette wearing only its rarity — and every one of
         // these is still draftable in a run. Ownership never gates the pool.
@@ -329,7 +396,8 @@ ${t('cabinet.grid.unfound')}`,
           'caption', { fontSize: '8px', align: 'center' }).setFixedSize(cellW - 12, 0));
       }
     });
-    y += Math.ceil(POWER_CARDS.length / GRID_COLS) * (cellH + 10) + 8;
+    y += Math.ceil(shown.length / GRID_COLS) * (cellH + 10) + 8;
+
 
     // ── The forge ───────────────────────────────────────────────────────────
     y = this.sectionHeader(scroll, y, t('cabinet.forge.title'));
@@ -407,8 +475,181 @@ ${t('cabinet.grid.unfound')}`,
     } else {
       return;
     }
+    const viewOpen = this.viewObjects.length > 0;
     this.pendingScroll = this.scroll ? -this.scroll.content.y : 0;
     this.render();
+    // The view stays open on the same card, so what the drag did is seen where it was done.
+    if (viewOpen) this.openCardView(cardId, { x: PAD, y: 84, width: 128, height: Math.round(128 * (CARD_FACE_H / CARD_FACE_W)) });
+  }
+
+  // ── The card view ─────────────────────────────────────────────────────────
+
+  /**
+   * A held seal, opened: the face flips up to full size from its tile, the page dims, and beside
+   * it the ladder says what each level does and how many copies the next one needs. The hand is
+   * set from here — a seal is slotted from its own card, not ticked in a list.
+   */
+  private openCardView(cardId: string, from: { x: number; y: number; width: number; height: number }): void {
+    this.closeCardView();
+    const card = findPowerCard(cardId);
+    const held = getCabinet().cards[cardId];
+    if (!card || !held) return;
+    const DEPTH = CHROME_DEPTH + 5;
+    const keep = <T extends Phaser.GameObjects.GameObject & { setDepth(value: number): T }>(object: T): T => {
+      this.viewObjects.push(object.setDepth(DEPTH));
+      return object;
+    };
+    const dim = keep(this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, INK_UI.overlay, 0.6).setOrigin(0, 0).setInteractive());
+    dim.on('pointerup', () => this.closeCardView());
+
+    const bigW = 128;
+    const bigH = Math.round(bigW * (CARD_FACE_H / CARD_FACE_W));
+    const bigX = PAD;
+    const bigY = 84;
+    // A sheet of its own under the card and its ladder: the page dims to sixty percent, and
+    // ladder type read straight through the rows behind it.
+    const sheetH = bigH + 14 + 38 + 8 + (canCombine(cardId) ? 46 : 0) + 32 + 24;
+    keep(this.ui.panel({ x: PAD - 8, y: bigY - 12, width: GAME_WIDTH - PAD * 2 + 16, height: sheetH + 12 },
+      { border: INK_UI.gold, borderWidth: 1.4, fillAlpha: 0.97 }));
+    const face = stampCardFace(this, cardId, { x: bigX, y: bigY, width: bigW, height: bigH }, held.level);
+    if (face) {
+      keep(face);
+      // From the tile to its place: the face is the object, the tile is where it lives.
+      const restScale = face.scale;
+      face.setPosition(from.x + from.width / 2, from.y + from.height / 2).setScale(restScale * (from.width / bigW));
+      this.tweens.add({ targets: face, x: bigX + bigW / 2, y: bigY + bigH / 2, scale: restScale, duration: motionMs(260), ease: 'Cubic.easeOut' });
+    }
+    keep(cardFaceOverlay(this, { x: bigX, y: bigY, width: bigW, height: bigH }, {
+      level: held.level, copies: held.copies, need: combineCost(held.level), inHand: openingHand().includes(cardId),
+    }));
+
+    // The ladder, beside the face: every level's line, the held one marked, the copies bar under it.
+    const ladderX = bigX + bigW + 14;
+    const ladderW = GAME_WIDTH - ladderX - PAD;
+    let ly = bigY;
+    keep(this.ui.label(ladderX, ly, t('cabinet.view.ladder'), 'caption', { fontSize: '9.5px' }));
+    ly += 16;
+    for (let level = 1; level <= 3; level += 1) {
+      const entry = card.levels[Math.min(level - 1, card.levels.length - 1)];
+      const text = t(`ascent.card.${cardId}.d` as Parameters<typeof t>[0], entry.display);
+      const current = level === held.level;
+      const line = keep(this.ui.label(ladderX, ly, `${t('cabinet.view.level', { level })} · ${text}`, current ? 'label' : 'caption', {
+        fontSize: current ? '10.5px' : '9.5px',
+        wordWrap: { width: ladderW },
+        ...(current ? { color: '#8a5f1c' } : level < held.level ? { color: '#6f6250' } : {}),
+      }));
+      ly += line.height + 6;
+    }
+    if (held.level < 3) {
+      const need = combineCost(held.level);
+      keep(this.ui.label(ladderX, ly, t('cabinet.view.copies', { n: held.copies, need }), 'caption', { fontSize: '9.5px' }));
+      ly += 14;
+      const bar = keep(this.add.graphics());
+      bar.fillStyle(INK_UI.softBrush, 0.3);
+      bar.fillRoundedRect(ladderX, ly, ladderW, 6, 3);
+      bar.fillStyle(held.copies >= need ? INK_UI.cinnabar : INK_UI.gold, 0.95);
+      bar.fillRoundedRect(ladderX, ly, Math.max(3, ladderW * Math.min(1, held.copies / need)), 6, 3);
+      ly += 16;
+    }
+
+    // The actions, under the face.
+    let by = bigY + bigH + 14;
+    const W = GAME_WIDTH - PAD * 2;
+    const inHand = openingHand().includes(cardId);
+    const handOpen = inHand || openingHand().length < openingHandSlots();
+
+    // The hand, as slots the face can be dragged into: the card shrinks into the slot and the
+    // slot's seal stamps. The hand is a deck you build, not a list you tick.
+    const slots = openingHandSlots();
+    const slotW = 44;
+    const slotH = Math.round(slotW * (CARD_FACE_H / CARD_FACE_W));
+    const slotsX = GAME_WIDTH - PAD - slots * (slotW + 6) + 6;
+    const slotsY = bigY + bigH - slotH;
+    const slotBoxes: Array<{ x: number; y: number; w: number; h: number; filled: string | undefined }> = [];
+    const handNow = openingHand();
+    for (let i = 0; i < slots; i += 1) {
+      const sx = slotsX + i * (slotW + 6);
+      const filled = handNow[i];
+      slotBoxes.push({ x: sx, y: slotsY, w: slotW, h: slotH, filled });
+      if (filled) {
+        const small = stampCardFace(this, filled, { x: sx, y: slotsY, width: slotW, height: slotH });
+        if (small) keep(small);
+      } else {
+        const g = keep(this.add.graphics());
+        g.lineStyle(1.2, INK_UI.brush, 0.5);
+        this.dashedRect(g, sx, slotsY, slotW, slotH);
+      }
+    }
+    keep(this.ui.label(slotsX, slotsY - 14, t('cabinet.view.dragHint'), 'caption', { fontSize: '8.5px' }));
+    if (face && !inHand && handOpen) {
+      face.setInteractive({ draggable: true, useHandCursor: true });
+      this.input.setDraggable(face);
+      const restX = bigX + bigW / 2;
+      const restY = bigY + bigH / 2;
+      const restScale = face.scale;
+      face.on('drag', (_p: Phaser.Input.Pointer, dragX: number, dragY: number) => {
+        face.setPosition(dragX, dragY);
+      });
+      face.on('dragend', () => {
+        const hit = slotBoxes.find((box) => !box.filled && face.x >= box.x - 8 && face.x <= box.x + box.w + 8 && face.y >= box.y - 8 && face.y <= box.y + box.h + 8);
+        if (!hit) {
+          this.tweens.add({ targets: face, x: restX, y: restY, duration: motionMs(220), ease: 'Cubic.easeOut' });
+          return;
+        }
+        face.disableInteractive();
+        this.tweens.add({
+          targets: face, x: hit.x + hit.w / 2, y: hit.y + hit.h / 2, scale: restScale * (hit.w / bigW),
+          duration: motionMs(300), ease: 'Cubic.easeOut',
+          onComplete: () => {
+            const stamp = this.add.graphics().setDepth(DEPTH + 1);
+            seal(stamp, hit.x + hit.w / 2, hit.y + hit.h / 2, 26, 'lotus');
+            stamp.setScale(1.6).setAlpha(0.3);
+            this.tweens.add({
+              targets: stamp, scale: 1, alpha: 1, duration: motionMs(200), ease: 'Back.easeOut',
+              onComplete: () => this.time.delayedCall(motionMs(200), () => { stamp.destroy(); this.toggleHand(cardId); }),
+            });
+          },
+        });
+      });
+    }
+    keep(this.ui.button({ x: PAD, y: by, width: W, height: 38 },
+      inHand ? t('cabinet.view.unslot') : handOpen ? t('cabinet.view.slot') : t('cabinet.view.handFull'),
+      () => {
+        if (!handOpen) return;
+        this.toggleHand(cardId);
+      },
+      { variant: handOpen ? 'secondary' : 'disabled', fontSize: '12px' }));
+    by += 46;
+    if (canCombine(cardId)) {
+      keep(this.ui.button({ x: PAD, y: by, width: W, height: 38 },
+        t('cabinet.view.combine', { n: combineCost(held.level), level: held.level + 1 }),
+        () => {
+          this.combineId = cardId;
+          this.mode = 'combine';
+          this.render();
+        },
+        { variant: 'primary', fontSize: '12px' }));
+      by += 46;
+    }
+    keep(this.ui.button({ x: PAD, y: by, width: W, height: 32 }, t('cabinet.view.close'),
+      () => this.closeCardView(), { variant: 'ghost', fontSize: '11px' }));
+
+    // Everything but the veil and the face rises into place behind the face's flip: the sheet is
+    // opened, not switched on.
+    this.viewObjects.forEach((object, index) => {
+      if (object === dim || object === face) return;
+      const target = object as Phaser.GameObjects.GameObject & { y?: number; setAlpha?: (a: number) => unknown; setY?: (y: number) => unknown };
+      if (typeof target.y !== 'number' || !target.setAlpha) return;
+      const restY = target.y;
+      target.setAlpha(0);
+      target.setY?.(restY + 12);
+      this.tweens.add({ targets: target, alpha: 1, y: restY, duration: motionMs(220), delay: Math.min(index, 10) * motionMs(20) + motionMs(120), ease: 'Sine.easeOut' });
+    });
+  }
+
+  private closeCardView(): void {
+    for (const object of this.viewObjects) object.destroy();
+    this.viewObjects = [];
   }
 
   // ── The combine ceremony ──────────────────────────────────────────────────
@@ -443,10 +684,11 @@ ${t('cabinet.grid.unfound')}`,
     const rowW = cost * smallW + (cost - 1) * GAP;
     const startX = Math.round((GAME_WIDTH - rowW) / 2);
     let cy = 86;
+    const copies: Phaser.GameObjects.Image[] = [];
     for (let i = 0; i < cost; i += 1) {
       const x = startX + i * (smallW + GAP);
       const face = stampCardFace(this, cardId, { x, y: cy, width: smallW, height: smallH }, held.level);
-      if (face) this.keep(face);
+      if (face) copies.push(this.keep(face));
       if (i > 0) {
         this.keep(this.ui.label(x - Math.round(GAP / 2), cy + smallH / 2 - 10, '+', 'label',
           { fontSize: '16px' }).setOrigin(0.5, 0));
@@ -492,10 +734,33 @@ ${t('cabinet.grid.unfound')}`,
       { x: PAD, y: backY - 54, width: W, height: 44 },
       t('cabinet.combine.action', { n: cost }),
       () => {
-        if (combineCard(cardId)) {
-          this.mode = 'cabinet';
-          this.render();
+        if (this.combining || !canCombine(cardId)) return;
+        this.combining = true;
+        // The fold: the copies fan into the card, the card takes the punch and a gold flash,
+        // and only then does the store change — the one between-run upgrade the player makes
+        // on purpose is seen to happen. 800 ms at full motion, a beat under reduced.
+        const fold = motionMs(500);
+        const centreX = big ? big.x : GAME_WIDTH / 2;
+        const centreY = big ? big.y : cy;
+        copies.forEach((copy, i) => {
+          this.tweens.add({
+            targets: copy, x: centreX, y: centreY, scale: copy.scale * 0.15, alpha: 0,
+            delay: i * motionMs(60), duration: fold, ease: 'Cubic.easeIn',
+          });
+        });
+        if (big) {
+          this.tweens.add({ targets: big, scale: big.scale * 1.08, delay: fold, duration: motionMs(150), yoyo: true, ease: 'Sine.easeInOut' });
+          const flash = this.keep(this.add.rectangle(big.x, big.y, bigW + 8, bigH + 8, 0xffffff, 0.5));
+          flash.setAlpha(0);
+          this.tweens.add({ targets: flash, alpha: 0.6, delay: fold, duration: motionMs(120), yoyo: true });
         }
+        this.time.delayedCall(fold + motionMs(300), () => {
+          this.combining = false;
+          if (combineCard(cardId)) {
+            this.mode = 'cabinet';
+            this.render();
+          }
+        });
       },
       { variant: 'primary', fontSize: '14px' },
     ));

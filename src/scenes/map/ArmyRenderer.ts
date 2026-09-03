@@ -33,7 +33,7 @@ const FACE_BADGE_Y = -34;
  * on a map where a five-metre house is 11.2 px made the badge the largest thing in the province
  * after the citadel. 19 still reads at a glance and stops competing with the host it labels.
  */
-const FACE_BADGE_SIZE = 19;
+const FACE_BADGE_SIZE = 32; // read at arm's length on a phone: the first pass at 25 was still called small
 
 /** How long a host takes to settle onto its destination once the leg resolves. */
 const ARRIVE_MS = 320;

@@ -108,7 +108,14 @@ export function maybeAutoOpenBattle(self: ConquestUIScene): boolean {
    */
   const fresh = key !== self.lastAutoOpenedBattleKey;
   const opening = ((battle.approachBeats ?? 0) + battle.round) === 0;
-  if (!fresh && !self.reopenBattleAfterPrompt) return false;
+  // Only a fight that is *beginning* brings its screen up on its own, and only a card that
+  // interrupted the fight brings it back. A running field the war promoted the chair onto —
+  // after the player's own fight ended, or while they were reading elsewhere — is not an event
+  // that moves them: it is listed on the board and the fronts chip, and it is theirs to open.
+  if (!(fresh && opening) && !self.reopenBattleAfterPrompt) {
+    if (fresh) self.lastAutoOpenedBattleKey = key;
+    return false;
+  }
   self.reopenBattleAfterPrompt = false;
   self.lastAutoOpenedBattleKey = key;
   // Sealed *before* the lane is built, so the first build is the only build. It used to open

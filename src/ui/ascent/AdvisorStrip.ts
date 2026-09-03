@@ -137,6 +137,11 @@ export class AdvisorStrip {
     return ADVISOR_TOP + this.stripHeight + this.sheetHeight;
   }
 
+  /** The advice on the strip right now, dwell and all — what the bar's hint card repeats. */
+  shown(): Advice | undefined {
+    return this.current;
+  }
+
   setVisible(visible: boolean): void {
     this.root.setVisible(visible);
     // Hiding a Phaser container leaves its hit areas live — see `setContainerInputEnabled`. This
