@@ -28,8 +28,9 @@ import {
   upgradeDistrictBuilding,
 } from '../../../systems/ResourceSystem';
 import {
-  GARRISON_RECOVER_SEASONS, MILITIA_REGROW_DELAY, RETAKE_BONUS_WAVES, RETAKE_POWER_BONUS,
+  ASCENT_MILITIA_REGROW_DELAY, GARRISON_RECOVER_SEASONS, RETAKE_BONUS_WAVES, RETAKE_POWER_BONUS,
 } from '../../../game/ascentConfig';
+import { wallManning } from '../../../systems/WarSystem';
 import { buildFocusRows } from '../../../ui/focusPanel';
 import { buildGovernorRows } from '../../../ui/governorPanel';
 import { buildHeroPickerRows } from '../../../ui/heroPickerRows';
@@ -308,6 +309,12 @@ export function showBuildOptions(self: ConquestUIScene, landId: string): void {
     }));
     const breach = Math.round(land.wallsBreached ?? 0);
     if (breach > 0) notes.push(t('ascent.land.wallsBreached', { n: breach }));
+    // The fight burnt the district, and the walls need people behind them — both new
+    // consequences, both invisible without a line. See `RestoreSystem` and `wallManning`.
+    const ruins = land.ruins?.length ?? 0;
+    if (ruins > 0) notes.push(t('ascent.land.ruins', { n: ruins }));
+    const manned = wallManning(state, land);
+    if (manned < 0.995) notes.push(t('ascent.land.wallsUnmanned', { pct: Math.round(manned * 100) }));
     // The clock, on the sheet the player is standing on when they decide whether to buy another
     // course of wall or go and raise a host. It is the whole choice this round rebalanced.
     if (land.siege) notes.push(t('ascent.land.underSiege', { ticks: land.siege.ticksLeft }));
@@ -327,9 +334,9 @@ export function showBuildOptions(self: ConquestUIScene, landId: string): void {
         }));
       }
     }
-    const rested = state.turn - (land.levyReturnedTurn ?? -MILITIA_REGROW_DELAY);
-    if (rested < MILITIA_REGROW_DELAY) {
-      notes.push(t('ascent.land.militiaResting', { n: MILITIA_REGROW_DELAY - rested }));
+    const rested = state.turn - (land.levyReturnedTurn ?? -ASCENT_MILITIA_REGROW_DELAY);
+    if (rested < ASCENT_MILITIA_REGROW_DELAY) {
+      notes.push(t('ascent.land.militiaResting', { n: ASCENT_MILITIA_REGROW_DELAY - rested }));
     }
   }
   addRow({

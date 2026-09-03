@@ -23,6 +23,7 @@ import { battleLines, battleRearY, battleScaleAt } from './geometry';
 import type { ConquestUIScene } from '../../ConquestUIScene';
 import { maxTextureSize } from '../../../ui/ink/textureLimits';
 import { renderScale } from '../../../game/graphicsQuality';
+import { registerGpuBake } from '../../../game/gpuBakes';
 import { conquestArtStamp, conquestTreeArtId, type ConquestArtSeason } from '../../../ui/conquestMapArt';
 import { placeStamp } from '../../../ui/ink/stamp';
 import { getFoliageSeason } from '../../../ui/ink/season';
@@ -710,4 +711,13 @@ export function bakeBattleGround(self: ConquestUIScene, from: number, isForegrou
   // `keepForegroundOnTop` did nothing and the trees sank behind the men on the first attrition
   // redraw.
   if (isForeground) ui.foreground = baked;
+  // A restored GL context hands this texture back empty, and the sources it replaced are hidden,
+  // so the field would stay bare for the rest of the fight. Forgetting the signature makes the
+  // battle clock rebuild the whole field — ground, bakes, camps, men — from live layers on its
+  // next beat: the one rebuild path every other change to the field already trusts, rather than
+  // a second one that tries to un-hide and re-flatten under a running clock.
+  registerGpuBake(self.game, 'battle-ground', () => {
+    const live = self.battleUi;
+    if (live) live.fieldSignature = '';
+  });
 }

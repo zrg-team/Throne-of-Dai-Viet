@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { GAME_HEIGHT, GAME_WIDTH } from '../game/constants';
 import { createAscentGameState, createInitialGameState } from '../state/GameState';
-import { hasSnapshot, loadSnapshot, snapshotLabel } from '../state/save';
+import { hasSnapshot, loadSnapshot, pendingAutosave, snapshotLabel } from '../state/save';
 import {
   hasSeenClassicTour, hasSeenTour, markClassicTourSeen, markTourSeen, requestGuidedRun,
 } from '../state/tour';
@@ -56,8 +56,18 @@ import {
 } from '../ui/inputGeneration';
 import { soundDirector } from '../ui/sound/SoundDirector';
 import { rungForTier } from '../game/qualityRungs';
+import { takeReloadReason } from '../game/resilience';
+import { pushToast } from '../systems/empire/notifications';
 
 type MenuMode = 'main' | 'classic' | 'confirm-new' | 'legacy' | 'dynasty' | 'temple' | 'settings';
+
+/**
+ * Whether this page life has already asked about a lost run. Module scope on purpose: the menu
+ * scene is re-created every time a run exits to it, and the question belongs to *opening the
+ * game*, not to every visit to the front page. A new page load — which is what a killed app or a
+ * closed tab comes back through — starts it false again.
+ */
+let continueOffered = false;
 
 /**
  * The front page's footer, measured up from the bottom edge.
@@ -169,6 +179,11 @@ export class MenuScene extends Phaser.Scene {
   /** Set while the install sheet is up, so the tip does not re-arm underneath it. */
   private installModalOpen = false;
   private mode: MenuMode = 'main';
+  /**
+   * Printed on the Continue line instead of the save's date when the page has just reloaded
+   * itself to get its picture back and the run could not be re-entered on its own — see `create`.
+   */
+  private reloadNote?: string;
   /**
    * The respec row, armed but not yet fired.
    *
@@ -325,7 +340,41 @@ export class MenuScene extends Phaser.Scene {
     // A sheet's pieces are pushed onto `modalObjects` from a dozen sites; rather than teach each of
     // them about the layer, anything still loose is adopted before the frame it first appears in.
     this.events.on(Phaser.Scenes.Events.PRE_RENDER, this.adoptModal, this);
+    /**
+     * The page reloaded itself to get its picture back — a GL context the phone never returned,
+     * a loop a throw had killed (`game/resilience.ts`) — or the shell restarted a web view whose
+     * process the OS took. The run was written down on the way out, so the player is carried
+     * straight back into it, with one line in the header strip saying why.
+     *
+     * Once. A second reload for the same cause lands here instead, with the note moved onto the
+     * Continue line: a run that dies on its own resume frame must not become a reload loop.
+     */
+    const reloaded = takeReloadReason();
+    if (reloaded) {
+      const snapshot = loadSnapshot();
+      if (snapshot && reloaded.count <= 1) {
+        pushToast(snapshot.state, t('menu.reloaded.notice'), 'info');
+        // A beat later, never inside create: `scene.start` from here would tear the menu down
+        // under the listeners the rest of this method is still attaching.
+        this.time.delayedCall(80, () => {
+          if (this.scene.isActive()) this.startGame(snapshot.state);
+        });
+      } else if (snapshot) {
+        this.reloadNote = t('menu.reloaded.continueNote');
+      }
+    }
     this.render();
+    // The other way a run gets lost: the phone reclaimed the whole app, the tab was closed, the
+    // process died — a cold open with no reason flag, only the automatic snapshot the away pause
+    // wrote on the way out. Asked once per page life, on the way in, rather than left to be
+    // noticed on the Continue line. Not while the reload path above is already re-entering.
+    if (!reloaded && !continueOffered) {
+      const unfinished = pendingAutosave();
+      if (unfinished) {
+        continueOffered = true;
+        this.offerContinue(unfinished);
+      }
+    }
     // The service worker finishes caching, or a new build lands, minutes after this page was
     // drawn. Redrawing on the change is what lets the front page raise its notice and the settings
     // page grow its Reload button without the player having to leave and come back.
@@ -2705,7 +2754,7 @@ export class MenuScene extends Phaser.Scene {
      */
     if (saved) {
       const continueLink = this.ui.textLink(
-        0, 0, t('menu.continueLine', { note: snapshotLabel() }),
+        0, 0, t('menu.continueLine', { note: this.reloadNote ?? snapshotLabel() }),
         () => {
           const snapshot = loadSnapshot();
           if (snapshot) this.startGame(snapshot.state);
@@ -4906,6 +4955,64 @@ export class MenuScene extends Phaser.Scene {
     this.adoptModal();
   }
 
+
+  /**
+   * "Continue your last game?" — the sheet a lost run comes back through.
+   *
+   * A modal rather than an auto-resume: the player did not choose to leave, so they should be
+   * the one to choose to go back — a run dropped into their hands the instant the app opens is a
+   * surprise, and on a phone that opened by accident it is a surprise with a wave landing in it.
+   * Both buttons keep the snapshot; "Not now" only lowers the sheet, and the Continue line under
+   * it still holds the same run.
+   */
+  private offerContinue(snapshot: NonNullable<ReturnType<typeof pendingAutosave>>): void {
+    const BODY_WIDTH = 300;
+    const body = this.add.text(0, 0, t('menu.resume.body', { note: snapshotLabel(snapshot) }), {
+      color: '#2a2118',
+      fontFamily: UI_FONT,
+      fontSize: '13px',
+      lineSpacing: 3,
+      align: 'center',
+      wordWrap: { width: BODY_WIDTH },
+    }).setOrigin(0.5, 0);
+    const ROW = 44;
+    const GAP = 10;
+    // 104 header + 20 the modal's own content inset + the body + two rows + a footer band it
+    // does not use, because `contentBounds` is measured back off one whether or not it is drawn.
+    const modal = this.ui.modal({
+      title: t('menu.resume.title'),
+      subtitle: t('menu.resume.subtitle'),
+      onClose: () => this.closeModal(),
+      height: 104 + 66 + 20 + body.height + 18 + ROW * 2 + GAP,
+    });
+    this.modalObjects.push(...modal.objects);
+    const { contentBounds } = modal;
+    const centreX = contentBounds.x + contentBounds.width / 2;
+    let cursor = contentBounds.y + 4;
+    body.setPosition(centreX, cursor);
+    // Built before the sheet was, so it is *under* the sheet — same fix as the install sheet.
+    this.children.bringToTop(body);
+    this.modalObjects.push(body);
+    cursor += body.height + 18;
+
+    const buttonWidth = Math.min(260, contentBounds.width - 24);
+    const buttonX = centreX - buttonWidth / 2;
+    const primary = { x: buttonX, y: cursor, width: buttonWidth, height: ROW };
+    this.modalObjects.push(this.ui.button(primary, t('menu.resume.continue'), () => {
+      this.closeModal();
+      this.startGame(snapshot.state);
+    }, { variant: 'primary', fontSize: '14px' })
+      // Read by `verify-resume.mjs`, which taps the offer rather than calling into the scene.
+      .setData('resumeOffer', 'continue')
+      .setData('visualBounds', { width: buttonWidth, height: ROW }));
+    cursor += ROW + GAP;
+    const later = { x: buttonX, y: cursor, width: buttonWidth, height: ROW };
+    this.modalObjects.push(this.ui.button(later, t('menu.resume.later'), () => this.closeModal(),
+      { variant: 'ghost', fontSize: '13px' })
+      .setData('resumeOffer', 'later')
+      .setData('visualBounds', { width: buttonWidth, height: ROW }));
+    this.adoptModal();
+  }
 
   private startGame(state: ReturnType<typeof createInitialGameState>): void {
     // One save slot is shared across modes, so resume into the world scene the run belongs

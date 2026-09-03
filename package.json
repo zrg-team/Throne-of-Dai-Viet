@@ -17,6 +17,7 @@
     "perf:bake": "node test_scripts/perf/measure-bake.mjs",
     "verify:listeners": "node test_scripts/verify/verify-listeners.mjs",
     "verify:ladder": "node test_scripts/verify/verify-ladder.mjs",
+    "verify:resume": "node test_scripts/verify/verify-resume.mjs",
     "verify:perf": "node test_scripts/verify/verify-listeners.mjs && node test_scripts/verify/verify-fps-cap.mjs && node test_scripts/verify/verify-tick-clock.mjs",
     "build": "tsc && vite build && node scripts/build-sw.mjs",
     "build:shell": "tsc && vite build --mode shell",

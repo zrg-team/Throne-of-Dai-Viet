@@ -333,6 +333,56 @@ export function showFamine(self: ConquestUIScene, prompt: Extract<AscentPrompt, 
   finish(used);
 }
 
+/**
+ * The restore card: a province was fought over, and the throne says how hard the rebuilding is
+ * pushed. Same shape as the famine card — three answers, priced, the free one in red — because
+ * it is the same kind of question: a standing cost, and a treasury that can shorten it.
+ */
+export function showRestoreLand(self: ConquestUIScene, prompt: Extract<AscentPrompt, { kind: 'restore-land' }>): void {
+  const damage = [
+    prompt.ruins > 0 ? t('ascent.restore.ruins', { n: prompt.ruins }) : '',
+    prompt.breach > 0 ? t('ascent.restore.breach', { n: prompt.breach }) : '',
+    prompt.dead > 0 ? t('ascent.restore.dead', { n: prompt.dead }) : '',
+    prompt.spent > 0.005 ? t('ascent.restore.spent', { pct: Math.round(prompt.spent * 100) }) : '',
+  ].filter(Boolean).join(' · ');
+  const { body, bodyWidth, finish } = self.promptScrollBody(
+    t('ascent.restore.title', { land: prompt.landName }),
+    `${t('ascent.restore.body', { land: prompt.landName })}
+${damage}`,
+    0,
+  );
+
+  const rowHeight = 78;
+  const icon: Record<string, CardIconId> = { haste: 'hammer', steady: 'hut', endure: 'hourglass' };
+  let used = 0;
+  prompt.options.forEach((option) => {
+    const label = t(`ascent.restore.${option.id}` as Parameters<typeof t>[0]);
+    const detail = t(`ascent.restore.${option.id}D` as Parameters<typeof t>[0]);
+    const card = self.optionCard(
+      { x: 0, y: used, width: bodyWidth, height: rowHeight },
+      {
+        icon: icon[option.id],
+        title: label,
+        body: detail,
+        note: option.cost
+          ? (option.affordable ? formatResourceList(option.cost) : t('ascent.response.cantAfford'))
+          : undefined,
+        noteColor: option.affordable ? undefined : '#a4402c',
+        accent: !option.affordable
+          ? INK_UI.softBrush
+          : option.id === 'endure'
+            ? INK_UI.cinnabar
+            : INK_UI.gold,
+        disabled: !option.affordable,
+        parent: body,
+        onTap: () => { if (option.affordable) self.choose(option.id); },
+      },
+    );
+    used += ((card.getData('cardHeight') as number) ?? rowHeight) + 10;
+  });
+  finish(used);
+}
+
 export function showRivalDemand(self: ConquestUIScene, prompt: Extract<AscentPrompt, { kind: 'rival-demand' }>): void {
   const kingdom = self.state.kingdoms.find((candidate) => candidate.id === prompt.kingdomId);
   const standing = kingdom ? realmStanding(self.state, kingdom) : 'even';

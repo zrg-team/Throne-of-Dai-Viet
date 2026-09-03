@@ -11,6 +11,8 @@ import {
   xpToNextLevel,
 } from '../../game/ascentConfig';
 import { PLAYER_KINGDOM_ID } from '../../game/constants';
+import { canSpend } from '../ResourceSystem';
+import { RESTORE_CARD_GAP_TICKS } from '../../game/ascentConfig';
 import type { AscentConquestMethod, AscentLaneStats, AscentPrompt, AscentPromptKind, AscentState, GameState } from '../../state/types';
 
 /**
@@ -199,6 +201,9 @@ const PROMPT_PRIORITY: Record<AscentPromptKind, number> = {
   // Above the rival demands: an empty granary is already costing the realm morale and
   // population every single tick it goes unanswered.
   famine: 3.2,
+  // Beside the famine: a province that was fought over is losing output and walls every tick
+  // the rebuilding is not decided, and the decision is what the fight was for.
+  'restore-land': 3.3,
   'hero-choice': 10,
   'power-draft': 11,
   // Below every decision that moves the run and above the reward draft. A blow that has already
@@ -291,6 +296,18 @@ export function enqueueAscentPrompt(state: GameState, prompt: AscentPrompt): voi
  * Dead, not merely early: there is no later moment at which this card becomes answerable, so it
  * is dropped.
  */
+/**
+ * The restore card is raised the tick a fight ends, which is usually the tick after the wave's
+ * own card — and a district heals slowly, so nothing is lost by asking a season later. Stepped
+ * over until the pacing gap has passed, the way the director spaces its scheduled cards, so it
+ * never lands back-to-back with the card before it. `verify-ascent` holds that contract.
+ */
+function restoreCardEarly(state: GameState, prompt: AscentPrompt): boolean {
+  if (prompt.kind !== 'restore-land') return false;
+  const last = state.ascent?.lastPromptTurn;
+  return last !== undefined && state.turn - last < RESTORE_CARD_GAP_TICKS;
+}
+
 function musterCardDead(state: GameState, prompt: AscentPrompt): boolean {
   if (prompt.kind !== 'muster-proposal') return false;
   const hero = state.heroes.find((candidate) => candidate.id === prompt.heroId);
@@ -362,12 +379,13 @@ export function drainAscentPrompts(state: GameState): void {
   const deadDropped = ascent.promptQueue.filter((queued) => !musterCardDead(state, queued));
   ascent.promptQueue.length = 0;
   ascent.promptQueue.push(...deadDropped);
-  const nextIndex = ascent.promptQueue.findIndex((queued) => !musterCardEarly(state, queued));
+  const nextIndex = ascent.promptQueue.findIndex((queued) => !musterCardEarly(state, queued) && !restoreCardEarly(state, queued));
   if (nextIndex < 0) {
     state.isPaused = false;
     return;
   }
   state.pendingAscentPrompt = ascent.promptQueue.splice(nextIndex, 1)[0];
+  refreshAffordability(state, state.pendingAscentPrompt);
   state.isPaused = true;
   // Stamped here rather than in the decision director, because this is the one place *every*
   // prompt passes through. Stamping it only where the director raises one lets a wave response
@@ -377,4 +395,25 @@ export function drainAscentPrompts(state: GameState): void {
   // Same reasoning, same single choke point: this is the only honest count of what the player has
   // actually been shown, and the Chronicle's share is measured against it.
   ascent.promptsRaised = (ascent.promptsRaised ?? 0) + 1;
+}
+
+/**
+ * A card's prices are true when it surfaces, not when it was queued.
+ *
+ * Every priced card (`famine`, `story-beat`, `restore-land`, `world-event`, `rival-demand`…) stamps
+ * `affordable` when it is *enqueued*, and it can wait many ticks behind higher cards that spend the
+ * same treasury — a restore paid at 3.3 empties the purse a story at 9.5 was priced against. The
+ * resolver re-checks and refuses, the card stays up with an option that looks takeable, and a
+ * driver that retries the same option wedges the run: measured on seed 55, a `story-beat` sat
+ * pending from tick 100 to tick 600 with an `empire-response` behind it, so no wave was ever
+ * launched and the realm "held" forty waves it never fought. Only ever downgrades: a card never
+ * gains an option here that its own builder did not grant.
+ */
+function refreshAffordability(state: GameState, prompt: AscentPrompt): void {
+  const options = (prompt as { options?: unknown }).options;
+  if (!Array.isArray(options)) return;
+  for (const option of options as { cost?: Parameters<typeof canSpend>[1]; affordable?: boolean }[]) {
+    if (!option || typeof option !== 'object') continue;
+    if (option.affordable && option.cost && !canSpend(state, option.cost)) option.affordable = false;
+  }
 }

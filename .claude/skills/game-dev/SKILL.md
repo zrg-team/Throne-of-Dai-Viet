@@ -169,6 +169,18 @@ renderer instead.
 - Scratch harnesses must live **inside the project** (`test_scripts/scratch/`, which is
   gitignored) or `import 'playwright'` will not resolve.
 
+## The resume-path rule
+
+**A throw inside one game step kills the loop for ever.** Phaser 4's rAF driver runs the step
+callback *before* it requests the next frame, so an uncaught exception in update, render, a tween
+or a timer callback leaves `raf.isRunning` true with nothing scheduled — and on a phone, whose
+compositor drops a backgrounded canvas, that reads as a blank screen rather than a freeze.
+`src/game/resilience.ts` re-arms the loop and reloads a context the GPU never returned, but it is a
+net, not a licence: anything that runs on the first frame after `visibilitychange`/`focus` (the
+away pause's `state-changed`, a context-restore rebake) must not throw. GPU-rendered textures
+(RenderTexture, DynamicTexture) come back empty from a context restore — register a repaint with
+`src/game/gpuBakes.ts`. `yarn verify:resume` is the gate.
+
 ## Before you say it works
 
 Typecheck is necessary and nowhere near sufficient — most regressions in this game are visual or

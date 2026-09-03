@@ -7,6 +7,7 @@ import { PIGMENT } from './ink/palette';
 import { hatchPoly, inkPath, washFill } from './ink/stroke';
 import type { Hero } from '../state/types';
 import { placeStamp, stamp } from './ink/stamp';
+import { registerGpuBake, unregisterGpuBake } from '../game/gpuBakes';
 
 /**
  * Hero portraits, composed from a library of SVG parts.
@@ -158,19 +159,33 @@ export function heroFaceTextureKey(scene: Phaser.Scene, hero: Hero): string | un
   const width = Math.ceil(HERO_FACE_W * BADGE_RASTER);
   const height = Math.ceil(HERO_FACE_H * BADGE_RASTER);
   const target = scene.make.renderTexture({ width, height }, false);
-  // The face is drawn about its own origin, with parts reaching left of and above it; shift so
-  // the whole extent lands inside the texture.
-  const face = buildHeroFaceLayers(scene, hero);
-  face.setPosition(-HERO_FACE_EXTENT.left * BADGE_RASTER, -HERO_FACE_EXTENT.top * BADGE_RASTER);
-  face.setScale(BADGE_RASTER);
-  target.draw(face);
-  // Phaser 4 buffers the draw and executes it in `render`. This has to run before the face is
-  // destroyed on the next line, or the buffer flushes against a dead game object and the badge
-  // is saved blank — and a blank badge is cached forever, because `textures.exists` then hits.
-  target.render();
-  face.destroy(true);
+  // A closure, so a restored GL context can paint the same texture again (`game/gpuBakes.ts`);
+  // every badge already placed from this key comes back with it. The hero is snapshotted by
+  // reference — the key already carries everything about him the picture depends on.
+  const paint = (into: Phaser.Scene): void => {
+    // The face is drawn about its own origin, with parts reaching left of and above it; shift so
+    // the whole extent lands inside the texture.
+    const face = buildHeroFaceLayers(into, hero);
+    face.setPosition(-HERO_FACE_EXTENT.left * BADGE_RASTER, -HERO_FACE_EXTENT.top * BADGE_RASTER);
+    face.setScale(BADGE_RASTER);
+    target.clear();
+    target.draw(face);
+    // Phaser 4 buffers the draw and executes it in `render`. This has to run before the face is
+    // destroyed on the next line, or the buffer flushes against a dead game object and the badge
+    // is saved blank — and a blank badge is cached forever, because `textures.exists` then hits.
+    target.render();
+    face.destroy(true);
+  };
+  paint(scene);
   target.saveTexture(key);
   badgeTextures.set(key, target);
+  registerGpuBake(scene.game, key, () => {
+    if (!badgeTextures.has(key) || !scene.textures.exists(key) || !heroFacesReady(scene)) {
+      unregisterGpuBake(key);
+      return;
+    }
+    paint(scene.game.scene.getScenes(true)[0] ?? scene);
+  });
   return key;
 }
 

@@ -461,12 +461,12 @@ await page.waitForTimeout(500);
     return { openings, queue, pool: AMBIENT_MUSIC.map.length };
   });
 
-  check('the map holds a set, not one track on repeat', order.queue >= 4,
+  check('the map holds a set, not one track on repeat', order.queue >= 3,
     `${order.queue} in the running order, pool of ${order.pool}`);
   check('and the set is shuffled', new Set(order.openings).size >= 3,
     `${new Set(order.openings).size} different openings in 10 entries: ${[...new Set(order.openings)].join(', ')}`);
-  check('the map set is the four that survived listening',
-    order.pool === 4, `pool of ${order.pool}`);
+  // Three, since the Hanoi theatre recording was cut too ("remove Ha noi sounds"): the composed pieces only.
+  check('the map set is the three composed pieces', order.pool === 3, `pool of ${order.pool}`);
 }
 
 check('no console errors', errors.length === 0, errors.slice(0, 2).join(' | '));

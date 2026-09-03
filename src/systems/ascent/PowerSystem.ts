@@ -1,10 +1,7 @@
 import { vassalPowerTerm } from './VassalSystem';
 import { PLAYER_KINGDOM_ID } from '../../game/constants';
 import { REALM_DEFENCE_SHARE, XP_PER_OWNED_LAND, XP_PER_TICK_BASE, xpToNextLevel } from '../../game/ascentConfig';
-import {
-  armyPower, masonryPowerPerDefense, militiaPowerPerMan, terrainDefenseMultiplier,
-} from '../WarSystem';
-import { getFocusDefenseMult } from '../ResourceSystem';
+import { armyPower, garrisonPower } from '../WarSystem';
 import { ambitionHeat } from './AmbitionSystem';
 import type { GameState, Land } from '../../state/types';
 
@@ -13,12 +10,8 @@ import type { GameState, Land } from '../../state/types';
  * matches what an attacker actually has to beat.
  */
 export function landGarrisonPower(state: GameState, land: Land): number {
-  // The walls' term is scaled by `garrisonExhaustion` exactly as `raiseGarrisonLevy` scales the
-  // levy it turns out, so the hidden roll and the fought battle agree about a spent province.
-  return (land.defense * masonryPowerPerDefense(state) * (1 - (land.garrisonExhaustion ?? 0))
-    + land.localSoldiers * militiaPowerPerMan(state))
-    * terrainDefenseMultiplier(land)
-    * getFocusDefenseMult(state, land);
+  // One formula for the roll, the HUD and the levy — see `garrisonPower`.
+  return garrisonPower(state, land);
 }
 
 /**

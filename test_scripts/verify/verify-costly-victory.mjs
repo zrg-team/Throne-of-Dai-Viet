@@ -102,6 +102,11 @@ const out = await page.evaluate(async () => {
     const popBefore = seat.population;
     let opened = false;
     for (let i = 0; i < 60 && !opened; i += 1) {
+      // The screen opens once per wave per province (`lastWatchedKey`): a border raid that reached
+      // the seat during the warm-up — or is played out below — would otherwise spend this wave's
+      // one showing, and the staged assault settles as a hidden roll. The ration is UX, not the
+      // mechanic under test; clear it so the fight staged above is the one that opens.
+      st.ascent.lastWatchedKey = undefined; st.ascent.lastWatchedWave = undefined;
       advanceAscentTick(st); drain(st); st.isDefeated = false;
       const b = st.ascent.activeBattle;
       if (!b || b.over) continue;
@@ -143,8 +148,11 @@ const out = await page.evaluate(async () => {
     // Recovery: walk the clock with no fight in between.
     IS.dissolveGarrisonLevies(st);
     const curve = [];
+    // A season is two ticks and the clock steps on seasons (it used to step every tick, which is
+    // how "eight seasons" healed inside one wave). Walk two ticks a season.
     for (let i = 0; i < CFG.GARRISON_RECOVER_SEASONS + 2; i += 1) {
-      RS.recoverGarrison(st);
+      st.turn += 1; RS.recoverGarrison(st);
+      st.turn += 1; RS.recoverGarrison(st);
       curve.push(Number((seat.garrisonExhaustion ?? 0).toFixed(3)));
     }
     return {
@@ -206,17 +214,21 @@ const militiaDead = Math.max(0, w.levyDrawn - w.militiaAfter);
 check('the militia\'s dead are taken from the province\'s people',
   !w.error && w.popBefore - w.popAfter >= militiaDead * 0.95,
   `people ${w.popBefore} -> ${w.popAfter}; militia ${w.levyDrawn} -> ${w.militiaAfter}`);
-check('the turnout is spent in the share that fell', !w.error && w.exhaustion > 0.2,
-  `exhaustion ${w.exhaustion.toFixed(2)}`);
+// The share that fell is what the record shows fell — not a magic number the dice must clear.
+const fell = w.error ? 0 : 1 - w.rec.ourEnd / Math.max(1, w.start.ours);
+check('the turnout is spent in the share that fell', !w.error && w.exhaustion > 0.1 && Math.abs(w.exhaustion - fell) < 0.15,
+  `exhaustion ${w.exhaustion.toFixed(2)} vs fell ${fell.toFixed(2)}`);
 check('the next contact meets a thinner turnout, not the old one',
-  !w.error && w.nextTurnout < w.openingLevy * 0.8,
+  !w.error && w.nextTurnout < w.openingLevy * (1 - w.exhaustion * 0.4),
   `levy ${w.openingLevy} -> ${w.nextTurnout}`);
 check('the hidden roll reads the same spent walls', !w.error && w.rollAfter > 0 && w.exhaustion > 0,
   `garrison power ${w.rollAfter}`);
-const seasonsToHeal = Math.ceil(w.exhaustion * out.recoverSeasons);
+// Recovery is a share of what is left each season (GARRISON_RECOVER_SHARE), floored: still spent
+// two seasons on, falling every season, and gone by the end of the clock.
+const monotone = w.curve.every((v, i) => i === 0 || v <= w.curve[i - 1]);
 check('and it recovers over the clock, not at once',
-  !w.error && seasonsToHeal >= 2 && w.curve[seasonsToHeal - 2] > 0 && w.curve[Math.min(w.curve.length - 1, seasonsToHeal)] === 0,
-  `${seasonsToHeal} season(s) to heal; exhaustion by season: ${w.curve.join(' ')}`);
+  !w.error && w.curve[1] > 0 && monotone && w.curve[w.curve.length - 1] === 0,
+  `exhaustion by season: ${w.curve.join(' ')}`);
 
 check('no console errors', errors.length === 0, errors.slice(0, 3).join(' | '));
 const failed = checks.filter((c) => !c.pass);

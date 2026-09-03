@@ -7,7 +7,6 @@ import {
   CAMPAIGN_TICKS_ON_WIN,
   EARLY_WAVE_GRACE,
   GARRISON_LEVY_FLOOR,
-  LEVY_DEAD_POPULATION_SHARE,
   LEVY_POWER_PER_MAN,
   MAX_HOSTS_PER_KINGDOM,
   RELIEF_GOLD_REWARD,
@@ -16,8 +15,6 @@ import {
   SIEGE_MAX_TICKS,
   SIEGE_MIN_TICKS,
   SIEGE_RENEW_SHARE,
-  WALL_ATTRITION_SHARE,
-  WALL_DEFENCE_FLOOR,
   waveMatchFactor,
 } from '../../game/ascentConfig';
 import { findLand, getAcquisitionTicksRequired } from '../LandSystem';
@@ -31,10 +28,10 @@ import {
   masonryPowerPerDefense,
   militiaPowerPerMan,
   terrainDefenseMultiplier,
+  garrisonPower,
 } from '../WarSystem';
 import {
   applyResourceDelta,
-  getFocusDefenseMult,
   getFocusGarrisonMult,
   refreshAllLandOutputs,
 } from '../ResourceSystem';
@@ -43,6 +40,7 @@ import { addMandate } from './MandateSystem';
 import { enemyColumnsAt } from '../ascent/BattleSystem';
 import { defenceCommanderOf } from '../ascent/landCommand';
 import { recordEngagement } from '../ascent/battleReport';
+import { chargeProvinceForDefence, hiddenDefenceLossShare } from '../ascent/RestoreSystem';
 import { hasRoomForAnotherFront, liveBattles } from '../ascent/fronts';
 import {
   openingVolleyShare,
@@ -380,7 +378,6 @@ export function launchOffMapInvasion(state: GameState, kingdomId: string | undef
   if (state.gameMode === 'ascent') {
     const committed = (state.invasions ?? []).filter((record) => record.kingdomId === kingdomId).length;
     armyCount = Math.min(armyCount, Math.max(0, MAX_HOSTS_PER_KINGDOM - committed));
-    if (armyCount <= 0) return;
     /**
      * One host per march while the opening grace runs, whoever is asking.
      *
@@ -1039,10 +1036,9 @@ export function raiseGarrisonLevy(state: GameState, land: Land): Army | undefine
   // early anyway.
   // The walls' share is what the province can still turn out, not what it could before the last
   // fight — see `garrisonExhaustion`. The militia term is the men who actually exist.
-  const masonry = (land.localSoldiers * militiaPowerPerMan(state)
-    + land.defense * masonryPowerPerDefense(state) * (1 - (land.garrisonExhaustion ?? 0)))
-    * getFocusGarrisonMult(state, land)
-    * getFocusDefenseMult(state, land);
+  // `garrisonPower` is the one formula: walls the people can man, less the turnout the last fight
+  // spent, plus the militia that exists — the same figure the roll and the HUD read.
+  const masonry = garrisonPower(state, land) * getFocusGarrisonMult(state, land);
   // And the same share cap the hidden roll applies. `combinedDefencePower` is what `defenderPower`
   // returns for this province, so subtracting the field hosts back out leaves exactly what the roll
   // credits the walls with — which is what the levy has to be worth, or the fought battle and the
@@ -1099,10 +1095,11 @@ export function raiseGarrisonLevy(state: GameState, land: Land): Army | undefine
  */
 export function raiseEnemyGarrisonLevy(state: GameState, land: Land): Army | undefined {
   if (state.gameMode !== 'ascent') return undefined;
+  // Their walls need their people too — `garrisonPower` reads manning off the province's own
+  // population, so a sacked enemy district is as thin to storm as ours would be to hold.
   const men = Math.max(
     GARRISON_LEVY_FLOOR,
-    Math.floor((land.localSoldiers * militiaPowerPerMan(state)
-      + land.defense * masonryPowerPerDefense(state)) / LEVY_POWER_PER_MAN),
+    Math.floor(garrisonPower(state, land) / LEVY_POWER_PER_MAN),
   );
   const levy: Army = {
     id: `garrison-${land.id}-${state.turn}`,
@@ -1169,27 +1166,10 @@ export function dissolveGarrisonLevies(state: GameState): void {
      * can never be emptied by its own defence.
      */
     const militiaDead = Math.max(0, (levy.levyDrawn ?? 0) - militiaBack);
-    if (militiaDead > 0) {
-      const cost = Math.round(militiaDead * LEVY_DEAD_POPULATION_SHARE);
-      land.population = Math.max(Math.round(land.population * 0.25), land.population - cost);
-    }
-    // And the walls' turnout is spent in the same share it fell, to be made good over
-    // `GARRISON_RECOVER_SEASONS`. This — not the masonry breach below — is what makes the next
-    // contact meet a thinner turnout: measured before it, a 62% loss met 92% of the walls again
-    // on the very next fight.
-    land.garrisonExhaustion = Math.min(1, (land.garrisonExhaustion ?? 0) + lostShare);
-
-    // And the masonry that stood in for the rest of the turnout. Floored rather than allowed to
-    // reach nothing: a province with no walls left is a province that cannot be held at all, which
-    // turns one bad night into the run.
-    const breach = Math.round(land.defense * lostShare * WALL_ATTRITION_SHARE);
-    if (breach > 0) {
-      const taken = Math.max(0, Math.min(breach, land.defense - WALL_DEFENCE_FLOOR));
-      land.defense -= taken;
-      if (taken > 0) land.wallsBreached = (land.wallsBreached ?? 0) + taken;
-    }
-    // The clock the militia waits out before it starts raising again.
-    land.levyReturnedTurn = state.turn;
+    // The people pay for the dead, the turnout is spent, the walls are breached and the district
+    // burnt — the same door the hidden roll now goes through, so the two paths are one fight.
+    // See `chargeProvinceForDefence`.
+    chargeProvinceForDefence(state, land, lostShare, militiaDead);
   }
   state.armies = state.armies.filter((army) => !army.isLevy);
 }
@@ -1440,6 +1420,24 @@ function resolveInvaderBattle(
   if (!victory) {
     applyInvaderLosses(army, 0.4);
     army.morale = Math.max(20, army.morale - 16);
+    /**
+     * **A held line costs the province (Dragon Ascent).**
+     *
+     * This branch used to charge the defender nothing at all unless it sallied — and 97% of
+     * engagements resolve here, not on the battle screen. So a walls-only capital repelled wave
+     * after wave for free: measured on seed 55, seventeen capital defences from wave 22 to 42,
+     * every one `us 6958 -> 6958`, no army, one province, no end. The province is now spent by
+     * the share the levy would have lost had the screen opened, through the same door the watched
+     * fight uses, so a second host reaching the same ground this wave meets a province the first
+     * one already bled. The odds the share is read from are the ones the roll was made at.
+     */
+    if (state.gameMode === 'ascent' && land.ownerId === PLAYER_KINGDOM_ID && !forced
+      && !state.armies.some((a) => a.isLevy && a.landId === land.id)) {
+      const share = hiddenDefenceLossShare(preview.attackerPower, preview.defenderPower);
+      const militiaDead = Math.round(land.localSoldiers * share);
+      land.localSoldiers = Math.max(0, land.localSoldiers - militiaDead);
+      chargeProvinceForDefence(state, land, share, militiaDead);
+    }
     // Thrown back: two seasons to re-form before it comes on again (see the regroup note in
     // `tickInvasions`, which is the only reader and is gated to empire for the same reason).
     record.regroupUntil = state.turn + 2;
