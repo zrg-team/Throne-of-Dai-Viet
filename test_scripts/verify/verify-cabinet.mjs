@@ -213,6 +213,195 @@ check('bind step raises played cards, best first', result.bindRaised);
 check('a stray id binds nothing', result.bindRefusesStray);
 check('binding files the card', result.bindLands);
 check('bind advances to next-reign', result.bindAdvances);
+console.log('=== THE PAGE TAKES TAPS ===');
+// The page: every tap on it was eaten by the scroll area's own hit zone, because the area was
+// never parented (`addTo`). A press on the hero button must turn the page to the scratch.
+await page.evaluate(async () => {
+  localStorage.setItem('mandate:language:v1', 'vi');
+  const cab = await import('/src/state/cabinet.ts');
+  localStorage.setItem('mandate:cabinet:v1', JSON.stringify({ rubbings: 8, rubbingPity: 0, cards: {}, hand: [], deeds: [] }));
+  cab.resetCabinetCache?.();
+  const g = window.__phaserGame;
+  for (const s of g.scene.getScenes(true)) g.scene.stop(s.scene.key);
+  g.scene.start('CabinetScene');
+});
+await page.waitForTimeout(900);
+const tapAt = async (find, label) => {
+  const spot = await page.evaluate((find) => {
+    const g = window.__phaserGame; const sc = g.scene.getScene('CabinetScene');
+    const walk = (o, acc) => { acc.push(o); if (o.list) o.list.forEach((c) => walk(c, acc)); return acc; };
+    const all = walk({ list: sc.children.list }, []).filter((o) => o.input?.enabled);
+    const hit = find === 'hero' ? all.find((o) => o.type === 'Rectangle' && o.input.hitArea.width > 300 && o.input.hitArea.height === 44)
+      : all.filter((o) => o.type === 'Zone' && o.width === 83)[1];
+    if (!hit) return null;
+    const m = hit.getWorldTransformMatrix();
+    const w = hit.input.hitArea?.width ?? hit.width, h = hit.input.hitArea?.height ?? hit.height;
+    const origin = hit.type === 'Rectangle' ? 0.5 : 0;
+    const r = g.canvas.getBoundingClientRect();
+    const sx = r.width / g.scale.gameSize.width, sy = r.height / g.scale.gameSize.height;
+    return { x: r.x + (m.tx + (0.5 - origin) * w) * sx, y: r.y + (m.ty + (0.5 - origin) * h) * sy };
+  }, find);
+  if (!spot) return null;
+  await page.mouse.move(spot.x, spot.y); await page.mouse.down(); await page.waitForTimeout(80); await page.mouse.up();
+  await page.waitForTimeout(500);
+  return page.evaluate(() => { const sc = window.__phaserGame.scene.getScene('CabinetScene'); return { mode: sc.mode, filter: sc.filter }; });
+};
+const filterTap = await tapAt('filter', 'filter');
+check('a tap on a binder filter inside the list lands', filterTap?.filter === 'held', JSON.stringify(filterTap));
+const heroTap = await tapAt('hero', 'hero');
+check('a press on the scratch button turns the page to the scratch', heroTap?.mode === 'rubbing', JSON.stringify(heroTap));
+console.log('=== A PRESS ON THE CARD VIEW STAYS ON THE CARD VIEW ===');
+// Close fires on the press (every InkUI button does). The release that follows used to be
+// delivered to whatever the close had just revealed — and the binder's tiles act on release, so
+// a tile under Close opened its own view: *click on the modal also clicks the bottom*. The list
+// is scrolled so a held tile sits under Close, then Close is pressed two ways: down and up in one
+// task (a WebView's duplicated mouse pair, a tap on a heavy frame), and a real 80 ms press.
+await page.evaluate(async () => {
+  const cab = await import('/src/state/cabinet.ts');
+  localStorage.setItem('mandate:cabinet:v1', JSON.stringify({ rubbings: 2, rubbingPity: 0, cards: { 'feigned-retreat': { level: 1, copies: 1 }, 'salt-roads': { level: 1, copies: 2 }, 'bronze-drum': { level: 1, copies: 1 } }, hand: [], deeds: [] }));
+  cab.resetCabinetCache?.();
+  const g = window.__phaserGame;
+  for (const s of g.scene.getScenes(true)) g.scene.stop(s.scene.key);
+  g.scene.start('CabinetScene');
+  const canvas = g.canvas;
+  const toClient = (x, y) => {
+    const rect = canvas.getBoundingClientRect();
+    return { clientX: rect.left + (x / g.scale.gameSize.width) * rect.width, clientY: rect.top + (y / g.scale.gameSize.height) * rect.height };
+  };
+  const fire = (type, x, y) => canvas.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, button: 0, buttons: type === 'mousedown' ? 1 : 0, ...toClient(x, y) }));
+  window.__tap = (x, y) => { fire('mousedown', x, y); fire('mouseup', x, y); };
+});
+await page.waitForTimeout(900);
+/** The centre of a view button's hit rectangle, in design units. */
+const viewButton = (label) => page.evaluate((label) => {
+  const sc = window.__phaserGame.scene.getScene('CabinetScene');
+  const hit = sc.viewObjects.find((o) => o.type === 'Container' && o.list?.some((c) => c.type === 'Text' && c.text === label));
+  const rect = hit?.list.find((c) => c.type === 'Rectangle' && c.input?.enabled);
+  if (!rect) return null;
+  const m = rect.getWorldTransformMatrix();
+  return { x: m.tx, y: m.ty };
+}, label);
+const snapshot = () => page.evaluate(async () => {
+  const cab = await import('/src/state/cabinet.ts');
+  const sc = window.__phaserGame.scene.getScene('CabinetScene');
+  return { view: sc.viewObjects.length, filter: sc.filter, mode: sc.mode, hand: cab.openingHand().slice(), scroll: Math.round(-(sc.scroll?.content.y ?? 0)) };
+});
+/** Scrolls the list so a held tile sits where Close will be, then opens the view. */
+const openOverTile = async () => {
+  await page.evaluate(() => {
+    const sc = window.__phaserGame.scene.getScene('CabinetScene');
+    sc.closeCardView();
+    sc.filter = 'held';
+    sc.pendingScroll = 0;
+    sc.render();
+    // The binder's tiles begin around 700 units down the list; Close sits around 480 on the page.
+    sc.scroll.setScroll(320);
+    sc.openCardView('feigned-retreat', { x: 40, y: 400, width: 100, height: 140 });
+  });
+  await page.waitForTimeout(500);
+};
+const tileUnder = (x, y) => page.evaluate(({ x, y }) => {
+  const sc = window.__phaserGame.scene.getScene('CabinetScene');
+  const walk = (o, acc) => { acc.push(o); if (o.list) o.list.forEach((c) => walk(c, acc)); return acc; };
+  const zones = walk({ list: sc.children.list }, []).filter((o) => o.type === 'Zone' && o.input?.enabled && o.width < 200);
+  return zones.some((z) => { const m = z.getWorldTransformMatrix(); return x >= m.tx && x <= m.tx + z.width && y >= m.ty && y <= m.ty + z.height; });
+}, { x, y });
+
+await openOverTile();
+const closeAt = await viewButton('Đóng');
+const staged = closeAt ? await tileUnder(closeAt.x, closeAt.y) : false;
+check('a held tile is staged under Close', staged, JSON.stringify(closeAt));
+const before = await snapshot();
+if (closeAt) await page.evaluate(({ x, y }) => window.__tap(x, y), closeAt);
+await page.waitForTimeout(500);
+const afterOneTask = await snapshot();
+check('a one-task tap on Close closes the view, and the tile beneath does not open its own',
+  before.view > 0 && afterOneTask.view === 0 && afterOneTask.filter === before.filter && afterOneTask.mode === 'cabinet',
+  JSON.stringify(afterOneTask));
+
+await openOverTile();
+const closeAgain = await viewButton('Đóng');
+if (closeAgain) {
+  const frame = await page.evaluate(() => { const c = document.querySelector('canvas').getBoundingClientRect(); const s = window.__phaserGame.scale.gameSize; return { ox: c.left, oy: c.top, kx: c.width / s.width, ky: c.height / s.height }; });
+  await page.mouse.move(frame.ox + closeAgain.x * frame.kx, frame.oy + closeAgain.y * frame.ky);
+  await page.mouse.down(); await page.waitForTimeout(80); await page.mouse.up();
+}
+await page.waitForTimeout(500);
+const afterReal = await snapshot();
+check('a real 80 ms press on Close closes the view, and the tile beneath does not open its own',
+  afterReal.view === 0 && afterReal.filter === before.filter && afterReal.mode === 'cabinet', JSON.stringify(afterReal));
+
+// A tap on the sheet's own content — the face, the ladder — is the sheet's, not the veil's.
+await openOverTile();
+const inside = await page.evaluate(() => {
+  const sc = window.__phaserGame.scene.getScene('CabinetScene');
+  const label = sc.viewObjects.find((o) => o.type === 'Text' && /Thang cấp|The ladder/.test(o.text));
+  return label ? { x: label.x + 40, y: label.y + 30 } : null;
+});
+if (inside) await page.evaluate(({ x, y }) => window.__tap(x, y), inside);
+await page.waitForTimeout(400);
+const afterInside = await snapshot();
+check('a one-task tap on the ladder text keeps the view open', afterInside.view > 0, JSON.stringify(afterInside));
+if (inside) {
+  const frame = await page.evaluate(() => { const c = document.querySelector('canvas').getBoundingClientRect(); const s = window.__phaserGame.scale.gameSize; return { ox: c.left, oy: c.top, kx: c.width / s.width, ky: c.height / s.height }; });
+  await page.mouse.move(frame.ox + 60 * frame.kx, frame.oy + 150 * frame.ky);
+  await page.mouse.down(); await page.waitForTimeout(80); await page.mouse.up();
+}
+await page.waitForTimeout(400);
+const afterFace = await snapshot();
+check('a real press on the card face keeps the view open', afterFace.view > 0, JSON.stringify(afterFace));
+// The list under the sheet is deaf: a drag and a wheel over the page move nothing while the view is up.
+const scrollBefore = (await snapshot()).scroll;
+{
+  const frame = await page.evaluate(() => { const c = document.querySelector('canvas').getBoundingClientRect(); const s = window.__phaserGame.scale.gameSize; return { ox: c.left, oy: c.top, kx: c.width / s.width, ky: c.height / s.height }; });
+  await page.mouse.move(frame.ox + 195 * frame.kx, frame.oy + 760 * frame.ky);
+  await page.mouse.down();
+  for (let y = 760; y >= 560; y -= 20) { await page.mouse.move(frame.ox + 195 * frame.kx, frame.oy + y * frame.ky); await page.waitForTimeout(16); }
+  await page.mouse.up();
+  await page.waitForTimeout(300);
+  await page.mouse.move(frame.ox + 195 * frame.kx, frame.oy + 300 * frame.ky);
+  await page.mouse.wheel(0, 240);
+  await page.waitForTimeout(300);
+}
+const afterScrollTry = await snapshot();
+check('a drag and a wheel over the page move nothing while the view is up, and the drag does not close it', afterScrollTry.scroll === scrollBefore && afterScrollTry.view > 0, JSON.stringify({ before: scrollBefore, after: afterScrollTry }));
+await page.evaluate(() => window.__tap(195, 800));
+await page.waitForTimeout(400);
+const afterOutside = await snapshot();
+check('a tap on the veil outside the sheet still closes it', afterOutside.view === 0, JSON.stringify(afterOutside));
+
+// The positive control: with no view up, the same drag DOES scroll the list.
+{
+  const frame = await page.evaluate(() => { const c = document.querySelector('canvas').getBoundingClientRect(); const s = window.__phaserGame.scale.gameSize; return { ox: c.left, oy: c.top, kx: c.width / s.width, ky: c.height / s.height }; });
+  const before = (await snapshot()).scroll;
+  // The list sits at its far end after the staging scroll, so the finger travels DOWN (the list scrolls back up).
+  await page.mouse.move(frame.ox + 195 * frame.kx, frame.oy + 560 * frame.ky);
+  await page.mouse.down();
+  for (let y = 560; y <= 760; y += 20) { await page.mouse.move(frame.ox + 195 * frame.kx, frame.oy + y * frame.ky); await page.waitForTimeout(16); }
+  await page.mouse.up();
+  await page.waitForTimeout(400);
+  const after = (await snapshot()).scroll;
+  check('with no view up, the same drag scrolls the list (the lock is a lock, not a dead list)', after !== before, `${before} -> ${after}`);
+}
+// Back from the deck returns to the page that opened it.
+{
+  const frame = await page.evaluate(() => { const c = document.querySelector('canvas').getBoundingClientRect(); const s = window.__phaserGame.scale.gameSize; return { ox: c.left, oy: c.top, kx: c.width / s.width, ky: c.height / s.height }; });
+  await page.mouse.move(frame.ox + 195 * frame.kx, frame.oy + 815 * frame.ky);
+  await page.mouse.down(); await page.waitForTimeout(80); await page.mouse.up();
+  await page.waitForTimeout(900);
+  const where = await page.evaluate(() => { const g = window.__phaserGame; return { menu: g.scene.isActive('MenuScene'), mode: g.scene.getScene('MenuScene').mode }; });
+  check('Back from the deck lands on the dynasty page, not the front page', where.menu && where.mode === 'dynasty', JSON.stringify(where));
+  await page.evaluate(() => { const g = window.__phaserGame; for (const s of g.scene.getScenes(true)) g.scene.stop(s.scene.key); g.scene.start('CabinetScene'); });
+  await page.waitForTimeout(900);
+}
+await openOverTile();
+const slotAt = await viewButton('Đưa vào tay bài mở đầu');
+if (slotAt) await page.evaluate(({ x, y }) => window.__tap(x, y), slotAt);
+await page.waitForTimeout(600);
+const afterSlot = await snapshot();
+check('a one-task tap on Slot puts the card in the hand, keeps the view open, and touches nothing beneath',
+  afterSlot.hand.length === 1 && afterSlot.hand[0] === 'feigned-retreat' && afterSlot.view > 0 && afterSlot.filter === before.filter,
+  JSON.stringify(afterSlot));
 check('no console errors', errors.length === 0, errors.slice(0, 3).join(' | '));
 
 await browser.close();

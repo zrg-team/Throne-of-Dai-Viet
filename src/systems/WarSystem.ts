@@ -43,7 +43,7 @@ import {
   refreshAllLandOutputs,
 } from './ResourceSystem';
 import { getCourtBonuses } from './CourtSystem';
-import { hasTrait } from '../state/dynasty';
+import { hasTrait, noteTraitUse } from '../state/dynasty';
 import { eraIndex } from './empire/MandateSystem';
 import {
   ARMY_DRILL_FOOD_BASE,
@@ -1069,6 +1069,10 @@ export function queueRecruitment(
   }
 
   const required = musterTicks(state, total, getBarracksLevel(capital), courtBonuses.recruitSpeedMult);
+  if (state.gameMode === 'ascent') {
+    if (hasTrait('quartermaster')) noteTraitUse('quartermaster');
+    if (hasTrait('quartermaster-2')) noteTraitUse('quartermaster-2');
+  }
 
   applyResourceDelta(state, {
     humans: -total, food: -rationsCost, supplies: -(suppliesCost + provisionsCost), gold: -goldCost,
@@ -1109,7 +1113,8 @@ export function queueRecruitment(
 function musterTicks(state: GameState, total: number, barracksLevel: number, speedMult: number): number {
   const perTick = RECRUIT_BASE_PER_TICK * (1 + barracksLevel * RECRUIT_BARRACKS_BONUS) * speedMult;
   const base = Math.ceil(total / perTick);
-  return Math.max(1, base - (state.gameMode === 'ascent' && hasTrait('quartermaster') ? 1 : 0));
+  const ascent = state.gameMode === 'ascent';
+  return Math.max(1, base - (ascent && hasTrait('quartermaster') ? 1 : 0) - (ascent && hasTrait('quartermaster-2') ? 1 : 0));
 }
 
 /** The province a new host would muster at — the same choice `queueRecruitment` makes. */

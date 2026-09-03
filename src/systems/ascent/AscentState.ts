@@ -254,9 +254,18 @@ const MAX_QUEUED_PER_KIND = 3;
  * two champions arrive and you are asked about one, a second province revolts and nobody tells
  * you. Distinct requests now stack; only genuinely-recomputed ones supersede.
  */
+/**
+ * The cards a fully manual run does without: every one of them asks the player to do something a
+ * lane already lets them do on their own terms. Events are not on this list.
+ */
+const HARDCORE_SILENCED: ReadonlySet<AscentPrompt['kind']> = new Set([
+  'conquer-target', 'court-appointment', 'law-choice', 'decree-offer', 'province-order', 'muster-proposal', 'envoy',
+]);
+
 export function enqueueAscentPrompt(state: GameState, prompt: AscentPrompt): void {
   const ascent = state.ascent;
   if (!ascent) return;
+  if (ascent.hardcore && HARDCORE_SILENCED.has(prompt.kind)) return;
 
   if (prompt.kind === 'run-over') {
     // The one card that is allowed to take the screen from everything else, because there is

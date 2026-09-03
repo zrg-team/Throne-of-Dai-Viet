@@ -25,12 +25,13 @@ import { staggerIn } from '../../../ui/animations';
 import { captureScreen } from '../../../ui/captureScreen';
 import { TITLE_FONT, UI_FONT } from '../../../ui/fonts';
 import { heroBio, heroName, heroTypeLabel, rarityLabel, t } from '../../../i18n';
-import { DYNASTY_TRAITS, DYNASTY_TRAITS_PENDING } from '../../../data/dynastyTraits';
-import { getDynasty } from '../../../state/dynasty';
-import { cabinetCard, combineCost, meltValue, openingHand, recipeLearned } from '../../../state/cabinet';
+import { DYNASTY_TRAITS_LIVE, DYNASTY_TRAITS_PENDING } from '../../../data/dynastyTraits';
+import { dynastyHistory, dynastyProgress, dynastyProgressForXp, dynastyXpStep, getDynasty } from '../../../state/dynasty';
+import { motionMs, reducedMotion } from '../../../game/lifeSettings';
+import { cabinetCard, combineCost, getCabinet, meltValue, openingHand, recipeLearned } from '../../../state/cabinet';
 import { findPowerCard } from '../../../data/ascentCards';
 import { CardFan } from '../../../ui/ascent/CardFan';
-import { dynastyFounderHero } from '../../../ui/dynastyPortrait';
+import { dynastyFounderHero, reignFounderHero } from '../../../ui/dynastyPortrait';
 import type { AscentPrompt, Hero } from '../../../state/types';
 import { PROMPT_FOOTER_HEIGHT, PROMPT_HINT_ROOM, RARITY_COLOR, RARITY_WASH, cssHex, heroStatLine } from '../constants';
 import type { ConquestUIScene } from '../../ConquestUIScene';
@@ -75,12 +76,15 @@ ${t('ascent.codex.subtitle', codex)}`,
  * province the player takes will fly them, and this is still the cheapest place to teach a
  * colour the rest of the run depends on reading quickly.
  */
-function addThroneHall(self: ConquestUIScene, parent: Phaser.GameObjects.Container, width: number): number {
+function addThroneHall(self: ConquestUIScene, parent: Phaser.GameObjects.Container, width: number, maxHeight = Infinity): number {
   // On a short surface — `GAME_HEIGHT` clamps to 620 in a desktop browser — the court plus the
   // three advantages overruns the sheet by about a dozen pixels, and the whole screen starts
   // scrolling for no gain. The diorama is the part that can afford to give: it is a picture,
-  // not information.
-  const scale = GAME_HEIGHT < 700 ? 0.84 : 1;
+  // not information. `maxHeight` is the room the rest of the page has left it, measured by
+  // the caller, so the page never scrolls: the picture shrinks to fit, down to half size.
+  const CAPTION_ROOM = 16 + 14 + 10;
+  const fit = Number.isFinite(maxHeight) ? Math.max(0.5, Math.min(1, (maxHeight - CAPTION_ROOM) / THRONE_HALL_HEIGHT)) : 1;
+  const scale = Math.min(GAME_HEIGHT < 700 ? 0.84 : 1, fit);
   const drawn = Math.round(THRONE_HALL_HEIGHT * scale);
   const hall = throneHallDiorama(self, width, self.state.mapConfig.seed);
   hall.setScale(scale).setPosition((width * (1 - scale)) / 2, 0);
@@ -110,13 +114,12 @@ function addThroneHall(self: ConquestUIScene, parent: Phaser.GameObjects.Contain
  * heights, *then* the surfaces. Letting each card size itself independently gives a ragged row.
  */
 export function showMandate(self: ConquestUIScene, prompt: Extract<AscentPrompt, { kind: 'mandate' }>): void {
-  const { body, bodyWidth, finish } = self.promptScrollBody(
+  const { content, body, bodyWidth, finish } = self.promptScrollBody(
     t('ascent.mandate.title'),
     t('ascent.mandate.subtitle'),
     0,
   );
 
-  const top = addThroneHall(self, body, bodyWidth);
   const GAP = 8;
   const column = Math.floor((bodyWidth - GAP * 2) / 3);
 
@@ -135,6 +138,12 @@ export function showMandate(self: ConquestUIScene, prompt: Extract<AscentPrompt,
   });
   const headHeight = 44 + Math.max(...built.map((b) => b.title.height)) + 6;
   const height = headHeight + Math.max(...built.map((b) => b.desc.height)) + 12;
+
+  // The hands-on rule row, measured before the hall is drawn: the hall gets what the cards and the
+  // row leave, so this page never scrolls — reported the moment the row was added.
+  const note = self.ui.label(12, 0, t('ascent.mandate.hardcoreNote'), 'caption', { fontSize: '9px', wordWrap: { width: bodyWidth - 24 } });
+  const ROW_H = 26 + note.height + 8;
+  const top = addThroneHall(self, body, bodyWidth, content.height - (height + 14 + ROW_H + 16));
 
   // Pass two: surfaces behind the measured text, every column the same height.
   const cards = built.map(({ cardId, x, title, desc }) => {
@@ -166,7 +175,27 @@ export function showMandate(self: ConquestUIScene, prompt: Extract<AscentPrompt,
     return card;
   });
   staggerIn(self, cards);
-  finish(top + height + 16);
+
+  // Hands-on rule (tự tay cai trị): the run with no cards the lanes could do for you, and no autopilot. A checkbox at
+  // the foot of the first card of the reign, where the player decides how they will play it, and
+  // again on the run menu, so it can be turned either way once the run is under way.
+  const rowY = top + height + 14;
+  note.setY(rowY + 26);
+  body.add(self.ui.panel({ x: 0, y: rowY, width: bodyWidth, height: ROW_H }, { border: INK_UI.softBrush, fillAlpha: 0.5 }));
+  const box = self.ui.label(12, rowY + 7, '', 'label', { fontSize: '11.5px' });
+  const paint = (): void => {
+    const on = Boolean(self.state.ascent?.hardcore);
+    box.setText(`${on ? '☑' : '☐'}  ${t('ascent.mandate.hardcore')}`);
+    box.setColor(on ? cssHex(INK_UI.cinnabar) : '#2a2118');
+  };
+  paint();
+  body.add(box);
+  body.add(note);
+  body.add(self.ui.button({ x: 0, y: rowY, width: bodyWidth, height: ROW_H }, '', () => {
+    if (self.state.ascent) self.state.ascent.hardcore = !self.state.ascent.hardcore;
+    paint();
+  }, { frameless: true }));
+  finish(rowY + ROW_H + 16);
 }
 
 /**
@@ -665,133 +694,496 @@ function xpBar(
 }
 
 /**
- * The house grows: one level, two traits, one pick.
+ * The reign-end sequence: a scripted passage of beats, each one tween on one object.
+ *
+ * Kept as a list rather than a chain of callbacks so three things are possible that a chain
+ * makes hard: a **cut** (the skip, from the second reign on) that lands every beat on its end
+ * state at once; a **teardown** that ends every timer and tween the moment the sheet is
+ * destroyed, so nothing writes to a dead Text; and a **log** the harness reads to prove the beats
+ * ran in order, one at a time, inside the budget. `at` and `duration` are already through
+ * `motionMs`, so the reduced-motion setting shortens the whole passage by construction.
+ */
+interface CeremonyBeat {
+  name: string;
+  at: number;
+  duration: number;
+  start: () => void;
+  end: () => void;
+  started?: boolean;
+  ended?: boolean;
+}
+
+export class CeremonySequence {
+  readonly beats: CeremonyBeat[] = [];
+  /** Each beat as it played: measured start and end on the scene clock, and the planned duration. */
+  readonly log: Array<{ name: string; start: number; end: number; planned: number }> = [];
+  private readonly tweens: Phaser.Tweens.Tween[] = [];
+  private readonly timers: Phaser.Time.TimerEvent[] = [];
+  private t0 = 0;
+  /** True once every beat has ended, by clock or by cut. */
+  done = false;
+  /** True when the passage was cut short by a tap. */
+  cutShort = false;
+  onDone?: () => void;
+  /** The bar's start and end, in level units, so a gate can prove it starts below where it ends. */
+  bar?: { from: number; to: number };
+  /** Level ticks played, so a gate can count one per level crossed. */
+  ticks = 0;
+
+  constructor(private readonly scene: Phaser.Scene, owner: Phaser.GameObjects.GameObject) {
+    owner.once(Phaser.GameObjects.Events.DESTROY, () => this.dispose());
+  }
+
+  add(beat: CeremonyBeat): void {
+    this.beats.push(beat);
+  }
+
+  /** A tween owned by the passage: killed on cut and on teardown. */
+  tween(config: Phaser.Types.Tweens.TweenBuilderConfig): Phaser.Tweens.Tween {
+    const tween = this.scene.tweens.add(config);
+    this.tweens.push(tween);
+    return tween;
+  }
+
+  elapsed(): number {
+    return this.scene.time.now - this.t0;
+  }
+
+  /**
+   * Plays the beats **in a chain**: each one starts when the one before it has ended, after
+   * whatever gap the plan left between them. Absolute timers looked equivalent and were not — a
+   * frame's slack at the first beat let the second start before the first had finished, which is
+   * the one thing the passage promises never to do.
+   */
+  play(): void {
+    this.t0 = this.scene.time.now;
+    this.runFrom(0);
+  }
+
+  private runFrom(index: number): void {
+    if (this.done) return;
+    if (index >= this.beats.length) {
+      this.settle();
+      return;
+    }
+    const beat = this.beats[index];
+    const previous = this.beats[index - 1];
+    const gap = previous ? Math.max(0, beat.at - (previous.at + previous.duration)) : beat.at;
+    this.timers.push(this.scene.time.delayedCall(gap, () => {
+      if (beat.started || this.done) return;
+      beat.started = true;
+      const entry = { name: beat.name, start: this.elapsed(), end: this.elapsed() + beat.duration, planned: beat.duration };
+      this.log.push(entry);
+      beat.start();
+      this.timers.push(this.scene.time.delayedCall(beat.duration, () => {
+        if (beat.ended || this.done) return;
+        beat.ended = true;
+        beat.end();
+        entry.end = this.elapsed();
+        this.runFrom(index + 1);
+      }));
+    }));
+  }
+
+  /** Lands every beat on its end state now. The skip is a cut, not a fast-forward. */
+  cut(): void {
+    if (this.done) return;
+    this.cutShort = true;
+    for (const timer of this.timers) timer.remove(false);
+    this.timers.length = 0;
+    for (const tween of this.tweens) tween.stop();
+    this.tweens.length = 0;
+    const now = this.elapsed();
+    for (const beat of this.beats) {
+      if (!beat.started) this.log.push({ name: beat.name, start: now, end: now, planned: 0 });
+      beat.started = true;
+      if (!beat.ended) {
+        beat.ended = true;
+        beat.end();
+      }
+    }
+    this.settle();
+  }
+
+  private settle(): void {
+    if (this.done || this.beats.some((beat) => !beat.ended)) return;
+    this.done = true;
+    this.onDone?.();
+  }
+
+  private dispose(): void {
+    this.done = true;
+    for (const timer of this.timers) timer.remove(false);
+    for (const tween of this.tweens) tween.stop();
+    this.timers.length = 0;
+    this.tweens.length = 0;
+  }
+}
+
+/** Which reign the ceremony has already poured for, so a second level card in one chain opens at rest. */
+let pouredCeremonyReign = -1;
+
+/** Test hook: forget the pour, so a harness can play the passage again on the same reign. */
+export function resetCeremonyPour(): void {
+  pouredCeremonyReign = -1;
+}
+
+/** The system each trait belongs to — the tag on its offer card. */
+const TRAIT_SYSTEM: Record<string, 'draft' | 'muster' | 'founding' | 'court' | 'trade' | 'cabinet'> = {
+  'wide-draft': 'draft',
+  'first-reroll-free': 'draft',
+  'second-founder': 'founding',
+  'twin-doctrine': 'court',
+  'quartermaster': 'muster',
+  'old-roads': 'trade',
+  'deep-shelf': 'cabinet',
+  'long-memory': 'court',
+};
+
+function traitName(id: string): string {
+  return t(`dynasty.trait.${id}` as Parameters<typeof t>[0]);
+}
+
+function traitText(id: string, part: 'd' | 'delta' | 'when'): string {
+  return t(`dynasty.trait.${id}.${part}` as Parameters<typeof t>[0]);
+}
+
+/**
+ * The house grows: the score is seen to go somewhere, the level is seen to tick, the reign is
+ * seen to join the line, and the choice is seen to land.
  *
  * Step two of the ceremony, and it fires **while the run's memory is still warm** — that is the
- * whole reason it sits here rather than on the menu. A meta-progression screen reached from a
- * title page is a shop; the same screen reached ten seconds after a dynasty fell is the answer to
- * "what did that reign teach us".
+ * whole reason it sits here rather than on the menu. Before this pass it was a card with a full
+ * bar: correct, and it showed nothing happening. The passage is 8.6 s at full motion, one beat at
+ * a time — count-up, bank, pour with the level tick, the reign card joining the line, the offers
+ * fanning in — and from the second reign any tap cuts to the choice. The first reign plays in full
+ * because it is the tutorial. A second level card in the same chain opens at rest: the pour has
+ * already been watched.
  *
  * No footer and no way past it, exactly like the mandate card: a level-up the player can dismiss
- * is a level-up they will dismiss by accident and then be unable to find again. The bar is drawn
- * full because the level has already been earned — this is the moment *after* the fill, not a
- * progress meter.
+ * is a level-up they will dismiss by accident and then be unable to find again.
  */
 export function showDynastyLevel(
   self: ConquestUIScene,
   prompt: Extract<AscentPrompt, { kind: 'dynasty-level' }>,
 ): void {
-  // A footer of exactly the hint lane, and no buttons in it.
-  //
-  // `promptFrame` ends its content box 20 points above the sheet, and `drawHoldHint` refuses to
-  // print within 10 of that — so any footer under about 34 puts the line inside the refusal band
-  // and the page silently loses it. These are `optionCard`s: they want the press *held*, with
-  // nothing else on the page saying so, and a card that refuses a tap reads as broken rather than
-  // as careful. 36 is the smallest footer that actually prints it.
+  const store = getDynasty();
+  const firstReign = store.reigns <= 1;
+  const play = pouredCeremonyReign !== store.reigns;
+  pouredCeremonyReign = store.reigns;
+  const reduced = reducedMotion();
+
   const { content, body, bodyWidth, finish } = self.promptScrollBody(
     t('dynasty.grows.title'),
-    t('dynasty.grows.subtitle', { score: prompt.score.toLocaleString('en-US') }),
+    // The first ceremony says the one sentence the empty ledger says; after that, the score.
+    firstReign ? t('dynasty.emptyBody') : t('dynasty.grows.subtitle', { score: prompt.score.toLocaleString('en-US') }),
     PROMPT_HINT_ROOM + 20,
   );
+  const seq = new CeremonySequence(self, body);
+  self.data.set('ceremony', seq);
 
   let cursor = 4;
-  const store = getDynasty();
 
-  // The king the reign was raised by, at thumbnail size. The house is what just grew, so it is
-  // the house's face that heads the card — and the rank badge it is drawn with steps up with the
-  // dynasty level, so thirty reigns visibly *look* like thirty reigns.
+  // ── The head: whose house, and the score about to be poured ──
   const founder = dynastyFounderHero(store);
   if (founder) {
-    const portrait = renderHeroFaceInBox(self, founder, { x: 0, y: cursor, width: 46, height: 46 });
-    body.add(portrait);
-    body.add(self.ui.label(56, cursor + 4, store.house
-      ? t('dynasty.house', { name: store.house })
-      : t('dynasty.houseUnnamed'), 'label', { fontSize: '13px' }));
-    body.add(self.ui.label(56, cursor + 22, t('dynasty.reignOrdinal', { n: store.reigns }), 'caption',
-      { fontSize: '10px' }));
-    cursor += 54;
+    body.add(renderHeroFaceInBox(self, founder, { x: 0, y: cursor, width: 46, height: 46 }));
+  }
+  const textX = founder ? 56 : 0;
+  body.add(self.ui.label(textX, cursor + 4, store.house
+    ? t('dynasty.house', { name: store.house })
+    : t('dynasty.houseUnnamed'), 'label', { fontSize: '13px' }));
+  body.add(self.ui.label(textX, cursor + 22, t('dynasty.reignOrdinal', { n: store.reigns }), 'caption',
+    { fontSize: '10px' }));
+  // The score, large, at the right of the head: it counts up, then slides into the bar.
+  const scoreText = self.add.text(bodyWidth, cursor + 6, '', {
+    color: cssHex(INK_UI.gold), fontFamily: TITLE_FONT, fontSize: '24px', fontStyle: '700', align: 'right',
+  }).setOrigin(1, 0);
+  body.add(scoreText);
+  cursor += 54;
+
+  // ── The bar: from where the house stood to where the reign leaves it ──
+  const progress = dynastyProgress(store);
+  const before = play ? dynastyProgressForXp(Math.max(0, store.xp - prompt.score)) : { level: store.level, ...progress };
+  const vFrom = before.level + Math.min(1, before.into / Math.max(1, before.need));
+  const vTo = store.level + Math.min(1, progress.into / Math.max(1, progress.need));
+  const BAR_Y = cursor + 18;
+  const levelLabel = self.ui.label(0, cursor, t('dynasty.subLevel', { level: before.level }), 'label',
+    { fontSize: '12px', color: cssHex(INK_UI.gold) }).setOrigin(0, 0);
+  body.add(levelLabel);
+  const shortLabel = self.ui.label(bodyWidth, cursor + 2, '', 'caption', { fontSize: '10px', align: 'right' }).setOrigin(1, 0);
+  body.add(shortLabel);
+  const bar = self.add.graphics();
+  body.add(bar);
+  const banked = self.ui.label(bodyWidth, BAR_Y + 12, t('dynasty.grows.banked', { score: prompt.score.toLocaleString('en-US') }),
+    'caption', { fontSize: '9.5px', color: '#a4402c', align: 'right' }).setOrigin(1, 0).setAlpha(0);
+  body.add(banked);
+  let shownLevel = before.level;
+  const paintBar = (v: number): void => {
+    const level = Math.floor(v);
+    const fill = Math.min(1, v - level);
+    const oldFill = level === before.level ? vFrom - before.level : 0;
+    bar.clear();
+    bar.fillStyle(INK_UI.softBrush, 0.28);
+    bar.fillRoundedRect(0, BAR_Y, bodyWidth, 8, 4);
+    // The old fill stays gold; the poured segment is cinnabar, so the delta is a thing seen.
+    bar.fillStyle(INK_UI.gold, 0.92);
+    bar.fillRoundedRect(0, BAR_Y, Math.max(4, bodyWidth * Math.min(fill, oldFill)), 8, 4);
+    if (fill > oldFill) {
+      bar.fillStyle(INK_UI.cinnabar, 0.9);
+      bar.fillRoundedRect(bodyWidth * oldFill, BAR_Y, Math.max(3, bodyWidth * (fill - oldFill)), 8, 4);
+    }
+    // The old mark stays as a tick.
+    if (oldFill > 0 && oldFill < 1) {
+      bar.fillStyle(INK_UI.brush, 0.8);
+      bar.fillRect(bodyWidth * oldFill - 0.75, BAR_Y - 3, 1.5, 14);
+    }
+    const need = dynastyXpStep(level + 1);
+    shortLabel.setText(t('dynasty.page.toNext', {
+      short: Math.max(0, Math.round(need * (1 - fill))).toLocaleString('en-US'),
+      next: level + 1,
+    }));
+    if (level !== shownLevel) {
+      shownLevel = level;
+      levelLabel.setText(t('dynasty.subLevel', { level }));
+    }
+  };
+  /** The level tick: the numeral punches, a ring sweeps off it, the paper flashes, the seal sounds. */
+  const punchLevel = (): void => {
+    seq.ticks += 1;
+    seq.log.push({ name: 'tick', start: seq.elapsed(), end: seq.elapsed() + motionMs(260), planned: motionMs(260) });
+    levelLabel.setScale(1.5);
+    seq.tween({ targets: levelLabel, scale: 1, duration: motionMs(260), ease: 'Back.easeOut' });
+    const ring = self.add.graphics({ x: levelLabel.width / 2, y: cursor + levelLabel.height / 2 });
+    ring.lineStyle(2, INK_UI.gold, 0.9);
+    ring.strokeCircle(0, 0, 14);
+    body.add(ring);
+    seq.tween({ targets: ring, alpha: 0, scale: 2, duration: motionMs(520), ease: 'Cubic.easeOut', onComplete: () => ring.destroy() });
+    const flash = self.add.rectangle(0, BAR_Y - 2, bodyWidth, 12, 0xffffff, 0.55).setOrigin(0, 0);
+    body.add(flash);
+    seq.tween({ targets: flash, alpha: 0, duration: motionMs(120), onComplete: () => flash.destroy() });
+    soundDirector.card();
+  };
+  cursor += 42;
+
+  // ── The reign card: this reign, as the last card of the lineage ──
+  const record = dynastyHistory(store)[dynastyHistory(store).length - 1];
+  const reignCard = self.add.container(0, cursor);
+  body.add(reignCard);
+  let reignFace: Phaser.GameObjects.Container | undefined;
+  {
+    const REIGN_H = 50;
+    reignCard.add(self.ui.panel({ x: 0, y: 0, width: bodyWidth, height: REIGN_H }, { border: INK_UI.gold, fillAlpha: 0.55 }));
+    const reignHero = record?.founder ? reignFounderHero(record.founder, store.level) : undefined;
+    const textX = reignHero ? 52 : 12;
+    if (reignHero) {
+      reignFace = renderHeroFaceInBox(self, reignHero, { x: 8, y: 7, width: 36, height: 36 });
+      reignCard.add(reignFace);
+    }
+    reignCard.add(self.ui.label(textX, 8, `${t('dynasty.page.reign', { n: store.reigns })} · ${prompt.score.toLocaleString('en-US')}`,
+      'label', { fontSize: '12px' }));
+    const epitaph = record
+      ? [
+        t('dynasty.page.epitaph', {
+          waves: record.waves, lands: record.lands,
+          ending: t(record.ending === 'collapse' ? 'dynasty.page.ending.collapse' : 'dynasty.page.ending.conquest'),
+        }),
+        record.fight ? t('dynasty.page.fight', {
+          land: record.fight.land, n: record.fight.theirStart.toLocaleString('en-US'),
+          result: t(record.fight.won ? 'dynasty.page.won' : 'dynasty.page.lost'),
+        }) : '',
+      ].filter(Boolean).join(' · ')
+      : '';
+    reignCard.add(self.ui.label(textX, 26, epitaph, 'caption', { fontSize: '9.5px', wordWrap: { width: bodyWidth - textX - 12 }, maxLines: 2 }));
+    cursor += REIGN_H + 12;
   }
 
-  xpBar(self, body, 0, cursor, bodyWidth, 1);
-  cursor += 14;
+  // ── The fork ──
   body.add(self.ui.label(0, cursor, t('dynasty.grows.level', { level: prompt.level }), 'label',
     { fontSize: '12px', color: cssHex(INK_UI.gold) }));
   cursor += 20;
 
-  /**
-   * The two cards *fill* the page rather than sitting at a fixed 72 with a drift of blank paper
-   * under them.
-   *
-   * `optionCard`'s height is a minimum — it grows to whatever its text wraps to — so the room left
-   * after the head and the notes is simply divided between them. This is the fork; it should look
-   * like the only thing on the page, which at the 844 sheet a pair of 72-point rows did not.
-   * Clamped both ways: 72 is the floor at the 620 clamp, and past 150 a card stops reading as a
-   * row and starts reading as a poster.
-   */
-  const NOTES = 62 + (prompt.remaining > 0 ? 18 : 0) + (store.traits.length > 0 ? 30 : 0);
-  const cardRoom = content.height - cursor - 20 - NOTES;
-  const cardHeight = Math.max(72, Math.min(118,
-    Math.floor(cardRoom / Math.max(1, prompt.options.length + 1)) - 9));
-
+  const held = store.traits.filter((id) => !DYNASTY_TRAITS_PENDING.has(id));
   const cards: Phaser.GameObjects.Container[] = [];
+  let chosen = false;
+  const heldStripY = { y: 0 };
   prompt.options.forEach((traitId) => {
-    const pending = DYNASTY_TRAITS_PENDING.has(traitId);
     const card = self.optionCard(
-      { x: 0, y: cursor, width: bodyWidth, height: cardHeight },
+      { x: 0, y: cursor, width: bodyWidth, height: 72 },
       {
-        title: t(`dynasty.trait.${traitId}` as Parameters<typeof t>[0]),
-        body: t(`dynasty.trait.${traitId}.d` as Parameters<typeof t>[0]),
-        // A trait whose phase has not shipped says so on its own row rather than quietly doing
-        // nothing. Choosing a future is still a choice — but it must be an informed one.
-        note: pending ? t('dynasty.soon') : undefined,
+        title: traitName(traitId),
+        badge: t(`dynasty.system.${TRAIT_SYSTEM[traitId] ?? 'court'}` as Parameters<typeof t>[0]),
+        // Three lines in the trait's own units: the effect, what changes, when it applies.
+        body: `${traitText(traitId, 'd')}\n${traitText(traitId, 'delta')}\n${t('dynasty.grows.when', { when: traitText(traitId, 'when') })}`,
         accent: INK_UI.gold,
         washAlpha: 0.08,
         parent: body,
-        onTap: () => self.choose(traitId),
+        holdMs: 450,
+        onTap: () => {
+          if (chosen) return;
+          chosen = true;
+          // The chosen card lifts and hangs into the held list; the other fades. Then the choice.
+          const rise = motionMs(500);
+          cards.forEach((other) => {
+            if (other !== card) self.tweens.add({ targets: other, alpha: 0.25, duration: motionMs(200) });
+          });
+          self.tweens.add({ targets: card, y: card.y - 6, duration: motionMs(120), ease: 'Sine.easeOut' });
+          self.tweens.add({
+            targets: card, y: heldStripY.y, scale: 0.92, alpha: 0.7, delay: motionMs(120), duration: rise, ease: 'Cubic.easeInOut',
+            onComplete: () => self.choose(traitId),
+          });
+        },
       },
     );
     cards.push(card);
-    cursor += ((card.getData('cardHeight') as number) ?? cardHeight) + 9;
+    cursor += ((card.getData('cardHeight') as number) ?? 72) + 9;
   });
-  staggerIn(self, cards);
+  // The hint where the thumb is, not at the foot of the sheet.
+  const hint = self.ui.label(bodyWidth / 2, cursor, t('dynasty.grows.hold'), 'caption',
+    { fontSize: '10px', color: cssHex(INK_UI.jade), align: 'center' }).setOrigin(0.5, 0);
+  body.add(hint);
+  cursor += 20;
 
-  /**
-   * The row that is not an offer.
-   *
-   * Why there are two and not eight, drawn as a third row in the same stack and greyed — a plain
-   * caption under the cards reads as small print, and this is not small print: it is the reason
-   * the choice is worth anything. A `panel`, never an `optionCard`, because a card the player can
-   * hold and that then does nothing is worse than no row at all.
-   */
-  const untaken = DYNASTY_TRAITS.length - store.traits.length - prompt.options.length;
+  // ── What the house already holds, so the fork is read against the build ──
+  heldStripY.y = cursor;
+  if (held.length > 0) {
+    body.add(self.ui.label(0, cursor, t('dynasty.grows.held'), 'caption', { fontSize: '9.5px' }));
+    cursor += 13;
+    for (const id of held) {
+      const line = self.ui.label(0, cursor, `${traitName(id)} — ${traitText(id, 'delta')}`, 'caption',
+        { fontSize: '10px', color: '#1c6b58', wordWrap: { width: bodyWidth } });
+      body.add(line);
+      cursor += line.height + 2;
+    }
+    cursor += 6;
+  }
+  // The remainder as one line, not a card: a card the player can hold that then does nothing is
+  // worse than no row at all.
+  const untaken = DYNASTY_TRAITS_LIVE.length - held.length - prompt.options.length;
   if (untaken > 0) {
-    const noteHeight = Math.max(52, Math.min(cardHeight, 72));
-    const dim = self.ui.panel({ x: 0, y: cursor, width: bodyWidth, height: noteHeight },
-      { border: INK_UI.softBrush, fillAlpha: 0.3 });
-    body.add(dim);
-    body.add(self.ui.label(16, cursor + 10, t('dynasty.grows.notOffered'), 'label',
-      { fontSize: '12px', color: cssHex(INK_UI.softBrush) }));
-    body.add(self.ui.label(16, cursor + 28, t('dynasty.grows.scarce', { n: untaken }), 'caption',
-      { fontSize: '9.5px', wordWrap: { width: bodyWidth - 32 } }));
-    cursor += noteHeight + 10;
+    const scarce = self.ui.label(0, cursor, t('dynasty.grows.scarce', { n: untaken }), 'caption',
+      { fontSize: '9.5px', wordWrap: { width: bodyWidth } });
+    body.add(scarce);
+    cursor += scarce.height + 4;
   }
   if (prompt.remaining > 0) {
     body.add(self.ui.label(0, cursor, t('dynasty.grows.more', { n: prompt.remaining }), 'caption',
       { fontSize: '10px', color: cssHex(INK_UI.jade), wordWrap: { width: bodyWidth } }));
     cursor += 18;
   }
-
-  // What the house already holds, so the fork is read against the build rather than in isolation —
-  // Twin Doctrine against a house that already took Wide Draft is a different question.
-  if (store.traits.length > 0) {
-    body.add(self.ui.label(0, cursor, t('dynasty.next.traits'), 'caption', { fontSize: '9.5px' }));
-    body.add(self.ui.label(0, cursor + 12,
-      store.traits.map((id) => t(`dynasty.trait.${id}` as Parameters<typeof t>[0])).join(' · '),
-      'caption', { fontSize: '10px', wordWrap: { width: bodyWidth } }));
-    cursor += 30;
-  }
-
+  // Our hint sits under the cards; the frame's own foot hint would say it twice.
+  self.promptUsedHoldCards = false;
   finish(cursor);
+
+  // ── The beats ──
+  const counter = { v: 0 };
+  const showScore = (value: number) => scoreText.setText(Math.round(value).toLocaleString('en-US'));
+  seq.add({
+    name: 'count', at: 0, duration: motionMs(1200),
+    start: () => {
+      showScore(0);
+      seq.tween({ targets: counter, v: prompt.score, duration: motionMs(1200), ease: 'Cubic.easeOut', onUpdate: () => showScore(counter.v) });
+    },
+    end: () => showScore(prompt.score),
+  });
+  seq.add({
+    name: 'bank', at: motionMs(1200), duration: motionMs(400),
+    start: () => {
+      seq.tween({ targets: scoreText, y: BAR_Y - 2, scale: 0.45, alpha: 0.2, duration: motionMs(400), ease: 'Cubic.easeIn' });
+    },
+    end: () => {
+      scoreText.setAlpha(0);
+      banked.setAlpha(1);
+    },
+  });
+  const pour = { v: vFrom };
+  const pourMs = reduced ? 0 : motionMs(1400);
+  seq.add({
+    name: 'pour', at: motionMs(1600), duration: pourMs,
+    start: () => {
+      if (pourMs <= 0) return;
+      let lastLevel = Math.floor(vFrom);
+      seq.tween({
+        targets: pour, v: vTo, duration: pourMs, ease: 'Cubic.easeOut',
+        onUpdate: () => {
+          paintBar(pour.v);
+          const level = Math.floor(pour.v);
+          if (level > lastLevel) {
+            lastLevel = level;
+            punchLevel();
+          }
+        },
+      });
+    },
+    end: () => {
+      paintBar(vTo);
+      // A cut, or reduced motion, still owes one tick for every level crossed.
+      while (seq.ticks < Math.floor(vTo) - Math.floor(vFrom)) punchLevel();
+    },
+  });
+  seq.bar = { from: vFrom, to: vTo };
+  const reignRest = reignCard.x;
+  seq.add({
+    name: 'reign', at: motionMs(3000), duration: motionMs(600),
+    start: () => {
+      reignCard.setX(bodyWidth + 30);
+      seq.tween({ targets: reignCard, x: reignRest, duration: motionMs(600), ease: 'Cubic.easeOut' });
+      if (reignFace) {
+        // The portrait sets in after the card has landed — the punch, at the face's own size.
+        const faceScale = reignFace.scale;
+        reignFace.setAlpha(0).setScale(faceScale * 0.6);
+        seq.tween({ targets: reignFace, alpha: 1, scale: faceScale, delay: motionMs(180), duration: motionMs(260), ease: 'Back.easeOut' });
+      }
+    },
+    end: () => {
+      reignCard.setX(reignRest);
+      if (reignFace) {
+        self.tweens.killTweensOf(reignFace);
+        reignFace.setAlpha(1);
+      }
+    },
+  });
+  const restY = cards.map((card) => card.y);
+  seq.add({
+    name: 'offers', at: motionMs(3600), duration: motionMs(600),
+    start: () => staggerIn(self, cards, { staggerMs: motionMs(120), duration: motionMs(300) }),
+    end: () => {
+      cards.forEach((card, index) => {
+        self.tweens.killTweensOf(card);
+        card.setY(restY[index]).setAlpha(1);
+      });
+      hint.setAlpha(1);
+    },
+  });
+
+  if (play) {
+    // Before the passage: the score at nothing, the bar where the house stood, the reign card and
+    // the offers off the page — every beat starts from a state the previous one leaves.
+    showScore(0);
+    paintBar(vFrom);
+    reignCard.setX(bodyWidth + 30);
+    cards.forEach((card) => card.setAlpha(0));
+    hint.setAlpha(0);
+    // From the second reign a tap anywhere on the sheet cuts to the choice.
+    if (!firstReign) {
+      const skip = self.add.zone(content.x, content.y, content.width, content.height).setOrigin(0, 0).setInteractive();
+      skip.on('pointerup', () => {
+        seq.cut();
+        skip.destroy();
+      });
+      self.modalLayer.add(skip);
+      seq.onDone = () => { if (skip.active) skip.destroy(); };
+      const skipHint = self.add.text(GAME_WIDTH / 2, content.y + content.height - 6, t('dynasty.grows.skip'), {
+        color: INK_UI_HEX.mutedText, fontFamily: UI_FONT, fontSize: '9px', align: 'center',
+      }).setOrigin(0.5, 1).setAlpha(0.8);
+      self.modalLayer.add(skipHint);
+      skip.once(Phaser.GameObjects.Events.DESTROY, () => { if (skipHint.active) skipHint.destroy(); });
+    }
+    seq.play();
+  } else {
+    seq.cut();
+    seq.cutShort = false;
+  }
 }
 
 /**
@@ -892,12 +1284,12 @@ export function showBindCard(
  * what is different this time, because a roguelite whose return is indistinguishable from its
  * first run has no return at all.
  *
- * **The two empty rows are deliberate.** The opening hand and the companions are Phases 3 and 4,
- * and they are drawn now, greyed, saying what will fill them — the player learns the shape of what
- * the house will one day carry before any of it exists. A screen that hides its unfinished halves
- * teaches nothing and then changes shape under the player later.
+ * Only what is real. The page used to draw two greyed rows saying which phase would fill them;
+ * a row about a feature that does not exist teaches nothing and then changes shape under the
+ * player later. Each row carries the concrete number it changes, and the rows count in one by
+ * one — the last beat of the reign-end passage.
  *
- * Fixed rather than scrolling, like the Reckoning it follows: five rows and two controls fit the
+ * Fixed rather than scrolling, like the Reckoning it follows: the rows and two controls fit the
  * 620 clamp, and a closing page that scrolls is a closing page that shows half of itself.
  */
 export function showNextReign(
@@ -910,64 +1302,71 @@ export function showNextReign(
   // holds together at both ends of the `GAME_HEIGHT` clamp.
   const BUTTONS = 46 + 8 + 28;
   const buttonY = content.y + content.height - BUTTONS - 2;
-  const rows: Array<{ label: string; detail: string; accent: number; muted?: boolean }> = [
+  const hand = openingHand();
+  const rows: Array<{ label: string; detail: string; accent: number }> = [
     {
-      label: t('dynasty.next.founder', { n: prompt.founderCount }),
+      label: t('dynasty.next.founderN', { n: prompt.founderCount }),
       detail: t('dynasty.next.founderD'),
       accent: INK_UI.gold,
     },
     {
       label: t('dynasty.next.traits'),
       detail: prompt.traits.length > 0
-        ? prompt.traits.map((id) => t(`dynasty.trait.${id}` as Parameters<typeof t>[0])).join(' · ')
+        ? prompt.traits.map((id) => `${traitName(id)} · ${traitText(id, 'delta')}`).join('\n')
         : t('dynasty.next.traitsNone'),
       accent: prompt.traits.length > 0 ? INK_UI.jade : INK_UI.softBrush,
-      muted: prompt.traits.length === 0,
-    },
-    {
-      label: t('dynasty.next.hand'),
-      // The row Phase 3 was built to fill: the slotted seals, with the honest price printed.
-      detail: openingHand().length > 0
-        ? t('dynasty.next.handSome', {
-          cards: openingHand().map((id) => t(`ascent.card.${id}` as Parameters<typeof t>[0])).join(' · '),
-          n: openingHand().length * 2,
-        })
-        : t('dynasty.next.handSoon'),
-      accent: openingHand().length > 0 ? INK_UI.jade : INK_UI.softBrush,
-      muted: openingHand().length === 0,
-    },
-    {
-      label: t('dynasty.next.companions'),
-      detail: t('dynasty.next.companionsSoon'),
-      accent: INK_UI.softBrush,
-      muted: true,
-    },
-    {
-      label: t('dynasty.next.code'),
-      detail: prompt.codes > 0
-        ? t('dynasty.next.codeSome', { n: prompt.codes })
-        : t('dynasty.next.codeNone'),
-      accent: prompt.codes > 0 ? INK_UI.jade : INK_UI.softBrush,
-      muted: prompt.codes === 0,
     },
   ];
+  if (hand.length > 0) {
+    rows.push({
+      label: t('dynasty.next.hand'),
+      detail: t('dynasty.next.handSome', {
+        cards: hand.map((id) => t(`ascent.card.${id}` as Parameters<typeof t>[0])).join(' · '),
+        n: hand.length * 2,
+      }),
+      accent: INK_UI.jade,
+    });
+  }
+  if (prompt.codes > 0) {
+    rows.push({
+      label: t('dynasty.next.code'),
+      detail: t('dynasty.next.codeSome', { n: prompt.codes }),
+      accent: INK_UI.jade,
+    });
+  }
+  // The rubbings this reign banked wait on the menu: said here, with the number, or the player
+  // leaves not knowing the Cabinet has anything for them.
+  const waiting = getCabinet().rubbings;
+  if (waiting > 0) {
+    rows.push({
+      label: t('dynasty.next.rubbings', { n: waiting }),
+      detail: t('dynasty.next.rubbingsD'),
+      accent: INK_UI.gold,
+    });
+  }
 
   const room = buttonY - content.y - 8;
-  const rowH = Math.max(40, Math.min(64, Math.floor((room - (rows.length - 1) * 8) / rows.length)));
+  const rowH = Math.max(44, Math.min(96, Math.floor((room - (rows.length - 1) * 8) / rows.length)));
   let y = content.y + Math.max(0, Math.round((room - (rowH * rows.length + (rows.length - 1) * 8)) / 2));
 
+  const built: Phaser.GameObjects.Container[] = [];
   rows.forEach((row) => {
-    self.modalLayer.add(self.ui.panel({ x: content.x, y, width: content.width, height: rowH },
-      { border: INK_UI.softBrush, fillAlpha: row.muted ? 0.28 : 0.5 }));
+    const holder = self.add.container(content.x, y);
+    holder.add(self.ui.panel({ x: 0, y: 0, width: content.width, height: rowH },
+      { border: INK_UI.softBrush, fillAlpha: 0.5 }));
     const edge = self.add.graphics();
-    edge.fillStyle(row.accent, row.muted ? 0.5 : 0.9);
-    edge.fillRect(content.x + 1.5, y + 5, 2.5, rowH - 10);
-    self.modalLayer.add(edge);
-    self.modalLayer.add(self.ui.label(content.x + 12, y + 7, row.label, 'label', { fontSize: '12px' }));
-    self.modalLayer.add(self.ui.label(content.x + 12, y + 24, row.detail, 'caption',
-      { fontSize: '9.5px', wordWrap: { width: content.width - 24 } }));
+    edge.fillStyle(row.accent, 0.9);
+    edge.fillRect(1.5, 5, 2.5, rowH - 10);
+    holder.add(edge);
+    holder.add(self.ui.label(12, 7, row.label, 'label', { fontSize: '12px' }));
+    holder.add(self.ui.label(12, 24, row.detail, 'caption',
+      { fontSize: '9.5px', wordWrap: { width: content.width - 24 }, maxLines: Math.max(1, Math.floor((rowH - 28) / 12)) }));
+    self.modalLayer.add(holder);
+    built.push(holder);
     y += rowH + 8;
   });
+  // The rows count in, 180 ms apart — the last beat of the reign-end passage.
+  staggerIn(self, built, { staggerMs: motionMs(180), duration: motionMs(220) });
 
   self.modalLayer.add(self.ui.button(
     { x: content.x, y: buttonY, width: content.width, height: 46 },

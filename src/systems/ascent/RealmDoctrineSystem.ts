@@ -1,7 +1,7 @@
 import { eraIndex } from '../empire/MandateSystem';
 import { pushToast } from '../empire/notifications';
 import { enqueueAscentPrompt } from './AscentState';
-import { hasTrait } from '../../state/dynasty';
+import { hasTrait, noteTraitUse } from '../../state/dynasty';
 import { t } from '../../i18n';
 import type { AscentDoctrine, AscentRarity, EraId, GameState } from '../../state/types';
 
@@ -206,6 +206,7 @@ export function adoptDoctrine(state: GameState, doctrine: AscentDoctrine): void 
   // a further choice replaces the second, so the founding course is the one the house keeps.
   if (ascent.doctrine && twinDoctrineOpen(state)) {
     ascent.doctrine2 = doctrine;
+    noteTraitUse('twin-doctrine');
     ascent.laneState.lastDecisionTurn.court = state.turn;
     pushToast(state, t('ascent.doctrine.set', { name: doctrineName(doctrine) }), 'milestone');
     return;

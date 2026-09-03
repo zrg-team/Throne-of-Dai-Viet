@@ -127,8 +127,80 @@ await page.waitForTimeout(500);
   });
   check('off suspends the context', result.off.enabled === false && result.off.context !== 'running',
     JSON.stringify(result.off));
-  check('and persists', result.stored === '{"enabled":false}', String(result.stored));
+  // `{ enabled, music }` since the beds got their own switch; the master's half is what this reads.
+  let persisted = null;
+  try { persisted = JSON.parse(result.stored); } catch { /* not JSON */ }
+  check('and persists', persisted?.enabled === false, String(result.stored));
   check('on takes it back', result.back.enabled === true, JSON.stringify(result.back));
+}
+
+// ── the beds are not a media player, and have a switch of their own ────────
+/**
+ * The music used to stream through `<audio>` elements, and the phone showed a Now Playing card
+ * for it on the lock screen and in the Dynamic Island — a bed at eight percent under a map,
+ * with transport controls. Reported as *"sound play feel like a music player"*. A media element
+ * is what earns that card, so the proof is that none ever plays: every bed is decoded and played
+ * from a buffer in the same context as the paper effects.
+ */
+{
+  const result = await page.evaluate(async () => {
+    const { soundDirector } = await import('/src/ui/sound/SoundDirector.ts');
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    let mediaPlays = 0;
+    const play = HTMLMediaElement.prototype.play;
+    HTMLMediaElement.prototype.play = function patched(...args) { mediaPlays += 1; return play.apply(this, args); };
+    let created = 0;
+    const AudioCtor = window.Audio;
+    window.Audio = function counted(...args) { created += 1; return new AudioCtor(...args); };
+    try {
+      soundDirector.setEnabled(true);
+      soundDirector.setMusicEnabled(true);
+      soundDirector.tap();
+      soundDirector.ambientMusic('map');
+      await wait(2600);
+      const onMap = soundDirector.debug();
+      soundDirector.battleMusic('probe:media', false, 0.5);
+      await wait(1600);
+      const inFight = soundDirector.debug();
+      soundDirector.stopBattleMusic();
+      await wait(700);
+
+      // MUSIC off: the beds stop, the paper goes on, the context stays up.
+      soundDirector.setMusicEnabled(false);
+      await wait(800);
+      const musicOff = soundDirector.debug();
+      soundDirector.tap();
+      const tapWithMusicOff = soundDirector.debug();
+      soundDirector.battleMusic('probe:refused', false, 0.5);
+      await wait(300);
+      const fightRefused = soundDirector.debug();
+      const stored = JSON.parse(localStorage.getItem('mandate:sound:v1') ?? '{}');
+      // MUSIC on again: the screen that last asked gets its bed back.
+      soundDirector.setMusicEnabled(true);
+      await wait(2600);
+      const musicBack = soundDirector.debug();
+      soundDirector.ambientMusic('none');
+      await wait(800);
+      return { mediaPlays, created, onMap, inFight, musicOff, tapWithMusicOff, fightRefused, stored, musicBack };
+    } finally {
+      HTMLMediaElement.prototype.play = play;
+      window.Audio = AudioCtor;
+    }
+  });
+  check('the map bed plays from a decoded buffer', result.onMap.ambientPlaying === true && result.onMap.ambientAt > 1
+    && result.onMap.decoded >= 1, JSON.stringify(result.onMap));
+  check('the battle bed plays from a decoded buffer', result.inFight.musicPlaying === true && result.inFight.music !== 'none',
+    JSON.stringify(result.inFight));
+  check('no media element is ever created or played for a bed', result.mediaPlays === 0 && result.created === 0,
+    `Audio() ×${result.created}, play() ×${result.mediaPlays}`);
+  check('MUSIC off stops the beds and keeps the context', result.musicOff.ambient === 'none' && result.musicOff.music === 'none'
+    && result.musicOff.musicEnabled === false && result.musicOff.context === 'running', JSON.stringify(result.musicOff));
+  check('the paper still sounds with MUSIC off', result.tapWithMusicOff.enabled === true && result.tapWithMusicOff.context === 'running');
+  check('a fight with MUSIC off plays no bed', result.fightRefused.music === 'none', JSON.stringify(result.fightRefused));
+  check('the music switch persists beside the master', result.stored.music === false && result.stored.enabled === true,
+    JSON.stringify(result.stored));
+  check('MUSIC on gives the map its bed back', result.musicBack.ambient === 'map' && result.musicBack.ambientGain > 0.005,
+    JSON.stringify(result.musicBack));
 }
 
 // ── the settings row is there to turn it off with ──────────────────────────
@@ -138,18 +210,22 @@ await page.waitForTimeout(500);
     menu.mode = 'settings';
     menu.render();
     let seen = false;
+    let music = false;
     const walk = (objects) => {
       for (const o of objects) {
         if (o.text && /SOUND|ÂM THANH/.test(o.text)) seen = true;
+        // The beds' own state lives on the same row: Off / Effects / All.
+        if (o.text && /^(Effects|Hiệu ứng)$/.test(o.text)) music = true;
         if (o.list) walk(o.list);
       }
     };
     walk(menu.children.list);
     menu.mode = 'menu';
     menu.render();
-    return seen;
+    return { seen, music };
   });
-  check('the settings page carries the sound row', found);
+  check('the settings page carries the sound row', found.seen);
+  check('and the row offers effects without the beds', found.music);
 }
 
 // ── the card voice, and the components that were silent ────────────────────
@@ -446,7 +522,7 @@ await page.waitForTimeout(500);
   const order = await page.evaluate(async () => {
     const { soundDirector, AMBIENT_MUSIC } = await import('/src/ui/sound/SoundDirector.ts');
     const wait = (ms) => new Promise((r) => setTimeout(r, ms));
-    // Ten entries, each a fresh shuffle: the opening piece must not always be the same one.
+    // Ten stop/start cycles: the same piece every time, because a stop is a pause.
     const openings = [];
     for (let i = 0; i < 10; i += 1) {
       soundDirector.ambientMusic('none');
@@ -463,7 +539,9 @@ await page.waitForTimeout(500);
 
   check('the map holds a set, not one track on repeat', order.queue >= 3,
     `${order.queue} in the running order, pool of ${order.pool}`);
-  check('and the set is shuffled', new Set(order.openings).size >= 3,
+  // Stop, then start, resumes: the bed is paused where it was, not reshuffled — reported as
+  // *sound always starts from the beginning*. Ten stop/start cycles land on the one piece.
+  check('stopping and starting the bed resumes the same piece rather than dealing a new set', new Set(order.openings).size === 1 && order.openings[0],
     `${new Set(order.openings).size} different openings in 10 entries: ${[...new Set(order.openings)].join(', ')}`);
   // Three, since the Hanoi theatre recording was cut too ("remove Ha noi sounds"): the composed pieces only.
   check('the map set is the three composed pieces', order.pool === 3, `pool of ${order.pool}`);
@@ -503,8 +581,12 @@ check('no console errors', errors.length === 0, errors.slice(0, 2).join(' | '));
   await page2.mouse.click(195, 784);
   await page2.waitForTimeout(2500);
   const afterPress = await read();
+  // The piece is decoded on the press and the 2.5 s ramp starts once it is — a few hundred
+  // milliseconds after the gesture — so at 2.5 s the level is still climbing. Playing and
+  // most of the way up is what "started on the first press" means.
   check('a real browser starts the menu bed on the first press',
-    afterPress.ambient === 'menu' && afterPress.ambientGain > 0.06, JSON.stringify(afterPress));
+    afterPress.ambient === 'menu' && afterPress.ambientPlaying === true && afterPress.ambientGain > 0.045,
+    JSON.stringify(afterPress));
 
   // And the map takes over when the run starts, without needing another press.
   await page2.evaluate(() => window.__startBenchGame(1337, 'ascent'));
@@ -532,7 +614,8 @@ check('no console errors', errors.length === 0, errors.slice(0, 2).join(' | '));
       return soundDirector.debug();
     });
     check('a tap anywhere on the page unlocks the music',
-      d.ambient === 'menu' && d.ambientGain > 0.06 && d.ambientAt > 0.5, JSON.stringify(d));
+      d.ambient === 'menu' && d.ambientPlaying === true && d.ambientGain > 0.045 && d.ambientAt > 0.5,
+      JSON.stringify(d));
     await bare.close();
   }
 

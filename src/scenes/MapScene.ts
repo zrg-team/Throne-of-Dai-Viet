@@ -25,7 +25,9 @@ import { resolvePendingBattle } from '../systems/empire/InvasionSystem';
 import { SHEET_TOP } from '../ui/BottomSheet';
 import { createMapRenderer, type MapRenderer } from '../ui/MapRenderer';
 import { applyPaperFX } from '../ui/ink/PaperFX';
-import { createMapItemRenderer, LABEL_KEEP_OUT, type MapItemRenderer } from '../ui/MapItemRenderer';
+import { type ProgressBadgeVariant, createMapItemRenderer, LABEL_KEEP_OUT, type MapItemRenderer } from '../ui/MapItemRenderer';
+/** Map badges (build, siege, battle, claim) are drawn at 1.8× the renderers' thirty units — a third larger was still reported as small. */
+const MAP_BADGE_SCALE = 1.8;
 import { ArmyRenderer } from './map/ArmyRenderer';
 import { OverlayRenderer } from './map/OverlayRenderer';
 import { SeasonRenderer, type SeasonScape } from './map/SeasonRenderer';
@@ -2161,10 +2163,22 @@ export class MapScene extends Phaser.Scene {
       }
 
       const { x, y } = this.getVisibleLandMarkerPoint(land);
-      const marker = this.mapItems.createProgressBadge(x, y, order.progress, order.required, 'acquisition');
+      const marker = this.progressBadge(x, y, order.progress, order.required, 'acquisition');
       marker.setDepth(72);
       this.acquisitionMarkers.push(marker);
     }
+  }
+
+  /**
+   * A progress badge at the size the map is read at.
+   *
+   * The renderers draw the scrap at thirty units, which was legible on a desktop and not on a
+   * phone held at arm's length — reported: *icons in the map must be a bit bigger so I can see*
+   * *them easily*. Scaled here, at the one place every badge is placed, rather than in each of
+   * the three renderers: the same mark must read the same under every theme.
+   */
+  private progressBadge(x: number, y: number, progress: number, required: number, variant: ProgressBadgeVariant): Phaser.GameObjects.Container {
+    return this.mapItems.createProgressBadge(x, y, progress, required, variant).setScale(MAP_BADGE_SCALE);
   }
 
   /** Shows a hammer-and-progress badge over any district with construction underway. */
@@ -2181,7 +2195,7 @@ export class MapScene extends Phaser.Scene {
       }
 
       const { x, y } = this.getVisibleLandMarkerPoint(land);
-      const marker = this.mapItems.createProgressBadge(x, y, order.progress, order.required, 'build');
+      const marker = this.progressBadge(x, y, order.progress, order.required, 'build');
       marker.setDepth(72);
       this.buildMarkers.push(marker);
     }
@@ -2215,7 +2229,7 @@ export class MapScene extends Phaser.Scene {
       }
 
       const { x, y } = this.getVisibleLandMarkerPoint(land);
-      const marker = this.mapItems.createProgressBadge(x, y, order.progress, order.required, 'siege');
+      const marker = this.progressBadge(x, y, order.progress, order.required, 'siege');
       marker.setDepth(72);
       this.siegeMarkers.push(marker);
     }
@@ -2228,7 +2242,7 @@ export class MapScene extends Phaser.Scene {
       const { x, y } = this.getVisibleLandMarkerPoint(land);
       // Seasons spent against seasons bought, so the badge fills as the walls run out — the same
       // "how far through is this" the other five badges carry.
-      const marker = this.mapItems.createProgressBadge(
+      const marker = this.progressBadge(
         x, y, Math.max(0, siege.ticks - siege.ticksLeft), Math.max(1, siege.ticks), 'siege',
       );
       marker.setDepth(72);
@@ -2270,7 +2284,7 @@ export class MapScene extends Phaser.Scene {
       // Rounds fought against the rounds the engagement is expected to run: the same "how far
       // through is this" the other four badges carry, for the one of them the player can still
       // change the answer to.
-      const marker = this.mapItems.createProgressBadge(
+      const marker = this.progressBadge(
         x, y, fight.round, Math.max(1, fight.totalRounds), 'battle',
       );
       marker.setDepth(72);
@@ -2292,7 +2306,7 @@ export class MapScene extends Phaser.Scene {
       }
 
       const { x, y } = this.getVisibleLandMarkerPoint(land);
-      const marker = this.mapItems.createProgressBadge(x, y, order.progress, order.required, 'recruit');
+      const marker = this.progressBadge(x, y, order.progress, order.required, 'recruit');
       marker.setDepth(72);
       this.recruitMarkers.push(marker);
     }

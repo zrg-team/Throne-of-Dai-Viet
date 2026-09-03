@@ -13,7 +13,7 @@ import { addAscentXp, computeAscentPower, engineTerm } from './PowerSystem';
 import { chargeAmbition } from './AmbitionSystem';
 import { doctrineDraftBonus } from './RealmDoctrineSystem';
 import { enqueueAscentPrompt } from './AscentState';
-import { hasTrait } from '../../state/dynasty';
+import { hasTrait, noteTraitUse } from '../../state/dynasty';
 import { cabinetLevel, cabinetWeightMult, grantDeed, learnRecipe, openingHand, recipeLearned } from '../../state/cabinet';
 import { noteRubbing } from './Inheritance';
 import { t } from '../../i18n';
@@ -86,9 +86,32 @@ function eligibleCards(state: GameState, ascent: AscentState): PowerCardDef[] {
  */
 function focusBonus(stacks: number): number {
   if (stacks <= 0) return 1;
-  if (stacks === 1) return 2.2;
+  // 3.0, up from 2.2: measured over eight seeded runs, upgrades were 13% of the cards offered and
+  // a player who wanted to deepen a build saw about three chances a run. This is the "showing
+  // up" lever — a card's effect budget does not move — and the taper below is unchanged.
+  if (stacks === 1) return 3.0;
   if (stacks === 2) return 1.3;
   return 0.6;
+}
+
+/**
+ * The deck slot: once the player holds two or more un-maxed cards, one offer is reserved for a
+ * held card, chosen by the focus weights among the held cards only.
+ *
+ * The same shape as the evolution slot above it, for the same reason: a pool of fifty and a hand
+ * of four meant a held card competed with forty-odd new ones for every slot, and the pull toward
+ * depth was the only pull. The other three slots stay new, so the draft remains a choice; and a
+ * card already dealt to the evolution slot counts, so the two reservations never eat half the hand.
+ */
+const DECK_SLOT_MIN_HELD = 2;
+
+function reservedDeckCard(ascent: AscentState, pool: PowerCardDef[], picks: string[]): string | undefined {
+  const held = pool.filter((card) => cardStack(ascent, card.id) > 0);
+  if (held.length < DECK_SLOT_MIN_HELD) return undefined;
+  if (picks.some((id) => cardStack(ascent, id) > 0)) return undefined;
+  const open = held.filter((card) => !picks.includes(card.id));
+  const index = weightedPickIndex(open.map((card) => (ascent.draftWeights[card.rarity] ?? 1) * (card.weight ?? 1) * focusBonus(cardStack(ascent, card.id))));
+  return index < 0 ? undefined : open[index].id;
 }
 
 export function rollPowerDraftCards(state: GameState): string[] {
@@ -104,11 +127,15 @@ export function rollPowerDraftCards(state: GameState): string[] {
   // than none at all.
   const ready = pool.find((card) => isEvolutionReady(ascent, card));
   if (ready) picks.push(ready.id);
+  const deck = reservedDeckCard(ascent, pool, picks);
+  if (deck) picks.push(deck);
 
   // Wide Draft (`dynastyTraits`) lays out one card more. An option count, not a power increase:
   // a fifth card cannot make the realm stronger than the fourth already could, it only makes the
   // build the player was reaching for reachable more often.
-  const wanted = DRAFT_CARD_COUNT + (hasTrait('wide-draft') ? 1 : 0);
+  const wanted = DRAFT_CARD_COUNT + (hasTrait('wide-draft') ? 1 : 0) + (hasTrait('wide-draft-2') ? 1 : 0);
+  if (hasTrait('wide-draft')) noteTraitUse('wide-draft');
+  if (hasTrait('wide-draft-2')) noteTraitUse('wide-draft-2');
   while (picks.length < wanted && picks.length < pool.length) {
     const candidates = pool.filter((card) => !picks.includes(card.id));
     const index = weightedPickIndex(
@@ -143,13 +170,17 @@ export function rollPowerDraftCards(state: GameState): string[] {
 export function applyOpeningHand(state: GameState): void {
   const ascent = state.ascent;
   if (!ascent) return;
-  for (const cardId of openingHand()) {
+  const hand = openingHand();
+  for (const cardId of hand) {
     const card = findPowerCard(cardId);
     if (!card || cardStack(ascent, cardId) > 0) continue;
     applyPowerCardEffect(state, card, 0);
     ascent.cardStacks[cardId] = 1;
     chargeAmbition(state, 'card');
   }
+  // The shelf paid when the hand actually used the slot it opened.
+  if (hand.length >= 2) noteTraitUse('deep-shelf');
+  if (hand.length >= 3) noteTraitUse('deep-shelf-2');
 }
 
 /** Opens a Power Draft for one banked level-up. */
@@ -191,8 +222,12 @@ export function rerollPowerDraft(state: GameState): boolean {
   if (!canSpend(state, cost)) return false;
 
   applyResourceDelta(state, { gold: -ascent.rerollCost });
-  // A free first reroll returns to the ordinary opening price, not to zero doubled.
-  ascent.rerollCost = ascent.rerollCost <= 0
+  if (ascent.rerollCost <= 0 && hasTrait('first-reroll-free')) noteTraitUse('first-reroll-free');
+  // A free first reroll returns to the ordinary opening price, not to zero doubled. At Rank II
+  // the price never doubles: every reroll of a draft costs the opening price.
+  const steady = hasTrait('first-reroll-free-2');
+  if (steady && ascent.rerollCost > 0) noteTraitUse('first-reroll-free-2');
+  ascent.rerollCost = ascent.rerollCost <= 0 || steady
     ? rerollPriceFor(ascent.level)
     : Math.round(ascent.rerollCost * REROLL_COST_MULT);
 

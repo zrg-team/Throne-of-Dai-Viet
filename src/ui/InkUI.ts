@@ -1,7 +1,8 @@
 import Phaser from 'phaser';
 import { GAME_HEIGHT, GAME_WIDTH } from '../game/constants';
 import { addPressFeedback } from './animations';
-import { installPressWatch, liftForInput, markControlBorn, releaseNotOwnedBy } from './inputGeneration';
+import {
+  installPressWatch, liftForInput, markControlBorn, noteControlFired, pressIsEchoOnto, releaseNotOwnedBy, sheetIsUp } from './inputGeneration';
 import { CARD_ICON_SIZE, drawCardIcon, type CardIconId } from './CardIcons';
 import { UI_FONT } from './fonts';
 import { RectClip } from './ink/clipRect';
@@ -311,6 +312,8 @@ export class InkScrollArea {
   private velocity = 0;
   private lastMove?: { y: number; t: number };
   private disposed = false;
+  /** Set while something is drawn over the list; nothing under a sheet may move. */
+  private locked = false;
   private readonly wheelHandler: (
     pointer: Phaser.Input.Pointer,
     objects: Phaser.GameObjects.GameObject[],
@@ -446,6 +449,9 @@ export class InkScrollArea {
 
   /** Whether a pointer is over this area, compared in design space. */
   private containsPointer(pointer: { x: number; y: number }): boolean {
+    // Deaf under a sheet — asked here because both the drag and the wheel come through this
+    // gate. A scene without a registered sheet locks its lists by hand (`setLocked`).
+    if (this.locked || sheetIsUp()) return false;
     const at = designPointer(pointer);
     return (
       at.x >= this.bounds.x &&
@@ -468,6 +474,16 @@ export class InkScrollArea {
 
   addTo(parent: Phaser.GameObjects.Container): void {
     parent.add([this.hitZone, this.container]);
+  }
+
+  /** Locks or frees the list: a locked list ignores the drag, the wheel and any glide in progress. */
+  setLocked(locked: boolean): void {
+    this.locked = locked;
+    if (locked) {
+      this.dragStart = undefined;
+      this.velocity = 0;
+      this.lastMove = undefined;
+    }
   }
 
   destroy(): void {
@@ -824,7 +840,11 @@ export class InkUI {
       // reliable than trying to identify the duplicate by its type.
       const now = pointer.downTime || performance.now();
       if (now - firedAt < 120) return;
+      // The same duplicate landing on a DIFFERENT button — the one the first press revealed under
+      // the finger. Exit on the run's sheet, then Play on the front page: see `pressIsEchoOnto`.
+      if (pressIsEchoOnto(hitArea, pointer)) return;
       firedAt = now;
+      noteControlFired(pointer);
       // The court's paper, under every press. This is also the gesture that unlocks the audio
       // context on first touch — see SoundDirector.tap.
       soundDirector.tap();
@@ -948,6 +968,11 @@ export class InkUI {
       if (releaseNotOwnedBy(hitArea)) {
         return;
       }
+      // Or be the echo of the press that built it — see `pressIsEchoOnto`.
+      if (pressIsEchoOnto(hitArea, pointer)) {
+        return;
+      }
+      noteControlFired(pointer);
       soundDirector.tap();
       onClick();
     });

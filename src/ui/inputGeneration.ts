@@ -56,6 +56,59 @@ let sheetLayer: Phaser.GameObjects.Container | undefined;
 /** Key under which a control records the generation it was created in. */
 const BORN_KEY = '__uiGen';
 
+/**
+ * **A press that echoes onto a control the last press revealed is the same press.**
+ *
+ * The third shape of press-through, after the same-gesture release and the render-order race:
+ * a *second press* the platform makes out of one finger. A phone browser follows a touch with a
+ * compatibility `mousedown`/`mouseup` pair when the touch was not prevented, and a ghost click up
+ * to ~300 ms after the finger lifts; a WebView sends the mouse pair twice. Phaser sees each as a
+ * fresh press from a different pointer, the press-fired buttons de-duplicate only against
+ * *themselves*, and the release latch (`releaseNotOwnedBy`) is about releases. So: press "Exit"
+ * on the run's sheet, the front page is built under the finger, the echo lands on Play, a new run
+ * starts — reported as *click Exit, then it clicks Start in the main menu and opens back*.
+ * Reproduced with a compat pair 30 ms after a touch, a ghost click 250 ms after, and a doubled
+ * `mousedown` 5 ms apart; a single press of any length was clean.
+ *
+ * The rule needs three things to be true at once, and a deliberate second tap fails at least
+ * one: the control was born after the generation in which the last control fired, the press
+ * comes within `ECHO_MS` of that firing, and it lands where that finger was. A fast second tap on
+ * a control that already existed passes on the first term; a tap elsewhere passes on the third.
+ */
+const ECHO_MS = 350;
+/** Design units. An echo lands under the same finger; a second tap on a neighbour does not. */
+const ECHO_RADIUS = 28;
+let lastFireAt = Number.NEGATIVE_INFINITY;
+let lastFireGeneration = -1;
+let lastFireX = 0;
+let lastFireY = 0;
+
+/** A control has acted on a press. Recorded so the press's echo can be told from a new one. */
+export function noteControlFired(pointer?: Phaser.Input.Pointer): void {
+  lastFireAt = performance.now();
+  lastFireGeneration = generation;
+  if (pointer) {
+    lastFireX = pointer.x;
+    lastFireY = pointer.y;
+  }
+}
+
+/**
+ * Whether a press arriving on `target` is the echo of the press that revealed it — see
+ * `noteControlFired`. Fails open for a control that never recorded its birth.
+ */
+export function pressIsEchoOnto(target: Phaser.GameObjects.GameObject, pointer?: Phaser.Input.Pointer): boolean {
+  const born = target.getData(BORN_KEY) as number | undefined;
+  if (born === undefined || born <= lastFireGeneration) return false;
+  if (performance.now() - lastFireAt >= ECHO_MS) return false;
+  if (!pointer) return true;
+  // Pointer coordinates carry the render scale; the radius is in design units.
+  const scale = Math.max(1, pointer.camera?.zoom ?? 1);
+  const dx = (pointer.x - lastFireX) / scale;
+  const dy = (pointer.y - lastFireY) / scale;
+  return Math.abs(dx) + Math.abs(dy) <= ECHO_RADIUS;
+}
+
 /** The generation a control created right now belongs to. */
 export function currentGeneration(): number {
   return generation;
@@ -210,6 +263,15 @@ export function setContainerInputEnabled(
   }
 }
 
+/**
+ * Whether a sheet is up right now, by the registered probe. Lists ask before they scroll: a
+ * sheet's guard stops what is *hit*, but a list scrolls off the scene's own pointer stream and
+ * was never hit at all — so the page kept moving under the modal.
+ */
+export function sheetIsUp(): boolean {
+  return Boolean(sheetProbe?.());
+}
+
 /** Whether the live press began while a sheet was on screen. */
 export function pressBeganUnderSheet(): boolean {
   return pressUnderSheet;
@@ -276,11 +338,21 @@ export function releaseNotOwnedBy(target: Phaser.GameObjects.GameObject): boolea
 /** @deprecated Kept for the call sites converted before the sheet rule existed. */
 export const pressPredatesControl = releaseNotOwnedBy;
 
-/** Every live scene's input plugin. `scene.input` and `sys.input` are the same object. */
+/**
+ * Every live scene's input plugin — and the caller's own, always.
+ *
+ * `getScenes(true)` lists scenes whose status is RUNNING, and a scene calling from inside its own
+ * `create()` is still CREATING. So `MenuScene.render()`, run from `create` when a press ends a run
+ * and starts the front page, silenced every plugin except the one it was built to silence:
+ * measured, the menu's `input.enabled` was true at the end of its own `create`. The caller is
+ * added by hand; `scene.input` and `sys.input` are the same object.
+ */
 function activePlugins(scene: Phaser.Scene): Phaser.Input.InputPlugin[] {
-  return scene.input.manager.game.scene.getScenes(true)
+  const plugins = scene.input.manager.game.scene.getScenes(true)
     .map((live) => live.input)
     .filter((plugin): plugin is Phaser.Input.InputPlugin => Boolean(plugin));
+  if (scene.input && !plugins.includes(scene.input)) plugins.push(scene.input);
+  return plugins;
 }
 
 /**
@@ -303,7 +375,9 @@ export function quietUntilNextFrame(scene: Phaser.Scene): void {
   for (const plugin of silenced) plugin.enabled = false;
   requestAnimationFrame(() => requestAnimationFrame(() => {
     for (const plugin of silenced) {
-      if (plugin.scene?.sys?.isActive?.()) plugin.enabled = true;
+      // Active, or still being built: a scene silenced from its own `create` may not have reached
+      // RUNNING two frames later on a slow phone, and must not be left deaf for it.
+      if (plugin.scene?.sys?.isActive?.() || plugin.scene?.sys?.settings?.status === Phaser.Scenes.CREATING) plugin.enabled = true;
     }
   }));
 }

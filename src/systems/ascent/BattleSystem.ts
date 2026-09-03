@@ -397,6 +397,15 @@ export function beginBattle(state: GameState): boolean {
     return true;
   }
 
+  // The line here broke this wave, and nothing but the beaten militia's remnant is left to stand.
+  // A field opened now is the province fighting the next column with what the last one left it —
+  // 253 against 3,734, measured, one tick after a 1,394-man defence was routed on the same walls.
+  // That is a dispatch, not a screen. A field host of ours on the ground is relief, and relief
+  // fights: the caller's roll still settles the contact, so nothing is left undecided.
+  if (ascent.routedGround?.[pending.landId] === ascent.wave
+    && !state.armies.some((army) => army.kingdomId === PLAYER_KINGDOM_ID && !army.isLevy
+      && army.landId === pending.landId && totalUnits(army) > 0)) return false;
+
   // Already holding a field: this one opens as a side front, under looser gates — see
   // `worthWatching`. The gates ration the player's attention, and a side front costs none.
   const asSide = Boolean(ascent.activeBattle && !ascent.activeBattle.over);
@@ -2419,6 +2428,14 @@ export function finishBattle(state: GameState, decision: 'press' | 'hold' | 'ret
   // a coalition that ran does not get to try the same gate again next tick, one column at a time.
   if (forced === 'defence') {
     for (const id of invaderIds) resolveBattleRecord(state, battleRecord(battle, id), 'delegate', 'defence', true);
+  }
+  // And a line that broke does not stand again this wave with what is left of it. The next
+  // column to reach these walls is settled by dispatch, or joins the siege the winner has laid
+  // (`joinsStandingSiege`) — unless a field host of ours has arrived to relieve the place. See
+  // `routedGround`; reported as *"I lost the fight, then another fight happened at the same
+  // place in the background"*.
+  if (forced === 'invader') {
+    (ascent.routedGround ??= {})[battle.landId] = ascent.wave;
   }
 }
 

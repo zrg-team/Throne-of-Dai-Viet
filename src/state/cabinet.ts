@@ -7,7 +7,7 @@ import {
 import { POWER_CARDS, findPowerCard } from '../data/ascentCards';
 import { weightedPickIndex } from '../utils/math';
 import { addLegacyPoints } from './legacy';
-import { hasTrait } from './dynasty';
+import { dynastyHistory, hasTrait } from './dynasty';
 import type { AscentRarity } from './types';
 
 /**
@@ -339,6 +339,8 @@ function rubbingWeights(pity: number): Record<AscentRarity, number> {
 }
 
 const TIER_ORDER: AscentRarity[] = ['bronze', 'silver', 'gold', 'jade'];
+/** The share of a reveal that aims at a card the cabinet already holds. */
+export const RUBBING_TARGETED_SHARE = 0.5;
 
 /**
  * Spends one rubbing and scratches it into a random card. Returns undefined with none banked.
@@ -365,7 +367,19 @@ export function revealRubbing(): RubbingReveal | undefined {
     pool = RUBBABLE.filter((card) => card.rarity === TIER_ORDER[step]);
   }
   if (pool.length === 0) return undefined;
-  const picked = pool[Math.floor(Math.random() * pool.length)];
+  // Targeted: half of a rubbing's weight goes to cards the cabinet already holds below Lv3, so
+  // the third copy arrives in about six rubbings on the median rather than seventeen. The
+  // other half is the hunt, untouched — a card never seen is still found at the old rate.
+  const lastReign = dynastyHistory().slice(-1)[0]?.cards ?? [];
+  const held = pool.filter((card) => {
+    const owned = store.cards[card.id];
+    if (owned) return owned.level < 3;
+    // Found this run — played in the last reign — and not yet in the cabinet at all.
+    return lastReign.includes(card.id);
+  });
+  const picked = held.length > 0 && Math.random() < RUBBING_TARGETED_SHARE
+    ? held[Math.floor(Math.random() * held.length)]
+    : pool[Math.floor(Math.random() * pool.length)];
 
   // Spend the rubbing and move pity *before* filing the card: `addCabinetCard` writes the store
   // too, and both writes must land on the same base or one overwrites the other.
@@ -397,7 +411,7 @@ export function recipeLearned(evolutionId: string): boolean {
  * ladder at three; the third slot belongs to a later phase.
  */
 export function openingHandSlots(): number {
-  return Math.min(3, 1 + (hasTrait('deep-shelf') ? 1 : 0));
+  return Math.min(3, 1 + (hasTrait('deep-shelf') ? 1 : 0) + (hasTrait('deep-shelf-2') ? 1 : 0));
 }
 
 /** Slots the next run's opening hand. Only owned cards, only as many as there are slots. */

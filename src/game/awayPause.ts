@@ -1,4 +1,5 @@
 import { autosaveSnapshot } from '../state/save';
+import { noteLiveReign } from '../systems/ascent/Inheritance';
 import type { GameState } from '../state/types';
 
 /**
@@ -64,6 +65,8 @@ export function installAwayPause(state: GameState, onChange?: () => void): AwayP
     if (now - lastSaveAt < AUTOSAVE_MIN_GAP_MS) return;
     lastSaveAt = now;
     if (autosaveSnapshot(state)) saves += 1;
+    // And the house's own line for this reign, so the home page can show the run it just left.
+    try { noteLiveReign(state); } catch { /* a store that refuses must not take the leave down */ }
   };
 
   const leave = (): void => {

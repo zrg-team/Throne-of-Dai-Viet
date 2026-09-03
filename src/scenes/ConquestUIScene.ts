@@ -7,6 +7,7 @@ import { type MapItemRenderer } from '../ui/MapItemRenderer';
 import { type CardIconId } from '../ui/CardIcons';
 import { AscentHud } from '../ui/ascent/AscentHud';
 import { AdvisorStrip } from '../ui/ascent/AdvisorStrip';
+import { BarHint } from '../ui/ascent/BarHint';
 import { InheritanceChip } from '../ui/ascent/InheritanceChip';
 import { WhisperLine } from '../ui/ascent/WhisperLine';
 import { Copilot, type CopilotStep } from '../ui/Copilot';
@@ -184,6 +185,9 @@ export class ConquestUIScene extends Phaser.Scene {
 
   /** What this reign has earned for the next one, above the bar. Built once, written into. */
   inheritance!: InheritanceChip;
+
+  /** The advisor's line, said once over the lane it points at. Built once, written into. */
+  barHint!: BarHint;
 
   /** The Chronicle shelf currently open; kept while a story page is inspected and revisited. */
   chronicleTab: 'actions' | 'ongoing' | 'heard' | 'recorded' = 'actions';
@@ -898,6 +902,8 @@ export class ConquestUIScene extends Phaser.Scene {
       body: string;
       note?: string;
       noteColor?: string;
+      /** A longer hold than the rule, for the one page that asks it (the reign-end sequence). */
+      holdMs?: number;
       /** Width kept clear on the right (a portrait column), so text wraps before it. */
       reserveRight?: number;
       /** Glyph drawn in a left gutter. Resolved from the option id by `iconForOption`. */

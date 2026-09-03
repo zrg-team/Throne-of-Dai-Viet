@@ -24,8 +24,10 @@ A dev server must already be running — **no harness starts one** — and every
 ```bash
 node test_scripts/gate/smoke.mjs                    # every mode boots, ticks, draws — ~40 s
 node test_scripts/verify/verify-ascent.mjs          # the Dragon Ascent loop end to end
-node test_scripts/verify/verify-dynasty.mjs         # the Tong Pha ledger: XP banks once, the ceremony walks, every trait is read
-node test_scripts/verify/verify-cabinet.mjs         # the Cabinet of Seals: rubbings honour pity, x3 combines, cabinet levels reach the draft, the bind step binds
+node test_scripts/verify/verify-dynasty.mjs         # the Tong Pha ledger: XP banks once, the ceremony walks, every trait is read; the dossier gates (page fit, lineage, live reign, the timed reign-end sequence, the chip's house share)
+node test_scripts/verify/verify-draft-depth.mjs     # the deck: upgrades >= 25% of offers, a deck slot once two cards are held, a held card's third copy in <= 8 rubbings (8 seeds)
+node test_scripts/verify/verify-legacy.mjs          # the Legacy vault: twenty perks on a ten-step ladder (old stores migrate), a loadout of three, only the loadout applies; hands-on rule silences the lane cards and the autopilot
+node test_scripts/verify/verify-cabinet.mjs         # the Cabinet of Seals: rubbings honour pity, x3 combines, cabinet levels reach the draft, the bind step binds, the page takes taps
 node test_scripts/verify/verify-inheritance.mjs     # the next-reign chip: promises exactly what the ceremony pays (XP, level, Legacy, rubbings, bind), hides under prompts, opens/shuts, guards its taps
 node test_scripts/verify/verify-coronation.mjs      # Le Dang Quang: the rite raises once ever, a skip writes a whole king, era law holds, the badge steps with the house
 node test_scripts/verify/verify-invasion-lifecycle.mjs  # every invasion announces its start and its end
@@ -114,6 +116,12 @@ empire economy was food-negative when in fact the harness had never constructed 
 - `verify/verify-ladder.mjs` — the quality ladder steps down under heat and climbs back on calm
   (run WITHOUT `?capture=1`, which pins the ladder for every other harness).
 - `verify/verify-fps-cap.mjs`, `verify/verify-tick-clock.mjs` — pacing and clock-carry contracts.
+- `verify/verify-lost-ground.mjs` (`yarn verify:lost-ground`) — a province whose line broke does
+  not fight again with its militia remnant that wave: later columns join the standing siege, and
+  relief still gets its field (8 seeds × 400 ticks).
+- `verify/verify-press-echo.mjs` (`yarn verify:echo`) — a press that ends a run, echoed by the
+  platform (compat mouse pair, ghost click, doubled mousedown), never presses the front page it
+  revealed; honest single and second taps still land.
 - `verify/verify-resume.mjs` (`yarn verify:resume`) — coming back from the background: a throw
   inside a step is re-armed, a lost context that is never restored reloads into the run, a
   restored one repaints the faces, and the away pause sets and clears.

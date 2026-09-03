@@ -26,6 +26,13 @@ export interface DynastyTrait {
   id: string;
   /** Where the flag is read, for the next person looking for it. Not used at run time. */
   readSite: string;
+  /**
+   * Rank II: a second step of a held trait, offered only past level 8 and only while the base is
+   * held. Levels past the table used to buy nothing; these give them something inside the same
+   * budget — options and tempo, never raw power.
+   */
+  rank?: 2;
+  base?: string;
 }
 
 export const DYNASTY_TRAITS: DynastyTrait[] = [
@@ -41,15 +48,38 @@ export const DYNASTY_TRAITS: DynastyTrait[] = [
   { id: 'quartermaster', readSite: 'WarSystem.musterTicks' },
   // The realm opens holding the trade two more districts would have brought.
   { id: 'old-roads', readSite: 'GameState.seedAscentOpening' },
-  // +1 opening-hand seal slot. Read by Phase 3.
-  { id: 'deep-shelf', readSite: 'Phase 3 — The Cabinet of Seals' },
+  // +1 opening-hand seal slot. Read by the Cabinet of Seals (`cabinet.openingHandSlots`).
+  { id: 'deep-shelf', readSite: 'cabinet.openingHandSlots' },
   // +2 Hall of Names capacity. Read by Phase 4.
   { id: 'long-memory', readSite: 'Phase 4 — Swear a Name' },
+  // ── Rank II — the four verb traits, one step deeper, past level 8 ──
+  // Six cards on the table.
+  { id: 'wide-draft-2', readSite: 'PowerDraftSystem.rollPowerDraftCards', rank: 2, base: 'wide-draft' },
+  // Rerolls never double: every reroll of a draft costs the opening price.
+  { id: 'first-reroll-free-2', readSite: 'PowerDraftSystem.rerollPowerDraft', rank: 2, base: 'first-reroll-free' },
+  // A muster completes two seasons sooner.
+  { id: 'quartermaster-2', readSite: 'WarSystem.musterTicks', rank: 2, base: 'quartermaster' },
+  // A third opening-hand seal slot.
+  { id: 'deep-shelf-2', readSite: 'cabinet.openingHandSlots', rank: 2, base: 'deep-shelf' },
 ];
+
+/** The level a house must stand on before a Rank II trait is laid out. */
+export const RANK_TWO_MIN_LEVEL = 9;
 
 export function findDynastyTrait(id: string): DynastyTrait | undefined {
   return DYNASTY_TRAITS.find((trait) => trait.id === id);
 }
 
-/** Traits with no reader yet, so the sheet can say so rather than promising an effect. */
-export const DYNASTY_TRAITS_PENDING: ReadonlySet<string> = new Set(['deep-shelf', 'long-memory']);
+/**
+ * Traits with no reader yet. Never offered (`rollTraitOffer` skips them) and never drawn on the
+ * sheet: a level spent on a flag nothing reads is a level spent on nothing, and a dimmed chip
+ * captioned "waiting" teaches the player that the ledger holds things that are not real.
+ *
+ * `deep-shelf` left this set the day the Cabinet shipped and read it — it stayed listed here for
+ * a round afterwards, so the sheet dimmed a working trait and the ceremony captioned it "waiting
+ * on a later phase". The set is the one place that decides this, and it is checked by the harness.
+ */
+export const DYNASTY_TRAITS_PENDING: ReadonlySet<string> = new Set(['long-memory']);
+
+/** The traits a house can actually be offered and read on the sheet. */
+export const DYNASTY_TRAITS_LIVE: DynastyTrait[] = DYNASTY_TRAITS.filter((trait) => !DYNASTY_TRAITS_PENDING.has(trait.id));

@@ -1,5 +1,6 @@
 import { bankLegacy, computeRunScore, getLegacy } from '../../state/legacy';
 import { addRunXp, chooseTrait, getDynasty, isCrowned, setDynastyFounder } from '../../state/dynasty';
+import { storyText } from '../../i18n/story';
 import { addCabinetCard, addRubbings, learnRecipe } from '../../state/cabinet';
 import { advanceCeremony } from './Ceremony';
 import { PLAYER_KINGDOM_ID } from '../../game/constants';
@@ -460,6 +461,8 @@ export function endAscentRun(state: GameState): void {
 
   state.legacyBanked = true;
   state.isDefeated = true;
+  // Read before it is overwritten: a realm that collapsed from within says so on its tablet.
+  const endedBy: 'conquest' | 'collapse' = state.defeatReason === 'collapse' ? 'collapse' : 'conquest';
   state.defeatReason = 'conquest';
 
   const score = computeRunScore(state);
@@ -475,6 +478,14 @@ export function endAscentRun(state: GameState): void {
    * and the ceremony can be re-entered (a reload, a second `advanceCeremony`) while this cannot.
    */
   const founder = state.heroes.find((hero) => hero.id === ascent.founderHeroId);
+  // The reign's epitaph, as numbers: the fight that decided it is the largest one the realm won,
+  // else the largest it fought at all — a tablet that says "no great battle" is honest, and a
+  // dull reign gets a short line rather than an invented one.
+  const fights = (ascent.battleHistory ?? []).filter((record) => record.theirStart > 0);
+  const won = fights.filter((record) => record.outcome === 'they-rout')
+    .sort((a, b) => b.theirStart - a.theirStart)[0];
+  const largest = fights.slice().sort((a, b) => b.theirStart - a.theirStart)[0];
+  const decisive = won ?? largest;
   addRunXp(score, founder
     ? {
       founder: {
@@ -489,7 +500,23 @@ export function endAscentRun(state: GameState): void {
       // dynasty is called, rather than the country's name, which never changes between reigns.
       house: founder.name.trim().split(/\s+/)[0],
     }
-    : undefined);
+    : undefined, {
+    waves: ascent.wavesSurvived,
+    lands: state.campaignScore?.peakLandsHeld ?? state.lands.filter((land) => land.ownerId === PLAYER_KINGDOM_ID).length,
+    ...(founder ? { founderName: founder.name, founderId: founder.id } : {}),
+    ...(decisive ? { fight: { land: decisive.landName, theirStart: decisive.theirStart, won: decisive.outcome === 'they-rout' } } : {}),
+    // The reign's own record for the ledger: the founder's face, the deck it held, and its
+    // chronicle as sentences in the language it was played in — numbers alone cannot draw a
+    // portrait or be read again.
+    ...(founder ? { founder: { id: founder.id, name: founder.name, type: founder.type, sex: founder.sex, ...(founder.era ? { era: founder.era } : {}) } } : {}),
+    cards: Object.entries(ascent.cardStacks).filter(([, n]) => n > 0).map(([id]) => id),
+    chronicle: (state.chronicle ?? []).slice(-12).map((entry) => {
+      const key = `${entry.templateId}.${entry.fragmentId}.chronicle`;
+      const line = storyText(key, entry.params);
+      return line !== key ? line : '';
+    }).filter(Boolean),
+    ending: endedBy,
+  });
   // The cabinet's always-faucet: +1 rubbing, every run, however it ended. Inside the same
   // `legacyBanked` guard for the same reason the XP is — a re-entrant tick must not pay twice.
   addRubbings(1);

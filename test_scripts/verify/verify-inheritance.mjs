@@ -178,7 +178,9 @@ for (const [lang, h] of [['en', 844], ['vi', 620]]) {
   check('the chip stands on a playable frame', seen.visible && Boolean(seen.bounds), JSON.stringify(seen.bounds));
   check('it sits above the bar and clear of the map controls', seen.bounds && seen.bounds.y + seen.bounds.height <= seen.barTop - 8 && seen.bounds.x + seen.bounds.width < 318, JSON.stringify(seen.bounds));
   check('its rectangle is in the world scene\'s tap guard', seen.guarded);
-  check('the caption and a headline are printed', seen.texts.length >= 2 && seen.texts.every((t) => t.length > 0), seen.texts.join(' | '));
+  // Shut, the chip is one line and the banner — the caption belongs to the open card (see
+  // `HEIGHT_COMPACT`: "the Dynasty section should be smaller by default").
+  check('a headline is printed on the shut chip', seen.texts.length >= 1 && seen.texts.every((t) => t.length > 0), seen.texts.join(' | '));
   check('the headline is one line', seen.texts.every((t) => !t.includes('\n')), seen.texts.join(' | '));
 
   // Something to say, then the punch.
@@ -212,12 +214,13 @@ for (const [lang, h] of [['en', 844], ['vi', 620]]) {
   await page.waitForTimeout(300);
   const opened = await probe();
   check('a tap opens the sheet above the chip', opened.bounds && opened.bounds.height > 100 && opened.texts.length >= 10, `${opened.bounds?.height} tall, ${opened.texts.length} texts`);
+  check('the open card prints its caption over the headline', opened.texts.length >= 2 && opened.texts.some((t) => /CHO TRIỀU SAU|FOR THE NEXT REIGN/i.test(t)), opened.texts.slice(0, 3).join(' | '));
   check('the open sheet is still within the sheet (no clipping at the head)', opened.bounds && opened.bounds.y > 100, String(opened.bounds?.y));
   check('the open sheet is in the tap guard', opened.guarded);
   await page.mouse.click(tap.x, tap.y);
   await page.waitForTimeout(300);
   const shut = await probe();
-  check('a second tap shuts it', shut.bounds && shut.bounds.height === 40, String(shut.bounds?.height));
+  check('a second tap shuts it to the one-line chip', shut.bounds && shut.bounds.height === 24, String(shut.bounds?.height));
 
   // Paused: the badge stands above the chip, not through it.
   await page.evaluate(() => {

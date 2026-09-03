@@ -1,6 +1,7 @@
 import type { FieldStance, GameState } from './types';
 import { t } from '../i18n';
 import { ensureAscentLaneState } from '../systems/ascent/ConquestSystem';
+import { clearLiveReign } from './dynasty';
 
 export const SAVE_SNAPSHOT_VERSION = 1;
 export const SAVE_SNAPSHOT_KEY = 'mandate:snapshot:v1';
@@ -73,6 +74,9 @@ export function clearAutosave(): void {
   } catch {
     // A refused write is not worth taking the exit down over.
   }
+  // A run walked out of on purpose is not being written any more: the house's live line goes
+  // with the slot, or the home page would keep showing a reign the player has already left.
+  clearLiveReign();
 }
 
 /**

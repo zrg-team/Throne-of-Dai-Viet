@@ -704,6 +704,9 @@ export function tickInvasions(state: GameState): void {
 
     if (target.ownerId === PLAYER_KINGDOM_ID && adjacentToTarget) {
       clearInvaderMarch(state, army.id);
+      // Walls already carried by a column ahead of this one: join the siege, do not fight for
+      // ground that is already being taken.
+      if (joinsStandingSiege(state, army, target)) continue;
       // The walls first. Until the clock runs out this host is at the gates and not through them.
       if (holdAtTheWalls(state, army, record, target)) continue;
       if (maybeRequestBattleDecision(state, army, record, target)) continue;
@@ -742,6 +745,7 @@ export function tickInvasions(state: GameState): void {
     const stepLand = findLand(state, step);
     if (stepLand?.ownerId === PLAYER_KINGDOM_ID) {
       clearInvaderMarch(state, army.id);
+      if (joinsStandingSiege(state, army, stepLand)) continue;
       if (holdAtTheWalls(state, army, record, stepLand)) continue;
       if (maybeRequestBattleDecision(state, army, record, stepLand)) continue;
       resolveInvaderBattle(state, army, record, stepLand);
@@ -749,6 +753,40 @@ export function tickInvasions(state: GameState): void {
       advanceInvader(state, army, step);
     }
   }
+}
+
+/**
+ * A column reaching walls that a column ahead of it has already carried joins the siege.
+ *
+ * The winner of a lost defence lays a siege order and sits (`state.siegeOrders` — the loop above
+ * `continue`s for it). Every *other* column sent at the same province kept making contact: the
+ * province was still nominally ours until the clock ran out, so each one raised a fresh field
+ * against whatever the routed line had left, or rolled dice for ground already being taken.
+ * Measured on seed 4242: a 1,394-man defence lost at tick 115, a new fight with the 253 survivors
+ * against 3,734 at tick 116, lost again at 118, a third rout by dispatch at 120 — one province,
+ * one wave, three "fights" after the walls had fallen. Reported as *"I lost, then other fights
+ * happened at the same place"*.
+ *
+ * So a column that finds a hostile siege standing at the province walks onto the ground and waits
+ * with it — no contact, no roll, no field. It counts as a besieger from then on (`tickSieges` reads
+ * hosts on the province), and a relief host of ours arriving finds every column enrolled against
+ * it (`enrolArrivals` takes every hostile host on the ground). Relief is the one thing that lifts
+ * this: with a field host of ours standing there the contact is a fight, as it always was. No
+ * second siege order is laid — `progressSiegeOrders` would flip the province twice and announce
+ * its fall twice. Dragon Ascent only; the other modes have no siege clock of this kind.
+ */
+function joinsStandingSiege(state: GameState, army: Army, land: Land): boolean {
+  if (state.gameMode !== 'ascent' || state.ascent?.arena) return false;
+  const standing = state.siegeOrders.some(
+    (order) => order.landId === land.id && order.attackerKingdomId !== PLAYER_KINGDOM_ID && order.armyId !== army.id,
+  );
+  if (!standing) return false;
+  const relieved = state.armies.some(
+    (other) => other.kingdomId === PLAYER_KINGDOM_ID && other.landId === land.id && !other.isLevy && totalUnits(other) > 0,
+  );
+  if (relieved) return false;
+  army.landId = land.id;
+  return true;
 }
 
 /**

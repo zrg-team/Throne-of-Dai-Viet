@@ -64,6 +64,12 @@ export function optionCard(self: ConquestUIScene,
     disabled?: boolean;
     parent?: Phaser.GameObjects.Container;
     onTap: () => void;
+    /**
+     * How long the card must be held, when a page wants more than the rule. The reign-end
+     * sequence asks 450 ms: the fork is the moment, the ring filling is the choice being made,
+     * and there is no footer button on that page to make two feels of one page.
+     */
+    holdMs?: number;
   },
 ): Phaser.GameObjects.Container {
   const container = self.add.container(bounds.x, bounds.y);
@@ -189,6 +195,7 @@ export function optionCard(self: ConquestUIScene,
     let armedAt = 0;
     let timer: Phaser.Time.TimerEvent | undefined;
 
+    const holdMs = opts.holdMs ?? CARD_HOLD_MS;
     const clearArm = () => {
       timer?.remove();
       timer = undefined;
@@ -226,7 +233,7 @@ export function optionCard(self: ConquestUIScene,
             clearArm();
             return;
           }
-          paintArm((self.time.now - armedAt) / CARD_HOLD_MS);
+          paintArm((self.time.now - armedAt) / holdMs);
         },
       });
     });
@@ -237,11 +244,11 @@ export function optionCard(self: ConquestUIScene,
       if (scrollGestureConsumedTap(pointer)) {
         return;
       }
-      if (held < CARD_HOLD_MS) {
+      if (held < holdMs) {
         // A press released early used to die without a trace, and a card that swallows taps
         // reads as broken. Leave the partial hold-line on screen for a beat so the player
         // sees the card responding — and sees that it wants to be held, not tapped.
-        paintArm(held / CARD_HOLD_MS);
+        paintArm(held / holdMs);
         self.tweens.add({
           targets: fill,
           alpha: 0,

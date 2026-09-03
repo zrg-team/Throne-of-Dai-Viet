@@ -1,6 +1,6 @@
 import { isVassal } from './VassalSystem';
 import { addRubbings, grantDeed } from '../../state/cabinet';
-import { noteRubbing } from './Inheritance';
+import { noteLiveReign, noteRubbing } from './Inheritance';
 import { NEUTRAL_OWNER_ID, PLAYER_KINGDOM_ID } from '../../game/constants';
 import {
   BOSS_EVERY_N_WAVES,
@@ -771,6 +771,8 @@ function resolveWaveResult(state: GameState): void {
   ascent.pendingWave = undefined;
 
   ascent.wavesSurvived += 1;
+  // A wave held is the moment the reign's line moves; the house's store keeps it in step.
+  noteLiveReign(state);
   // The other end of the dial: surviving a wave you made dangerous pays more than surviving
   // one you hid from. Without this the counter is a pure tax and the correct play is always
   // to take nothing — the reward has to ride the same number as the risk or the choice is

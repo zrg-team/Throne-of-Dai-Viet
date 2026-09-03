@@ -1,4 +1,4 @@
-import { dynastyRankRarity, type DynastyStore } from '../state/dynasty';
+import { dynastyRankRarity, type DynastyStore, type ReignRecord } from '../state/dynasty';
 import type { Hero, HeroType } from '../state/types';
 
 /**
@@ -13,6 +13,23 @@ import type { Hero, HeroType } from '../state/types';
  * steps up as the ledger fills — the king visibly ages, and thirty reigns look like thirty reigns
  * rather than like the first one repeated.
  */
+/** A past reign's founder, drawn at the rank the house holds now — the same rule as the king. */
+export function reignFounderHero(founder: NonNullable<ReignRecord['founder']>, level: number): Hero {
+  return {
+    id: founder.id,
+    name: founder.name,
+    type: founder.type as HeroType,
+    rarity: dynastyRankRarity(level),
+    upkeepGold: 0,
+    description: '',
+    effect: '',
+    stats: { martial: 0, logistics: 0, administration: 0, diplomacy: 0, loyalty: 0, renown: 0 },
+    fatigue: 0,
+    sex: founder.sex,
+    ...(founder.era ? { era: founder.era as Hero['era'] } : {}),
+  };
+}
+
 export function dynastyFounderHero(store: DynastyStore): Hero | undefined {
   const founder = store.founder;
   if (!founder) return undefined;

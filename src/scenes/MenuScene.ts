@@ -5,11 +5,17 @@ import { hasSnapshot, loadSnapshot, pendingAutosave, snapshotLabel } from '../st
 import {
   hasSeenClassicTour, hasSeenTour, markClassicTourSeen, markTourSeen, requestGuidedRun,
 } from '../state/tour';
-import { getLegacy, LEGACY_PERKS, purchaseLegacyPerk, rankForScore } from '../state/legacy';
-import { DYNASTY_TRAITS, DYNASTY_TRAITS_PENDING } from '../data/dynastyTraits';
-import { dynastyProgress, getDynasty, isCrowned, respecDynasty, respecsAvailable, setDynastyFounder } from '../state/dynasty';
+import {
+  getLegacy, isEquipped, LEGACY_PERKS, LOADOUT_MAX, nextPerkCost, PERK_MAX_LEVEL, perkDescription, perkLevel,
+  purchaseLegacyPerk, rankForScore, toggleLoadout,
+} from '../state/legacy';
+import { DYNASTY_TRAITS_PENDING, findDynastyTrait } from '../data/dynastyTraits';
+import {
+  dynastyHistory, dynastyProgress, dynastyProgressForXp, getDynasty, isCrowned, offerable, respecDynasty, respecsAvailable,
+  setDynastyFounder, traitUses, type LiveReign, type ReignRecord,
+} from '../state/dynasty';
 import { cabinetProgress, getCabinet } from '../state/cabinet';
-import { dynastyFounderHero } from '../ui/dynastyPortrait';
+import { dynastyFounderHero, reignFounderHero } from '../ui/dynastyPortrait';
 import { drawHouseBanner, houseBanner } from '../ui/ascent/houseBanner';
 import { CoronationSheet } from '../ui/coronation/CoronationSheet';
 import { renderHeroFaceInBox } from '../ui/FaceRenderer';
@@ -43,8 +49,8 @@ import { applyPaperFX } from '../ui/ink/PaperFX';
 import { inkPath, mulberry32, thickPath, washFill as washInk, type Pt } from '../ui/ink/stroke';
 import { house, karstRange, softRidge } from '../ui/ink/props';
 import { drawFieldPlot, type FieldPlot } from '../ui/ink/settlements';
-import { GRAPHICS_QUALITIES, applyPendingRenderScale, applyRenderScale, getGraphicsQuality, renderScale, requestRenderScale, setGraphicsQuality } from '../game/graphicsQuality';
-import { TRAFFIC_DENSITIES, getLifeSettings, setLifeSettings } from '../game/lifeSettings';
+import { GRAPHICS_QUALITIES, applyPendingRenderScale, applyRenderScale, designLength, getGraphicsQuality, renderScale, requestRenderScale, setGraphicsQuality } from '../game/graphicsQuality';
+import { MOTION_LEVELS, TRAFFIC_DENSITIES, getLifeSettings, motionMs, setLifeSettings } from '../game/lifeSettings';
 import { SUPPORT, configuredSupportChannels, supportQrTextureKey, type SupportChannel } from '../data/support';
 import { allowsDonationLinks, notifyShellReady } from '../platform/shell';
 import { copyToClipboard, openExternalLink } from '../utils/browser';
@@ -179,6 +185,15 @@ export class MenuScene extends Phaser.Scene {
   /** Set while the install sheet is up, so the tip does not re-arm underneath it. */
   private installModalOpen = false;
   private mode: MenuMode = 'main';
+  /** Where Back goes from a page that another page opened: the shop and the king open from the
+   *  dynasty page and must return there, not to the front page. */
+  private returnMode?: MenuMode;
+
+  init(data?: { mode?: MenuMode }): void {
+    // Another scene coming back to a page (the deck's Back returns to the dynasty page): the mode
+    // rides in as scene data. Without it the scene restarts wherever it last was.
+    if (data?.mode) this.mode = data.mode;
+  }
   /**
    * Printed on the Continue line instead of the save's date when the page has just reloaded
    * itself to get its picture back and the run could not be re-entered on its own — see `create`.
@@ -211,6 +226,18 @@ export class MenuScene extends Phaser.Scene {
   private templeSheet?: CoronationSheet;
   /** The dynasty tablet's seal pulse, killed with the page it is stamped on. */
   private dynastyPulse?: Phaser.Tweens.Tween;
+  /**
+   * The reign card open on the ledger, by its index in the lineage row; unset means the most
+   * recent banked reign. Dropped on leaving the page, like the armed respec.
+   */
+  private dynastyReign?: number;
+  /** Whether the next epitaph draw counts its score in — set by a tap, never by a redraw. */
+  private dynastyCountIn = false;
+  /** The lineage row's rectangle and selection, for the swipe that browses it. */
+  private lineageSwipe?: { top: number; bottom: number; count: number; selected: number; handled: number };
+  private lineageSwipeArmed = false;
+  /** The open sheet's tap-outside / swipe-down listeners, removed by `closeModal`. */
+  private sheetDismiss?: { move: (pointer: Phaser.Input.Pointer) => void };
   /**
    * The page currently drawn, which is not always the page `render` is about to draw.
    *
@@ -2311,7 +2338,13 @@ export class MenuScene extends Phaser.Scene {
       this.copilotFor = undefined;
     }
     this.clearContent();
-    this.renderTitle();
+    if (!this.lineageSwipeArmed) {
+      this.lineageSwipeArmed = true;
+      this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => this.onLineageSwipe(pointer));
+    }
+    // The ledger draws its own head (`renderDynastyTitleBar`): a masthead that spent the top
+    // 236 units of a 620 sheet on a name the player had just read is why the page scrolled.
+    if (this.mode !== 'dynasty' && this.mode !== 'legacy') this.renderTitle();
     // The wordmark is outside the arrival on purpose: it is the same block of type on every page,
     // and a title that re-landed on each navigation would be the one thing on the sheet that never
     // holds still.
@@ -2404,7 +2437,9 @@ export class MenuScene extends Phaser.Scene {
    */
   private footBackBar(): void {
     this.content.push(this.ui.backBar(GAME_HEIGHT - BACK_BAR_BAND, () => {
-      this.mode = 'main';
+      // One step back, not all the way: a page opened from the dynasty page returns to it.
+      this.mode = this.returnMode ?? 'main';
+      this.returnMode = undefined;
       this.render();
     }));
   }
@@ -2417,7 +2452,12 @@ export class MenuScene extends Phaser.Scene {
   private renderPage(): void {
     // Leaving the dynasty sheet disarms the respec — an armed destructive control must never
     // survive a navigation and be waiting, already half-pressed, when the player comes back.
-    if (this.mode !== 'dynasty') this.respecArmed = false;
+    if (this.mode !== 'dynasty') {
+      this.respecArmed = false;
+      this.dynastyReign = undefined;
+      this.dynastyCountIn = false;
+    }
+    this.lineageSwipe = undefined;
     // The Temple's unsaved dress does not survive leaving the page. Anything else would let a
     // player wander to the shop and back and find their king wearing a change they abandoned.
     if (this.mode !== 'temple') this.templeSheet = undefined;
@@ -3079,39 +3119,62 @@ export class MenuScene extends Phaser.Scene {
    * eye on the first pass, where four lines of the page vanished into the art. Each band gets its
    * own panel, which is also what makes the chip grid read as a grid.
    */
+  /**
+   * The dynasty page's own head: the feature's name on one line, and the room under it.
+   *
+   * The wordmark is not drawn on this page (`render` skips it for the ledger). Two lines of
+   * 46-unit type plus a rule took the sheet down to 236 before the page could begin, and on the
+   * 620 clamp that was a third of the screen spent on a title the player had already read on the
+   * page they came from. The ledger is a document; a document has a heading, not a masthead.
+   */
+  private renderDynastyTitleBar(title: string = t('dynasty.title'), withMark = true): number {
+    const store = getDynasty();
+    // A band of parchment under the head: the front page's seal is painted at the top of the
+    // sheet behind every mode, and a title set straight onto it printed through the emblem.
+    this.content.push(this.add.rectangle(0, 0, GAME_WIDTH, 56, INK_UI.parchment, 0.94).setOrigin(0, 0));
+    this.content.push(this.add.text(GAME_WIDTH / 2, 28, title, {
+      color: '#2a2118', fontFamily: TITLE_FONT, fontSize: '20px', fontStyle: '700', align: 'center',
+    }).setOrigin(0.5));
+    const rule = this.add.rectangle(GAME_WIDTH / 2, 47, 120, 1.5, INK_UI.gold, 0.85);
+    this.content.push(rule);
+    // The house's mark rides the head's right edge once there is a house: the same banner the
+    // chip carries in-run, so the page and the run agree about whose ledger this is.
+    if (withMark && store.founder) {
+      const mark = drawHouseBanner(this, houseBanner(), 22, 30);
+      mark.setPosition(GAME_WIDTH - 44, 13);
+      this.content.push(mark);
+    }
+    return 58;
+  }
+
+  /**
+   * The Tông Phả, as one column that reads top to bottom.
+   *
+   * The sheet this replaces put eight equal chips, a record panel and three doors on one page
+   * and the player could not tell the trend from the total. Read one by one on capture, the
+   * pages said *what the house had*, never *what it had just done* or *what the next thing was*.
+   * The column is ordered by that question: who the house is and how far to the next level,
+   * then the reigns as a row of cards with the one in play at the end, then what the house holds
+   * with what each thing actually does, then the doors to the other stores, and last — as an
+   * overflow row — the one destructive control. Every duration on the page runs through
+   * `motionMs`, so the reduced-motion setting cuts all of it to a beat.
+   */
   private renderDynastySheet(): void {
     const store = getDynasty();
     const legacy = getLegacy();
-    const progress = dynastyProgress(store);
-    const PAD = 28;
+    const PAD = 20;
     const W = GAME_WIDTH - PAD * 2;
-
-    this.content.push(this.add.text(GAME_WIDTH / 2, this.vy(236), t('dynasty.title'), {
-      color: '#2a2118', fontFamily: TITLE_FONT, fontSize: '20px', fontStyle: '700', align: 'center',
-    }).setOrigin(0.5));
+    const bodyTop = this.renderDynastyTitleBar();
 
     // Never played: the page says what it would hold rather than a column of zeroes.
-    //
-    // On parchment like every other band. The front page's landscape is still painted behind this
-    // mode, and two lines of 11px type laid straight onto mountains and a lotus is the same
-    // unreadable page the populated sheet had on its first pass.
-    if (store.reigns === 0) {
+    if (store.reigns === 0 && !store.liveReign) {
       const bodyText = this.ui.label(0, -9999, t('dynasty.emptyBody'), 'caption',
         { fontSize: '11.5px', align: 'center', wordWrap: { width: W - 28 } });
       const bodyHeight = bodyText.height;
       bodyText.destroy();
 
       const panelHeight = 16 + 18 + 8 + bodyHeight + 16;
-      // Centred in the band between the title and the way back. Pinned under the title it left a
-      // third of a screen of nothing below it, which reads as a page that failed to load rather
-      // than as a page with little to say.
-      const bandTop = this.vy(268);
-      // The king, his mark, the house line and the Temple door, when there is one — budgeted into
-      // the centring rather than appended under it, or the door prints through the back bar on
-      // the 620 clamp. 74 for the portrait band, 24 for the house line, 38 + 14 for the button.
-      // The plate, the gap and the door, budgeted into the centring rather than appended under
-      // it — a control added below a block that has already claimed the room prints through the
-      // back bar on the 620 clamp. Generous by a line: the house line may wrap.
+      const bandTop = bodyTop + 12;
       const crownedBlock = isCrowned(store) ? 14 + 10 + 68 + 6 + 40 + 12 + 12 + 40 : 0;
       const panelTop = bandTop
         + Math.max(0, Math.round((this.pageFloor() - bandTop - panelHeight - crownedBlock) / 2));
@@ -3124,12 +3187,8 @@ export class MenuScene extends Phaser.Scene {
         'caption', { fontSize: '11.5px', align: 'center', wordWrap: { width: W - 28 } })
         .setOrigin(0.5, 0));
 
-      // **A crowned house is not an empty one.**
-      //
-      // The record is still blank — no reign has ended — but a king exists the moment the rite is
-      // answered, and this page is the only door to the Temple. Without this, a player who crowns
-      // a king and then leaves the run is told their dynasty is empty and has nowhere to go and
-      // look at the person they just made, which is the whole reason the rite is worth a screen.
+      // A crowned house is not an empty one: a king exists the moment the rite is answered, and
+      // this page is the only door to the Temple.
       if (isCrowned(store)) {
         const founder = dynastyFounderHero(store);
         const top = panelTop + panelHeight + 14;
@@ -3137,57 +3196,31 @@ export class MenuScene extends Phaser.Scene {
           ? t('dynasty.house', { name: store.house })
           : t('dynasty.houseUnnamed');
         const houseStyle = { fontSize: '14px', align: 'center', wordWrap: { width: W - 24 } } as const;
-        // **Measured on a throwaway, then destroyed — never on the object that is kept.**
-        //
-        // Two rules meet here and only one order satisfies both. The plate has to be sized to the
-        // house line, because a name that wraps to two lines in Vietnamese pushed it out through
-        // a fixed-height plate and onto the Temple button below. And Phaser's display list is
-        // creation-ordered, so the label has to be *created after* the panel that backs it or the
-        // panel paints straight over it — which is exactly what happened when the measurement and
-        // the drawing were the same object: the house name came out as a ghost under its own
-        // parchment. Both photographed on a 1206x2622 phone.
         const rule = this.ui.label(0, -9999, houseText, 'label', houseStyle);
         const houseHeight = rule.height;
         rule.destroy();
 
         const plateHeight = 10 + 68 + 6 + houseHeight + 12;
-        // On parchment like every other band on this page: the front page's landscape is painted
-        // behind this mode, and a portrait and a 14px house name laid straight onto mountains is
-        // the same unreadable page the populated sheet had on its first pass.
         this.content.push(this.ui.panel({ x: PAD, y: top, width: W, height: plateHeight },
           { border: INK_UI.softBrush, fillAlpha: 0.92 }));
         if (founder) {
           this.content.push(renderHeroFaceInBox(this, founder,
             { x: GAME_WIDTH / 2 - 38, y: top + 10, width: 68, height: 68 }));
         }
-        // 34x44 rather than 26x34: below about thirty units the emblem inside the silk averages
-        // to a smudge and the mark reads as a plain coloured shield, which is the one thing a
-        // house mark must not be — the whole point of it is that the player recognises theirs.
         const mark = drawHouseBanner(this, houseBanner(), 34, 44);
         mark.setPosition(GAME_WIDTH / 2 + 42, top + 20);
         this.content.push(mark);
         this.content.push(this.ui.label(GAME_WIDTH / 2, top + 10 + 68 + 6, houseText, 'label', houseStyle)
           .setOrigin(0.5, 0));
-        // 12 clear of the plate. Buttons on this page sit on their own ground, never against the
-        // edge of the panel above them.
         this.content.push(this.ui.button({ x: PAD, y: top + plateHeight + 12, width: W, height: 40 },
-          t('coronation.temple'), () => { this.mode = 'temple'; this.render(); },
-          // The short line, not the page's prose: a 40-unit button's second row holds about
-          // twenty-five units of type, and the full note squeezed itself edge to edge.
+          t('coronation.temple'), () => { this.returnMode = 'dynasty'; this.mode = 'temple'; this.render(); },
           { variant: 'secondary', fontSize: '12px', subLabel: t('coronation.temple.sub') }));
       }
       this.footBackBar();
       return;
     }
 
-    /**
-     * A wrapped line's height, before anything is drawn.
-     *
-     * Phaser measures a Text on creation and the display list is depth-ordered by creation, so a
-     * panel built after the text it backs would cover it. Measured on a throwaway and destroyed:
-     * the alternative is a guessed stride, which is exactly how a Vietnamese caption ends up
-     * printed through the row below it.
-     */
+    /** A wrapped line's height before anything is drawn — measured on a throwaway, destroyed. */
     const measure = (text: string, size: string, width: number): number => {
       const probe = this.ui.label(0, -9999, text, 'caption', { fontSize: size, wordWrap: { width } });
       const height = probe.height;
@@ -3195,20 +3228,8 @@ export class MenuScene extends Phaser.Scene {
       return height;
     };
 
-    /**
-     * The body scrolls; the way back does not.
-     *
-     * At the 620 clamp the record does not fit and cannot be made to — the portrait, the bar, eight
-     * chips, the reign line, the ancestral code, the shop and the respec came to 94 units past the
-     * foot, and every one of them is the page's subject rather than its chrome. Shrinking them all
-     * to fit produces a sheet nobody can read, and hiding one by height is the `4a67460` bug again.
-     *
-     * So it scrolls, the way the manual and the history page do, and it keeps fitting as Phases 3
-     * and 4 add their rows. `addTo` order is not a convenience: it parents the area's swallow-zone
-     * before its content, and reversed the zone lands on top and eats every tap the rows were
-     * supposed to get.
-     */
-    const bodyTop = this.vy(268);
+    // The body scrolls; the way back does not. `addTo` order parents the swallow-zone before
+    // the content, or the zone lands on top and eats every tap the rows were supposed to get.
     const viewport = this.pageFloor() - bodyTop;
     const area = this.ui.scrollArea({ x: 0, y: bodyTop, width: GAME_WIDTH, height: viewport });
     this.pageScroll = area;
@@ -3216,212 +3237,22 @@ export class MenuScene extends Phaser.Scene {
     area.addTo(layer);
     this.content.push(layer);
     const body = area.content;
-    // Rows are laid out from the top of the scrolled content, not from the top of the sheet.
     let y = 0;
 
-    // ── The house ───────────────────────────────────────────────────────────
-    const pendingLine = store.pendingPicks > 0
-      ? t('dynasty.pending', { n: store.pendingPicks })
-      : '';
-    const pendingH = pendingLine ? measure(pendingLine, '10.5px', W - 20) + 6 : 0;
-    const headerH = 64 + 10 + 14 + 7 + 10 + pendingH;
+    // Verbs first. The doors used to close the page, under the lineage strip, the open reign's
+    // epitaph and every trait row — six hundred units down, below the fold on every phone —
+    // and the report was *why has the history become more important than the deck? the player
+    // needs to do something immediately, not scroll before a tap.* The page is the hub between
+    // runs: what can be done now leads, and the history follows as what it was all for.
+    y = this.drawDynastyHeader(body, store, PAD, W, y, measure);
+    y = this.drawDynastyDoors(body, store, legacy, PAD, W, y);
+    y = this.drawDynastyLineage(body, store, PAD, W, y, measure, bodyTop);
+    y = this.drawDynastyTraits(body, store, PAD, W, y, measure);
+    y = this.drawDynastyCode(body, legacy, PAD, W, y);
 
-    /**
-     * The chip grid is what *fills* the page, so its row height is derived from the room left
-     * rather than picked and then padded around — the same rule the Reckoning's tile grid follows.
-     *
-     * Everything else on this page has a height nothing can bound (two wrapped captions in a
-     * language that runs a line longer than English) or a height that must not move (the portrait,
-     * the controls). At the 620 clamp a fixed 26-point chip pushed the foot past the sheet and the
-     * back bar printed straight through "Renounce every trait". Clamped both ways: below 20 the
-     * label does not fit its box, above 28 eight chips stop reading as a list.
-     */
-    const reignsLineText = t('dynasty.reignsValue', {
-      n: store.reigns,
-      score: store.bestScore.toLocaleString('en-US'),
-      rank: rankForScore(legacy.bestScore),
-    });
-    const codeCount = (legacy.codes ?? []).length;
-    const codeLineText = codeCount > 0
-      ? t('dynasty.codeSome', { n: codeCount })
-      : t('dynasty.codeNone');
-    const recordHeight = 8 + 13 + measure(reignsLineText, '10.5px', W - 20) + 10
-      + 13 + measure(codeLineText, '10.5px', W - 20) + 8;
-    // Measured against the *tallest* the respec note can be — the armed warning runs two lines
-    // where the resting line runs one. Sizing the grid to the resting height would reflow the
-    // whole page the instant a destructive control is armed, which is the worst possible moment
-    // for everything under the finger to move.
-    const respecHeight = store.traits.length > 0
-      ? 34 + Math.max(
-        measure(respecsAvailable(legacy.ascensions) > 0
-          ? t('dynasty.respecLeft', { n: respecsAvailable(legacy.ascensions) })
-          : t('dynasty.respecNone'), '9.5px', W),
-        measure(t('dynasty.respecWarn', { n: store.traits.length }), '9.5px', W),
-      ) + 10
-      : 0;
-    const CHIP_ROWS = Math.ceil(DYNASTY_TRAITS.length / 2);
-    const CHIP_GAP = 6;
-    // The shop row is budgeted with everything else, or the chip grid takes room it has to give
-    // back and the back bar lands on the last control.
-    // 38 for the row, 8 below it. A `subLabel` needs about 25 units of type and a 30-unit button
-    // leaves 22, so at 30 the note trims itself to "640…" and says nothing.
-    const shopHeight = legacy.points > 0 || legacy.bestScore > 0 ? 46 : 0;
-    // The Cabinet of Seals door — always shown, because the empty cabinet page is itself the
-    // pitch: fifty dashed silhouettes and the faucet list is what tells a player the hunt exists.
-    const cabinetHeight = 46;
-    // The Temple door. Budgeted with the rest rather than appended after the grid is sized: a row
-    // added below a grid that has already claimed the room is the `4a67460` bug — the page's own
-    // controls print through the back bar on the 620 clamp. Only shown to a house that has a king
-    // to re-dress; an uncrowned house is told where the rite opens instead, on one caption line.
-    const templeHeight = 46;
-    const fixedBelow = 12 + 15 + 5 + 6 + recordHeight + 12 + shopHeight + cabinetHeight
-      + templeHeight + respecHeight + 8 + BACK_BAR_HEIGHT;
-    const gridRoom = this.pageFloor() - (y + headerH) - fixedBelow;
-    const CHIP_H = Math.max(20, Math.min(28, Math.floor(gridRoom / CHIP_ROWS) - CHIP_GAP));
-    body.add(this.ui.panel({ x: PAD, y, width: W, height: headerH },
-      { border: INK_UI.softBrush, fillAlpha: 0.92 }));
-
-    const founder = dynastyFounderHero(store);
-    if (founder) {
-      body.add(renderHeroFaceInBox(this, founder, { x: PAD + 8, y: y + 6, width: 58, height: 58 }));
-    }
-    // The house's own mark, on the house's own sheet. This is the whole of what the banner is for
-    // — a save a player recognises at a glance — and it costs the header no height: it stands in
-    // the right margin the house name was already wrapping short of.
-    if (store.founder) {
-      const mark = drawHouseBanner(this, houseBanner(), 30, 40);
-      mark.setPosition(PAD + W - 40, y + 8);
-      body.add(mark);
-    }
-    body.add(this.ui.label(PAD + 76, y + 8,
-      store.house ? t('dynasty.house', { name: store.house }) : t('dynasty.houseUnnamed'),
-      'label', { fontSize: '15px', wordWrap: { width: W - 132 } }));
-    body.add(this.ui.label(PAD + 76, y + 30, t('dynasty.reignOrdinal', { n: store.reigns }),
-      'caption', { fontSize: '11px' }));
-    body.add(this.ui.label(PAD + 76, y + 46, t('dynasty.level', { level: store.level }),
-      'caption', { fontSize: '11px' }));
-
-    let inner = y + 64 + 10;
-    body.add(this.ui.label(PAD + 10, inner - 2, t('dynasty.xp', {
-      into: progress.into.toLocaleString('en-US'),
-      need: progress.need.toLocaleString('en-US'),
-    }), 'caption', { fontSize: '10px' }));
-    inner += 14;
-    const bar = this.add.graphics();
-    bar.fillStyle(INK_UI.softBrush, 0.3);
-    bar.fillRoundedRect(PAD + 10, inner, W - 20, 7, 3.5);
-    bar.fillStyle(INK_UI.gold, 0.95);
-    bar.fillRoundedRect(PAD + 10, inner, Math.max(4, (W - 20)
-      * Math.min(1, progress.into / Math.max(1, progress.need))), 7, 3.5);
-    body.add(bar);
-    inner += 13;
-    if (pendingLine) {
-      body.add(this.ui.label(PAD + 10, inner, pendingLine, 'caption',
-        { fontSize: '10.5px', color: '#8a5f1c', wordWrap: { width: W - 20 } }));
-    }
-    y += headerH + 12;
-
-    // ── What the house has learned, as chips ────────────────────────────────
-    const traitsHdr = this.ui.label(PAD, y, t('dynasty.traitsLabel'), 'caption',
-      { fontSize: '10px', backgroundColor: 'rgba(243,230,196,0.82)', padding: { x: 4, y: 1 } });
-    body.add(traitsHdr);
-    y += traitsHdr.height + 5;
-
-    const CHIP_W = Math.floor((W - 8) / 2);
-    DYNASTY_TRAITS.forEach((trait, index) => {
-      const owned = store.traits.includes(trait.id);
-      const pending = DYNASTY_TRAITS_PENDING.has(trait.id);
-      const x = PAD + (index % 2) * (CHIP_W + 8);
-      const chipY = y + Math.floor(index / 2) * (CHIP_H + CHIP_GAP);
-      body.add(this.ui.panel({ x, y: chipY, width: CHIP_W, height: CHIP_H }, {
-        border: owned ? INK_UI.jade : INK_UI.softBrush,
-        fillAlpha: owned ? 0.94 : 0.8,
-      }));
-      // An un-owned trait is not disabled, it is simply not taken yet — drawn quieter, never
-      // struck through, because every one of them is still on the table. The colour override is
-      // *omitted* rather than passed as undefined: `InkUI.label` spreads overrides over the
-      // variant's own style, so an explicit `color: undefined` erases the variant's colour and
-      // the chip prints white on parchment — which is how four owned traits rendered blank.
-      body.add(this.ui.label(x + 8, chipY + Math.max(4, Math.round((CHIP_H - 14) / 2)),
-        `${t(`dynasty.trait.${trait.id}` as Parameters<typeof t>[0])}${owned ? ' ✓' : ''}`,
-        owned ? 'label' : 'caption',
-        {
-          fontSize: '10.5px',
-          ...(owned ? {} : { color: pending ? '#8a7a60' : '#6b5a44' }),
-        }));
-    });
-    y += CHIP_ROWS * (CHIP_H + CHIP_GAP) + 6;
-
-    // ── The record, and the thing nobody was ever told ──────────────────────
-    const reignsLine = reignsLineText;
-    const codes = codeCount;
-    const codeLine = codeLineText;
-    body.add(this.ui.panel({ x: PAD, y, width: W, height: recordHeight },
-      { border: INK_UI.softBrush, fillAlpha: 0.92 }));
-
-    let row = y + 8;
-    body.add(this.ui.label(PAD + 10, row, t('dynasty.reignsLabel'), 'caption', { fontSize: '10px' }));
-    row += 13;
-    const reignsText = this.ui.label(PAD + 10, row, reignsLine, 'caption',
-      { fontSize: '10.5px', wordWrap: { width: W - 20 } });
-    body.add(reignsText);
-    row += reignsText.height + 10;
-    body.add(this.ui.label(PAD + 10, row, t('dynasty.codeLabel'), 'caption',
-      { fontSize: '10px', ...(codes > 0 ? { color: '#1c6b58' } : {}) }));
-    row += 13;
-    body.add(this.ui.label(PAD + 10, row, codeLine, 'caption',
-      { fontSize: '10.5px', wordWrap: { width: W - 20 } }));
-    y += recordHeight + 12;
-
-    // ── The other half of the inheritance ───────────────────────────────────
-    // The Ascension Legacy shop, off the front page and onto the sheet a player is already reading
-    // about their dynasty on. Both are cross-run progression; only one of them is a shop.
-    if (legacy.points > 0 || legacy.bestScore > 0) {
-      body.add(this.ui.button({ x: PAD, y, width: W, height: 38 },
-        t('dynasty.openShop'), () => { this.mode = 'legacy'; this.render(); },
-        {
-          variant: 'secondary',
-          fontSize: '12px',
-          subLabel: t('dynasty.shopSub', { total: legacy.points }),
-        }));
-      y += 46;
-    }
-
-    // Tàng Ấn Các — the collection page the ceremony's bind step and the rubbings feed.
-    const cabinet = getCabinet();
-    const seals = cabinetProgress();
-    body.add(this.ui.button({ x: PAD, y, width: W, height: 38 },
-      t('dynasty.openCabinet'), () => this.scene.start('CabinetScene'),
-      {
-        variant: 'secondary',
-        fontSize: '12px',
-        subLabel: cabinet.rubbings > 0
-          ? t('cabinet.subRubbings', { found: seals.found, total: seals.total, n: cabinet.rubbings })
-          : t('cabinet.subCount', { found: seals.found, total: seals.total }),
-      }));
-    y += 46;
-
-    // Thái Miếu — the barbershop rule, taken straight from Crusader Kings: looks may be changed
-    // for ever, stats may never be. It is also where the creator's locked rows are collected: a
-    // player who has just held ten waves has somewhere to go and see what that bought.
-    const crowned = isCrowned(store);
-    body.add(this.ui.button({ x: PAD, y, width: W, height: 38 },
-      t('coronation.temple'),
-      () => {
-        if (!crowned) return;
-        this.mode = 'temple';
-        this.render();
-      },
-      {
-        variant: crowned ? 'secondary' : 'disabled',
-        fontSize: '12px',
-        subLabel: crowned ? t('coronation.temple.sub') : t('coronation.temple.uncrowned'),
-      }));
-    y += 46;
-
-    // ── The one way back ────────────────────────────────────────────────────
+    // ── The overflow row: the one way back ──────────────────────────────────
     // Traits are a biography, not a loadout, so a respec is earned by ascending and never
-    // offered casually. The row says what it costs even when there is nothing to spend.
+    // offered casually. Last on the page and quiet at rest; danger only once armed.
     const respecs = respecsAvailable(legacy.ascensions);
     if (store.traits.length > 0) {
       const armed = this.respecArmed && respecs > 0;
@@ -3438,26 +3269,617 @@ export class MenuScene extends Phaser.Scene {
           respecDynasty(legacy.ascensions);
           this.render();
         },
-        // Danger only once armed. Drawn red from the start it would read as forbidden rather than
-        // as consequential, and this is a legitimate thing to do with an ascension.
-        { variant: respecs <= 0 ? 'disabled' : armed ? 'danger' : 'secondary', fontSize: '12px' }));
+        { variant: respecs <= 0 ? 'disabled' : armed ? 'danger' : 'ghost', fontSize: '12px' }));
       y += 34;
       const note = armed
         ? t('dynasty.respecWarn', { n: store.traits.length })
         : respecs > 0 ? t('dynasty.respecLeft', { n: respecs }) : t('dynasty.respecNone');
-      body.add(this.ui.label(GAME_WIDTH / 2, y, note, 'caption', {
+      const noteText = this.ui.label(GAME_WIDTH / 2, y, note, 'caption', {
         fontSize: '9.5px',
         align: 'center',
         wordWrap: { width: W },
         ...(armed ? { color: '#a4402c' } : {}),
         backgroundColor: 'rgba(243,230,196,0.82)',
         padding: { x: 4, y: 1 },
-      }).setOrigin(0.5, 0));
-      y += 24;
+      }).setOrigin(0.5, 0);
+      body.add(noteText);
+      if (armed) {
+        // The warning unfolds under the armed row — read before the second tap, not after it.
+        noteText.setAlpha(0).setY(y - 8);
+        this.tweens.add({ targets: noteText, alpha: 1, y, duration: motionMs(180), ease: 'Sine.easeOut' });
+      }
+      y += noteText.height + 10;
     }
 
     area.setContentHeight(Math.max(viewport, y + 8));
     this.footBackBar();
+  }
+
+  /**
+   * Who the house is, and how far it stands from the next level.
+   *
+   * One bar with three things on it: the filled part is banked, the hatched part is what the
+   * reign in play would add if it ended now (read from `liveReign`, which the away pause and
+   * every wave held write), and the right-hand label says the distance in the unit the player
+   * can act on — points to the next level, not a fraction. Under it, what that level buys: the
+   * next level-up lays out two traits. That line is the reason the number matters, and no page
+   * said it before.
+   */
+  private drawDynastyHeader(
+    body: Phaser.GameObjects.Container,
+    store: ReturnType<typeof getDynasty>,
+    PAD: number,
+    W: number,
+    y: number,
+    measure: (text: string, size: string, width: number) => number,
+  ): number {
+    const progress = dynastyProgress(store);
+    const live = store.liveReign;
+    const pendingLine = store.pendingPicks > 0
+      ? t('dynasty.pending', { n: store.pendingPicks })
+      : t('dynasty.page.nextOffer');
+    const pendingH = measure(pendingLine, '10px', W - 20);
+    // The reign in play, said in the header as well as hatched on the bar: "if it ended now"
+    // is the number a paused player came back to read.
+    const liveLine = live && live.score > 0
+      ? t('dynasty.page.liveHeader', { n: live.n, score: live.score.toLocaleString('en-US'), level: live.levelAfter })
+      : '';
+    const liveH = liveLine ? measure(liveLine, '10px', W - 20) + 3 : 0;
+    const headerH = 64 + 12 + 12 + 10 + 8 + pendingH + liveH + 10;
+
+    body.add(this.ui.panel({ x: PAD, y, width: W, height: headerH },
+      { border: store.pendingPicks > 0 ? INK_UI.cinnabar : INK_UI.softBrush, fillAlpha: 0.92 }));
+
+    const founder = dynastyFounderHero(store);
+    if (founder) {
+      body.add(renderHeroFaceInBox(this, founder, { x: PAD + 8, y: y + 6, width: 52, height: 52 }));
+    }
+    const textX = PAD + (founder ? 70 : 10);
+    body.add(this.ui.label(textX, y + 8,
+      store.house ? t('dynasty.house', { name: store.house }) : t('dynasty.houseUnnamed'),
+      'label', { fontSize: '15px', wordWrap: { width: W - (textX - PAD) - 10 } }));
+    body.add(this.ui.label(textX, y + 30,
+      `${t('dynasty.reignOrdinal', { n: store.reigns })} · ${t('dynasty.level', { level: store.level })}`,
+      'caption', { fontSize: '11px' }));
+    body.add(this.ui.label(textX, y + 46,
+      t('dynasty.page.best', { score: store.bestScore.toLocaleString('en-US') }),
+      'caption', { fontSize: '10px' }));
+
+    // The bar, with its two ends labelled: the level it is on and the level it is climbing to.
+    let inner = y + 64 + 12;
+    const barX = PAD + 10;
+    const barW = W - 20;
+    body.add(this.ui.label(barX, inner - 2, t('dynasty.subLevel', { level: store.level }), 'caption',
+      { fontSize: '10px', color: '#8a5f1c' }));
+    body.add(this.ui.label(barX + barW, inner - 2,
+      t('dynasty.page.toNext', {
+        short: Math.max(0, progress.need - progress.into).toLocaleString('en-US'),
+        next: store.level + 1,
+      }), 'caption', { fontSize: '10px', align: 'right' }).setOrigin(1, 0));
+    inner += 14;
+    const fill = Math.min(1, progress.into / Math.max(1, progress.need));
+    const bar = this.add.graphics();
+    bar.fillStyle(INK_UI.softBrush, 0.3);
+    bar.fillRoundedRect(barX, inner, barW, 8, 4);
+    bar.fillStyle(INK_UI.gold, 0.95);
+    bar.fillRoundedRect(barX, inner, Math.max(4, barW * fill), 8, 4);
+    if (live && live.score > 0) {
+      // The reign in play, hatched: promised, not banked. Past the level's end it fills to the
+      // end — the rest of the promise is the next level, which the line below already names.
+      const ahead = dynastyProgressForXp(store.xp + live.score);
+      const to = ahead.level > store.level ? 1 : Math.min(1, ahead.into / Math.max(1, ahead.need));
+      drawHatch(bar, barX + barW * fill, inner, barW * Math.max(0, to - fill), 8, INK_UI.jade);
+    }
+    body.add(bar);
+    inner += 8 + 8;
+    body.add(this.ui.label(barX, inner, pendingLine, 'caption', {
+      fontSize: '10px',
+      color: store.pendingPicks > 0 ? '#a4402c' : '#1c6b58',
+      wordWrap: { width: W - 20 },
+    }));
+    if (liveLine) {
+      inner += pendingH + 3;
+      body.add(this.ui.label(barX, inner, liveLine, 'caption', { fontSize: '10px', color: '#1c6b58', wordWrap: { width: W - 20 } }));
+    }
+    return y + headerH + 10;
+  }
+
+  /**
+   * The reigns, as a row of cards — the trend the count-and-best line could never show.
+   *
+   * The last five, oldest left, and the reign in play last with a caret under it: *this one is
+   * still being written*. Older reigns fold into one stub at the left. Tapping a card opens its
+   * epitaph under the row — the fight that decided it, what it taught the house, who its king
+   * was — and the score on the epitaph counts in, because a number that arrives is read and a
+   * number that is simply there is skimmed.
+   */
+  private drawDynastyLineage(
+    body: Phaser.GameObjects.Container,
+    store: ReturnType<typeof getDynasty>,
+    PAD: number,
+    W: number,
+    y: number,
+    measure: (text: string, size: string, width: number) => number,
+    bodyTop: number,
+  ): number {
+    const history = dynastyHistory(store);
+    const live = store.liveReign;
+    const SHOW = 5;
+    const recent = history.slice(-SHOW);
+    const earlier = history.length - recent.length;
+    type Card = { kind: 'stub'; n: number } | { kind: 'reign'; record: ReignRecord } | { kind: 'live'; live: LiveReign };
+    const cards: Card[] = [];
+    if (earlier > 0) cards.push({ kind: 'stub', n: earlier });
+    recent.forEach((record) => cards.push({ kind: 'reign', record }));
+    if (live) cards.push({ kind: 'live', live });
+    if (cards.length === 0) return y;
+
+    const header = this.ui.label(PAD, y, t('dynasty.page.lineage'), 'caption',
+      { fontSize: '10px', backgroundColor: 'rgba(243,230,196,0.82)', padding: { x: 4, y: 1 } });
+    body.add(header);
+    y += header.height + 5;
+
+    // Which card is open: the one tapped, else the most recent banked reign.
+    const defaultIndex = cards.findIndex((card) => card.kind === 'reign') >= 0
+      ? cards.map((card) => card.kind).lastIndexOf('reign')
+      : cards.length - 1;
+    const selected = this.dynastyReign !== undefined && this.dynastyReign < cards.length
+      ? this.dynastyReign
+      : defaultIndex;
+
+    const GAP = 6;
+    const CARD_H = 60;
+    const cardW = Math.floor((W - GAP * (cards.length - 1)) / cards.length);
+    const maxScore = Math.max(1, ...history.map((record) => record.score), live?.score ?? 0);
+
+    // One reign is not a trend: the strip's only card would repeat the epitaph's own number a
+    // finger's width above it. The strip starts at the second reign, when there is a comparison.
+    const strip = cards.length > 1;
+    if (strip) cards.forEach((card, index) => {
+      const x = PAD + index * (cardW + GAP);
+      const open = index === selected;
+      const accent = card.kind === 'live' ? INK_UI.jade : open ? INK_UI.gold : INK_UI.softBrush;
+      body.add(this.ui.panel({ x, y, width: cardW, height: CARD_H },
+        { border: accent, borderWidth: open ? 1.6 : 1, fillAlpha: card.kind === 'stub' ? 0.5 : open ? 0.96 : 0.82 }));
+
+      if (card.kind === 'stub') {
+        body.add(this.ui.label(x + cardW / 2, y + CARD_H / 2, t('dynasty.page.earlier', { n: card.n }),
+          'caption', { fontSize: '9.5px', align: 'center', wordWrap: { width: cardW - 6 } }).setOrigin(0.5));
+        // The stub opens the whole list as a sheet: the row shows five, the house keeps twelve.
+        body.add(this.ui.button({ x, y, width: cardW, height: CARD_H }, '', () => this.openReignsSheet(), { frameless: true }));
+        return;
+      }
+      const n = card.kind === 'live' ? card.live.n : card.record.n;
+      const score = card.kind === 'live' ? card.live.score : card.record.score;
+      // The best reign wears a star: the record is the one mark a trend needs.
+      const best = card.kind === 'reign' && score > 0 && score === store.bestScore;
+      body.add(this.ui.label(x + cardW / 2, y + 7, `${best ? '★ ' : ''}${t('dynasty.page.reign', { n })}`, 'caption',
+        { fontSize: '9px', align: 'center', ...(card.kind === 'live' ? { color: '#1c6b58' } : best ? { color: '#8a5f1c' } : {}) }).setOrigin(0.5, 0));
+      const scoreText = `${card.kind === 'live' ? '+' : ''}${score.toLocaleString('en-US')}`;
+      body.add(this.ui.label(x + cardW / 2, y + 20, scoreText, 'label',
+        { fontSize: cardW < 60 ? '11px' : '12.5px', align: 'center' }).setOrigin(0.5, 0));
+      // The trend, as a mark: each card's bar is its score against the house's best on record.
+      const mark = this.add.graphics();
+      const markW = cardW - 16;
+      mark.fillStyle(INK_UI.softBrush, 0.25);
+      mark.fillRoundedRect(x + 8, y + CARD_H - 14, markW, 4, 2);
+      mark.fillStyle(accent === INK_UI.softBrush ? INK_UI.gold : accent, 0.9);
+      mark.fillRoundedRect(x + 8, y + CARD_H - 14, Math.max(3, markW * Math.min(1, score / maxScore)), 4, 2);
+      body.add(mark);
+      if (card.kind === 'live') {
+        // The ink caret: a reign still being written. One slow breath, never a badge.
+        const caret = this.ui.label(x + cardW / 2, y + CARD_H - 6, '▲', 'caption',
+          { fontSize: '8px', color: '#1c6b58', align: 'center' }).setOrigin(0.5, 1);
+        body.add(caret);
+        // A step, not a fade: it reads as a cursor, and it is the page's one loop.
+        this.tweens.add({ targets: caret, alpha: { from: 1, to: 0.15 }, duration: motionMs(500), yoyo: true, repeat: -1, ease: 'Stepped', easeParams: [1] });
+      }
+      body.add(this.ui.button({ x, y, width: cardW, height: CARD_H }, '', () => {
+        this.dynastyReign = index;
+        this.dynastyCountIn = true;
+        this.render();
+      }, { frameless: true }));
+    });
+    // A swipe across the row browses it: the finger moves the open card left or right. Read off
+    // the move stream, which nothing swallows, and measured against the row's own rectangle.
+    this.lineageSwipe = strip ? { top: bodyTop + y, bottom: bodyTop + y + CARD_H, count: cards.length, selected, handled: -1 } : undefined;
+    if (strip) y += CARD_H + 8;
+
+    // ── The open card's epitaph ─────────────────────────────────────────────
+    const card = cards[selected];
+    if (card.kind === 'stub') return y + 4;
+    const lines: Array<{ text: string; color?: string }> = [];
+    if (card.kind === 'live') {
+      lines.push({
+        text: t('dynasty.page.liveLine', {
+          n: card.live.n,
+          waves: card.live.waves,
+          score: card.live.score.toLocaleString('en-US'),
+          level: card.live.levelAfter,
+        }),
+        color: '#1c6b58',
+      });
+      // The promise, said once where the segment first appears: every term of the run score is a
+      // peak or a count, so this is a floor, not a forecast. And a run left for a week carries
+      // its date, so a stale segment is not mistaken for tonight's.
+      const savedAt = Date.parse(card.live.savedAt);
+      const stale = Number.isFinite(savedAt) && Date.now() - savedAt > 7 * 24 * 3600 * 1000;
+      lines.push({
+        text: stale
+          ? `${t('dynasty.page.liveFloor')} ${t('dynasty.page.liveSaved', { date: new Date(savedAt).toLocaleDateString(getLanguage() === 'vi' ? 'vi-VN' : 'en-US') })}`
+          : t('dynasty.page.liveFloor'),
+      });
+    } else {
+      const record = card.record;
+      lines.push({
+        text: t('dynasty.page.epitaph', {
+          waves: record.waves,
+          lands: record.lands,
+          ending: t(record.ending === 'collapse' ? 'dynasty.page.ending.collapse' : 'dynasty.page.ending.conquest'),
+        }),
+      });
+      if (record.fight) {
+        lines.push({
+          text: t('dynasty.page.fight', {
+            land: record.fight.land,
+            n: record.fight.theirStart.toLocaleString('en-US'),
+            result: t(record.fight.won ? 'dynasty.page.won' : 'dynasty.page.lost'),
+          }),
+        });
+      }
+      lines.push(record.trait
+        ? { text: t('dynasty.page.left', { trait: t(`dynasty.trait.${record.trait}` as Parameters<typeof t>[0]) }), color: '#8a5f1c' }
+        : { text: t('dynasty.page.leftNone') });
+      if (record.founderName) lines.push({ text: t('dynasty.page.king', { name: record.founderName }) });
+    }
+    const isBest = card.kind === 'reign' && card.record.score > 0 && card.record.score === store.bestScore;
+    const title = card.kind === 'live'
+      ? `${t('dynasty.page.reign', { n: card.live.n })} · ${t('dynasty.page.live')}`
+      : `${t('dynasty.page.reign', { n: card.record.n })}${isBest ? ` · ${t('dynasty.page.record')}` : ''}`;
+    const score = card.kind === 'live' ? card.live.score : card.record.score;
+    const reignHero = card.kind === 'reign' && card.record.founder ? reignFounderHero(card.record.founder, store.level) : undefined;
+    const textX = PAD + (reignHero ? 56 : 10);
+    const textW = W - (textX - PAD) - 10;
+    const lineHeights = lines.map((line) => measure(line.text, '10px', textW));
+    // The reign in play is also the door back into it; a banked reign opens its own chronicle.
+    const continueH = card.kind === 'live' && hasSnapshot() ? 34 : 0;
+    const chronicleH = card.kind === 'reign' && (card.record.chronicle?.length ?? 0) > 0 ? 30 : 0;
+    const panelH = Math.max(8 + 16 + 4 + lineHeights.reduce((sum, h) => sum + h + 3, 0) + 6, reignHero ? 64 : 0) + continueH + chronicleH;
+    body.add(this.ui.panel({ x: PAD, y, width: W, height: panelH },
+      { border: card.kind === 'live' ? INK_UI.jade : INK_UI.gold, fillAlpha: 0.9 }));
+    if (reignHero) {
+      // The reign has a face of its own; on a tap it sets in with the punch.
+      const face = renderHeroFaceInBox(this, reignHero, { x: PAD + 10, y: y + 10, width: 40, height: 40 });
+      body.add(face);
+      if (this.dynastyCountIn && motionMs(260) > 0) {
+        const faceScale = face.scale;
+        face.setScale(faceScale * 0.6).setAlpha(0.3);
+        this.tweens.add({ targets: face, scale: faceScale, alpha: 1, duration: motionMs(260), ease: 'Back.easeOut' });
+      }
+    }
+    body.add(this.ui.label(textX, y + 8, title, 'label', { fontSize: '12px' }));
+    const scoreLabel = this.ui.label(PAD + W - 10, y + 7, '', 'label',
+      { fontSize: '13px', color: '#8a5f1c', align: 'right' }).setOrigin(1, 0);
+    body.add(scoreLabel);
+    const show = (value: number) => scoreLabel.setText(`${card.kind === 'live' ? '+' : ''}${Math.round(value).toLocaleString('en-US')}`);
+    if (this.dynastyCountIn && motionMs(600) > 0) {
+      // The count-in: only on a tap, never on a settings-driven redraw, or the page fidgets.
+      this.dynastyCountIn = false;
+      const counter = { v: 0 };
+      show(0);
+      this.tweens.add({
+        targets: counter, v: score, duration: motionMs(600), ease: 'Cubic.easeOut',
+        onUpdate: () => show(counter.v), onComplete: () => show(score),
+      });
+    } else {
+      show(score);
+    }
+    let row = y + 8 + 16 + 4;
+    lines.forEach((line, index) => {
+      body.add(this.ui.label(textX, row, line.text, 'caption',
+        { fontSize: '10px', wordWrap: { width: textW }, ...(line.color ? { color: line.color } : {}) }));
+      row += lineHeights[index] + 3;
+    });
+    if (chronicleH > 0 && card.kind === 'reign') {
+      const record = card.record;
+      row = y + panelH - continueH - chronicleH + 2;
+      body.add(this.ui.button({ x: PAD + 10, y: row, width: W - 20, height: 24 }, t('dynasty.page.viewHistory'),
+        () => this.openChronicleSheet(record), { variant: 'ghost', fontSize: '10.5px' }));
+    }
+    if (continueH > 0) {
+      body.add(this.ui.button({ x: PAD + 10, y: row + 2, width: W - 20, height: 28 }, t('dynasty.page.continue'), () => {
+        const snapshot = loadSnapshot();
+        if (snapshot) this.startGame(snapshot.state);
+      }, { variant: 'primary', fontSize: '11px' }));
+    }
+    return y + panelH + 12;
+  }
+
+  /**
+   * What the house holds, one row per trait, with what each one does.
+   *
+   * Held traits first, each with its effect on the row — a chip that said "Quartermaster ✓" left
+   * the player to remember what a quartermaster does. The table's remaining traits follow,
+   * quieter, so the player can see what a level-up might still lay out. Pending traits — flags
+   * nothing reads yet — are not drawn at all. A trait chosen at the last ceremony wears a gold
+   * mark on the first visit after it: the page answers "what did I just get" without being asked.
+   * Tapping any row opens its sheet: the effect, what changes, when it applies, since when.
+   */
+  private drawDynastyTraits(
+    body: Phaser.GameObjects.Container,
+    store: ReturnType<typeof getDynasty>,
+    PAD: number,
+    W: number,
+    y: number,
+    measure: (text: string, size: string, width: number) => number,
+  ): number {
+    const held = store.traits.filter((id) => !DYNASTY_TRAITS_PENDING.has(id));
+    // What could still be dealt: every un-held trait, and past level 8 the Rank II step of each
+    // held one — the same list the ceremony rolls from.
+    const table = offerable(store).map((trait) => trait.id);
+    const lastRecord = dynastyHistory(store)[dynastyHistory(store).length - 1];
+    const fresh = lastRecord?.trait && held.includes(lastRecord.trait) && readSeenTrait() !== lastRecord.n
+      ? lastRecord.trait
+      : undefined;
+    if (fresh && lastRecord) noteSeenTrait(lastRecord.n);
+
+    const headerLeft = this.ui.label(PAD, y, t('dynasty.page.traits', { held: held.length, total: held.length + table.length }),
+      'caption', { fontSize: '10px', backgroundColor: 'rgba(243,230,196,0.82)', padding: { x: 4, y: 1 } });
+    body.add(headerLeft);
+    y += headerLeft.height + 5;
+    // What the section is, in one line — *"Phẩm chất": what is that? no information* — and how
+    // it is used: two are laid out at each level, one is kept, tap to read one.
+    const hintText = this.ui.label(PAD, y, t('dynasty.page.traitsHint'), 'caption',
+      { fontSize: '9.5px', color: '#6b5a44', wordWrap: { width: W }, backgroundColor: 'rgba(243,230,196,0.82)', padding: { x: 4, y: 1 } });
+    body.add(hintText);
+    y += hintText.height + 8;
+
+    const name = (id: string) => t(`dynasty.trait.${id}` as Parameters<typeof t>[0]);
+    const effect = (id: string) => t(`dynasty.trait.${id}.d` as Parameters<typeof t>[0]);
+    const TAG_W = 64;
+
+    held.forEach((id) => {
+      const effectH = measure(effect(id), '9.5px', W - TAG_W - 26);
+      const rowH = Math.max(38, 8 + 14 + 2 + effectH + 8);
+      const isFresh = id === fresh;
+      body.add(this.ui.panel({ x: PAD, y, width: W, height: rowH },
+        { border: isFresh ? INK_UI.gold : INK_UI.jade, borderWidth: isFresh ? 1.8 : 1, fillAlpha: 0.94 }));
+      if (isFresh) {
+        // The first-visit mark: a gold wash that settles, once. Not a badge that stays.
+        const wash = this.add.graphics();
+        wash.fillStyle(INK_UI.gold, 0.28);
+        wash.fillRoundedRect(PAD + 1, y + 1, W - 2, rowH - 2, 5);
+        body.add(wash);
+        this.tweens.add({ targets: wash, alpha: 0, duration: motionMs(1600), delay: motionMs(500), ease: 'Sine.easeOut' });
+      }
+      const rankTwo = findDynastyTrait(id)?.rank === 2;
+      body.add(this.ui.label(PAD + 10, y + 8, `${name(id)}${rankTwo ? ` ${t('dynasty.page.rank2')}` : ''}`, 'label',
+        { fontSize: '12px', ...(rankTwo ? { color: '#8a5f1c' } : {}) }));
+      body.add(this.ui.label(PAD + 10, y + 8 + 16, effect(id), 'caption',
+        { fontSize: '9.5px', wordWrap: { width: W - TAG_W - 26 } }));
+      body.add(this.ui.label(PAD + W - 10, y + 9, isFresh ? t('dynasty.page.new') : t('dynasty.page.held'), 'caption', {
+        fontSize: '8.5px', color: isFresh ? '#8a5f1c' : '#1c6b58', align: 'right',
+        backgroundColor: isFresh ? 'rgba(232,196,110,0.35)' : 'rgba(120,180,150,0.22)', padding: { x: 5, y: 2 },
+      }).setOrigin(1, 0));
+      body.add(this.ui.button({ x: PAD, y, width: W, height: rowH }, '', () => this.openTraitSheet(id), { frameless: true }));
+      y += rowH + 5;
+    });
+
+    // What is still on the table, as one row: the names, and what the next level does with them.
+    // One row rather than one per trait, because every one of them is the same fact — not yet
+    // taken — and the page's height is the page's fit at the 620 clamp.
+    // What is still on the table: one row each, with what it does, and a tap opens its sheet.
+    // A joined string of seven names said nothing and answered no tap.
+    if (table.length > 0) {
+      const tableHead = this.ui.label(PAD, y,
+        `${t('dynasty.page.tableRow', { n: table.length })} · ${t(table.length >= 2 ? 'dynasty.page.tableNext' : 'dynasty.page.tableLast')}`,
+        'caption', { fontSize: '9.5px', color: '#8a7a60', wordWrap: { width: W } });
+      body.add(tableHead);
+      y += tableHead.height + 4;
+      for (const id of table) {
+        const effectH = measure(effect(id), '9px', W - 40);
+        const rowH = 6 + 14 + effectH + 6;
+        body.add(this.ui.panel({ x: PAD, y, width: W, height: rowH }, { border: INK_UI.softBrush, fillAlpha: 0.6 }));
+        body.add(this.ui.label(PAD + 10, y + 6, name(id), 'label', { fontSize: '11px', color: '#4a3b28' }));
+        body.add(this.ui.label(PAD + 10, y + 6 + 14, effect(id), 'caption', { fontSize: '9px', wordWrap: { width: W - 40 } }));
+        body.add(this.ui.label(PAD + W - 10, y + rowH / 2, '›', 'label', { fontSize: '14px', color: '#8a7a60' }).setOrigin(1, 0.5));
+        body.add(this.ui.button({ x: PAD, y, width: W, height: rowH }, '', () => this.openTraitSheet(id), { frameless: true }));
+        y += rowH + 4;
+      }
+    }
+    return y + 6;
+  }
+
+  /**
+   * What the player can do right now — first on the page, above the biography.
+   *
+   * A hub between runs leads with its verbs: the deck when draws wait, the vault when something
+   * can be bought, the king. Whatever is owed comes first and wears the page's one primary, and
+   * the count sits on the row as a pill so the reason to tap is read before the label is. At one
+   * height, in one place, so the eye learns where "do" lives on this page. The uncrowned king's
+   * door stays, disabled and last, because its sub-label is the one sentence that says how a
+   * king comes to exist.
+   */
+  private drawDynastyDoors(
+    body: Phaser.GameObjects.Container,
+    store: ReturnType<typeof getDynasty>,
+    legacy: ReturnType<typeof getLegacy>,
+    PAD: number,
+    W: number,
+    y: number,
+  ): number {
+    const ROW = 46;
+    const cabinet = getCabinet();
+    const seals = cabinetProgress();
+    // The cheapest next step on any ladder: the vault is "affordable" when one thing on it is.
+    const cheapest = LEGACY_PERKS
+      .map((perk) => nextPerkCost(perk, perkLevel(perk.id, legacy)))
+      .filter((cost): cost is number => cost !== undefined)
+      .reduce((min, cost) => Math.min(min, cost), Infinity);
+    const affordable = Number.isFinite(cheapest) && legacy.points >= cheapest;
+    const crowned = isCrowned(store);
+
+    type Door = { label: string; sub: string; pending?: string; enabled: boolean; open: () => void };
+    const doors: Door[] = [{
+      label: t('dynasty.openCabinet'),
+      sub: cabinet.rubbings > 0
+        ? t('dynasty.openCabinetNow', { n: cabinet.rubbings, found: seals.found, total: seals.total })
+        : t('cabinet.subCount', { found: seals.found, total: seals.total }),
+      ...(cabinet.rubbings > 0 ? { pending: String(cabinet.rubbings) } : {}),
+      enabled: true,
+      open: () => this.scene.start('CabinetScene'),
+    }];
+    if (legacy.points > 0 || legacy.bestScore > 0) {
+      doors.push({
+        label: t('dynasty.openShop'),
+        sub: affordable
+          ? t('dynasty.shopAfford', { total: legacy.points })
+          : Number.isFinite(cheapest)
+            ? t('dynasty.shopShort', { total: legacy.points, n: cheapest - legacy.points })
+            : t('dynasty.shopSubPerks', { total: legacy.points, n: legacy.loadout.length, max: LOADOUT_MAX }),
+        ...(affordable ? { pending: '✓' } : {}),
+        enabled: true,
+        open: () => { this.returnMode = 'dynasty'; this.mode = 'legacy'; this.render(); },
+      });
+    }
+    doors.push({
+      label: t('coronation.temple'),
+      sub: crowned ? t('coronation.temple.sub') : t('coronation.temple.uncrowned'),
+      enabled: crowned,
+      open: () => { this.returnMode = 'dynasty'; this.mode = 'temple'; this.render(); },
+    });
+    // Owed rows first; otherwise the order above. Both halves keep it, so the page is stable.
+    const ordered = [...doors.filter((door) => door.pending), ...doors.filter((door) => !door.pending)];
+
+    const header = this.ui.label(PAD, y, t('dynasty.page.actNow'), 'caption',
+      { fontSize: '10px', backgroundColor: 'rgba(243,230,196,0.82)', padding: { x: 4, y: 1 } });
+    body.add(header);
+    y += header.height + 5;
+
+    let primaryGiven = false;
+    for (const door of ordered) {
+      const primary = Boolean(door.pending) && !primaryGiven;
+      if (primary) primaryGiven = true;
+      body.add(this.ui.button({ x: PAD, y, width: W, height: ROW }, door.label,
+        () => { if (door.enabled) door.open(); },
+        { variant: !door.enabled ? 'disabled' : primary ? 'primary' : 'secondary', fontSize: '12.5px', subLabel: door.sub }));
+      if (door.pending) {
+        // The pill: the count on the row's right end, in the page's own cinnabar.
+        const count = this.ui.label(0, 0, door.pending, 'label', { fontSize: '11px', color: '#f3e6c4', align: 'center' }).setOrigin(0.5);
+        const pillW = Math.max(22, Math.ceil(count.width) + 12);
+        const pill = this.add.graphics();
+        pill.fillStyle(INK_UI.cinnabar, 1);
+        // On the row's midline: a pill in the top half read as a corner mark, not the row's count.
+        pill.fillRoundedRect(PAD + W - 12 - pillW, y + ROW / 2 - 10, pillW, 20, 10);
+        body.add(pill);
+        count.setPosition(PAD + W - 12 - pillW / 2, y + ROW / 2);
+        body.add(count);
+      }
+      y += ROW + 6;
+    }
+    return y + 6;
+  }
+
+  /**
+   * The law that carries over, when there is any. A row that said "none yet" under the doors
+   * taught nothing and pushed them further down; the next-reign screen still says it there.
+   */
+  private drawDynastyCode(
+    body: Phaser.GameObjects.Container,
+    legacy: ReturnType<typeof getLegacy>,
+    PAD: number,
+    W: number,
+    y: number,
+  ): number {
+    const codeCount = (legacy.codes ?? []).length;
+    if (codeCount === 0) return y;
+    const ROW = 38;
+    body.add(this.ui.panel({ x: PAD, y, width: W, height: ROW }, { border: INK_UI.jade, fillAlpha: 0.9 }));
+    body.add(this.ui.label(PAD + 10, y + 6, t('dynasty.codeLabel'), 'label', { fontSize: '11.5px', color: '#1c6b58' }));
+    body.add(this.ui.label(PAD + 10, y + 22, t('dynasty.next.codeSome', { n: codeCount }), 'caption',
+      { fontSize: '9.5px', wordWrap: { width: W - 20 } }));
+    return y + ROW + 10;
+  }
+
+  /**
+   * One trait's sheet: the effect, what changes, when it applies, and since when.
+   *
+   * Slides up rather than appearing — 260 ms, or the reduced beat — so the page and the sheet read
+   * as one surface with a layer on it, not as a page replaced. The blocker fades only; a full
+   * screen veil that slid would drag the whole page with it.
+   */
+  private openTraitSheet(id: string): void {
+    this.closeModal();
+    const store = getDynasty();
+    const held = store.traits.includes(id);
+    const since = dynastyHistory(store).find((record) => record.trait === id);
+    const modal = this.ui.modal({
+      title: t(`dynasty.trait.${id}` as Parameters<typeof t>[0]),
+      subtitle: held
+        ? (since ? t('dynasty.page.heldSince', { n: since.n }) : t('dynasty.page.heldFrom'))
+        : t('dynasty.page.notHeld'),
+      onClose: () => this.closeModal(),
+      height: held ? 372 : 320,
+    });
+    this.modalObjects.push(...modal.objects);
+    this.armSheetDismiss(modal.panelBounds);
+    const { contentBounds } = modal;
+    const x = contentBounds.x + 4;
+    const width = contentBounds.width - 8;
+    let cursor = contentBounds.y + 4;
+    const rows: Phaser.GameObjects.GameObject[] = [];
+
+    const effect = this.ui.label(x, cursor, t(`dynasty.trait.${id}.d` as Parameters<typeof t>[0]), 'body',
+      { fontSize: '12.5px', wordWrap: { width } });
+    rows.push(effect);
+    cursor += effect.height + 14;
+
+    const section = (head: string, text: string, color: string) => {
+      const heading = this.ui.label(x, cursor, head, 'caption', { fontSize: '9px', color });
+      heading.setLetterSpacing?.(1.6);
+      rows.push(heading);
+      cursor += 14;
+      const line = this.ui.label(x, cursor, text, 'label', { fontSize: '12px', wordWrap: { width } });
+      rows.push(line);
+      cursor += line.height + 12;
+    };
+    section(t('dynasty.page.delta'), t(`dynasty.trait.${id}.delta` as Parameters<typeof t>[0]), '#8a5f1c');
+    section(t('dynasty.page.when'), t(`dynasty.trait.${id}.when` as Parameters<typeof t>[0]), '#1c6b58');
+    if (held) {
+      // How often it has already paid — counted at the read site, never estimated.
+      const used = traitUses(id, store);
+      section(t('dynasty.page.usedHead'), used > 0 ? t('dynasty.page.used', { n: used }) : t('dynasty.page.usedNone'), '#6b5a44');
+    }
+    // Where the one way back lives, and how the sheet closes — said once, quietly.
+    rows.push(this.ui.label(x, cursor + 2, held ? t('dynasty.page.respecHint') : t('dynasty.page.sheetHint'), 'caption',
+      { fontSize: '9.5px', color: '#8a7a60', wordWrap: { width } }));
+    this.modalObjects.push(...rows);
+
+    this.riseSheet([...modal.objects, ...rows]);
+  }
+
+  /**
+   * The slide every sheet on this page arrives with: everything but the veil rises 28 units into
+   * place over 260 ms (the reduced beat under the motion setting); the veil only fades. A sheet
+   * that simply appears reads as a page replaced; one that rises reads as a layer on the page.
+   */
+  private riseSheet(objects: Phaser.GameObjects.GameObject[]): void {
+    const rise = motionMs(260);
+    for (const object of objects) {
+      const target = object as Phaser.GameObjects.GameObject & { y?: number; alpha?: number; height?: number; setAlpha?: (a: number) => unknown; setY?: (y: number) => unknown };
+      if (typeof target.y !== 'number' || typeof target.setAlpha !== 'function') continue;
+      const veil = (target.height ?? 0) >= GAME_HEIGHT - 30;
+      const restY = target.y;
+      target.setAlpha(0);
+      if (!veil) target.setY?.(restY + 28);
+      this.tweens.add({
+        targets: target,
+        alpha: veil ? 0.88 : 1,
+        ...(veil ? {} : { y: restY }),
+        duration: rise,
+        ease: 'Cubic.easeOut',
+      });
+    }
   }
 
   /**
@@ -3601,15 +4023,43 @@ export class MenuScene extends Phaser.Scene {
      * while a choice is owed the seal is already carrying the more urgent number, and the score is
      * on the sheet one tap away either way.
      */
-    tablet.add(this.ui.label(textX, statsY,
-      opened
-        ? t(owed ? 'dynasty.tabletStatsShort' : 'dynasty.tabletStats', {
-          n: store.reigns,
-          level: store.level,
-          score: store.bestScore.toLocaleString('en-US'),
-        })
-        : t('dynasty.tabletInvite'),
-      'caption', { fontSize: '9.5px', wordWrap: { width: textWidth } }));
+    /**
+     * The line is a delta, not a total.
+     *
+     * "Đời 5 · Cấp 3 · cao nhất 5,510" was three facts the player could not act on. What the
+     * front page should say is how far the next level is and what the last reign moved it by —
+     * the two numbers that make the tablet worth glancing at between runs. With a reign in
+     * play (`liveReign`, written at every wave held) it says that instead: the reign is the
+     * thing moving the bar right now. Fitted to the room: the long form is tried first and the
+     * short one printed when the seal or the portrait leaves no space for it.
+     */
+    const last = store.history[store.history.length - 1];
+    const short = Math.max(0, progress.need - progress.into).toLocaleString('en-US');
+    const lineArgs = { level: store.level, short, next: store.level + 1, score: (store.liveReign?.score ?? last?.score ?? 0).toLocaleString('en-US') };
+    // The promise the segment makes, said once the first time it appears: the score never
+    // falls, so a defeat still banks it. Marked before it is drawn, so a redraw does not repeat it.
+    const sayFloor = Boolean(store.liveReign) && !floorSaid();
+    if (sayFloor) noteFloorSaid();
+    const candidates = !opened
+      ? [t('dynasty.tabletInvite')]
+      : store.liveReign
+        ? [...(sayFloor ? [t('dynasty.tabletFloor')] : []), t('dynasty.tabletLive', lineArgs), t('dynasty.tabletLineShort', lineArgs)]
+        : last
+          ? [t('dynasty.tabletLine', lineArgs), t('dynasty.tabletLineShort', lineArgs)]
+          : [t(owed ? 'dynasty.tabletStatsShort' : 'dynasty.tabletStats', {
+            n: store.reigns, level: store.level, score: store.bestScore.toLocaleString('en-US'),
+          })];
+    let statsLine = candidates[candidates.length - 1];
+    for (const candidate of candidates) {
+      const probe = this.ui.label(0, -9999, candidate, 'caption', { fontSize: '9.5px' });
+      const fits = probe.width <= textWidth;
+      probe.destroy();
+      if (fits) {
+        statsLine = candidate;
+        break;
+      }
+    }
+    tablet.add(this.ui.label(textX, statsY, statsLine, 'caption', { fontSize: '9.5px', wordWrap: { width: textWidth } }));
 
     /**
      * The bar rides the foot of the board, inside the hairline — a rule that fills, not a widget.
@@ -3625,11 +4075,55 @@ export class MenuScene extends Phaser.Scene {
       const barY = height - 9;
       const barW = width - textX - 14;
       const bar = this.add.graphics();
-      bar.fillStyle(INK_UI.softBrush, 0.3);
-      bar.fillRoundedRect(textX, barY, barW, 4, 2);
-      bar.fillStyle(owed ? INK_UI.cinnabar : INK_UI.gold, 0.92);
-      bar.fillRoundedRect(textX, barY,
-        Math.max(4, barW * Math.min(1, progress.into / Math.max(1, progress.need))), 4, 2);
+      const fillNow = Math.min(1, progress.into / Math.max(1, progress.need));
+      // The reign in play, hatched beyond the banked fill: promised, not held.
+      const live = store.liveReign;
+      const liveTo = live && live.score > 0
+        ? (() => {
+          const ahead = dynastyProgressForXp(store.xp + live.score);
+          return ahead.level > store.level ? 1 : Math.min(1, ahead.into / Math.max(1, ahead.need));
+        })()
+        : fillNow;
+      const paint = (fill: number): void => {
+        bar.clear();
+        bar.fillStyle(INK_UI.softBrush, 0.3);
+        bar.fillRoundedRect(textX, barY, barW, 4, 2);
+        bar.fillStyle(owed ? INK_UI.cinnabar : INK_UI.gold, 0.92);
+        bar.fillRoundedRect(textX, barY, Math.max(4, barW * fill), 4, 2);
+        if (liveTo > fill) drawHatch(bar, textX + barW * fill, barY, barW * (liveTo - fill), 4, INK_UI.jade);
+      };
+      /**
+       * The pour, once per banked reign.
+       *
+       * The first time the front page is drawn after a reign banks, the bar fills from where it
+       * stood before that reign to where it stands now — the same passage the ceremony played,
+       * replayed on the tablet so the home page is where the progress is *seen* to land. Marked
+       * before the tween starts, so a redraw mid-pour (a settings change, a language switch)
+       * cannot replay it, and it never plays for a reign that banked on another day.
+       */
+      const poured = readPouredReign();
+      const lastScore = store.history[store.history.length - 1]?.score ?? 0;
+      if (store.reigns > poured && lastScore > 0 && motionMs(1400) > 0) {
+        notePouredReign(store.reigns);
+        const before = dynastyProgressForXp(Math.max(0, store.xp - lastScore));
+        const from = before.level < store.level ? 0 : Math.min(1, before.into / Math.max(1, before.need));
+        const counter = { v: from };
+        paint(from);
+        this.tweens.add({
+          targets: counter, v: fillNow, duration: motionMs(1400), delay: motionMs(300), ease: 'Cubic.easeOut',
+          onUpdate: () => { if (bar.active) paint(counter.v); },
+          onComplete: () => { if (bar.active) paint(fillNow); },
+        });
+        // The slip: "+3,120" rises off the bar's end, the way the run chip's does — the home
+        // page shows what changed without being opened.
+        const slip = this.ui.label(textX + barW, barY - 4, `+${lastScore.toLocaleString('en-US')}`, 'caption',
+          { fontSize: '10px', color: '#8a5f1c', fontStyle: '700', align: 'right' }).setOrigin(1, 1).setAlpha(0);
+        tablet.add(slip);
+        this.tweens.add({ targets: slip, alpha: 1, y: barY - 14, delay: motionMs(300), duration: motionMs(600), ease: 'Cubic.easeOut' });
+        this.tweens.add({ targets: slip, alpha: 0, y: barY - 26, delay: motionMs(1400), duration: motionMs(700), ease: 'Sine.easeIn' });
+      } else {
+        paint(fillNow);
+      }
       tablet.add(bar);
     }
 
@@ -3679,21 +4173,57 @@ export class MenuScene extends Phaser.Scene {
     tablet.setData('menuTablet', 'dynasty');
   }
 
+  /**
+   * The vault, as a page with one focus.
+   *
+   * It was twenty equal cards scrolling under a translucent masthead, over the front page's
+   * landscape: the mountains printed through the type, the previous card's button peeked out
+   * under the title, every button was the same grey, and nothing said what the page was for —
+   * *colours a mess, no focus, nobody knows what this is.* So: its own head on paper, like the
+   * ledger. A header that says the two things that matter — how many points you hold and what
+   * rides into the next reign, as three slots — and a list in four sections in the order a
+   * player acts on them: what is carried, what can be bought right now (the page's one primary),
+   * what is unlocked but set down, and what is still locked, cheapest first. Locked cards carry
+   * their price and the shortfall, not a row of empty dots and a dead button.
+   */
   private renderLegacyShop(): void {
     const legacy = getLegacy();
-    this.content.push(this.add.text(GAME_WIDTH / 2, this.vy(236), t('empire.legacy.shopTitle'), {
-      color: '#2a2118', fontFamily: TITLE_FONT, fontSize: '20px', fontStyle: '700', align: 'center',
-    }).setOrigin(0.5));
-    this.content.push(this.add.text(GAME_WIDTH / 2, this.vy(262), t('empire.legacy.banked', { total: legacy.points }), {
-      color: '#8a5f1c', fontFamily: UI_FONT, fontSize: '13px', align: 'center',
-    }).setOrigin(0.5));
+    const PAD = 20;
+    const W = GAME_WIDTH - PAD * 2;
+    const headTop = this.renderDynastyTitleBar(t('empire.legacy.shopTitle'), false) + 10;
+    // Paper under the whole page: the front page's landscape and seal are painted behind every
+    // mode, and the list scrolled over mountains. A shop is read on a plain sheet.
+    this.content.push(this.add.rectangle(0, 56, GAME_WIDTH, this.pageFloor() - 56, INK_UI.parchment, 0.96).setOrigin(0, 0));
 
-    /**
-     * Five cards do not fit a 620 sheet, and never did — the last one printed through the way back
-     * long before this phase. Same scrolling body as the ledger it now opens from; `addTo` parents
-     * the swallow-zone before the content, or the zone lands on top and eats every Buy.
-     */
-    const bodyTop = this.vy(288);
+    // ── The header: points, and the three slots that ride ──────────────────
+    const HEAD_H = 122;
+    this.content.push(this.ui.panel({ x: PAD, y: headTop, width: W, height: HEAD_H },
+      { border: INK_UI.gold, borderWidth: 1.4, fillAlpha: 1 }));
+    const pointsText = this.add.text(PAD + 14, headTop + 10, legacy.points.toLocaleString('en-US'), {
+      color: '#8a5f1c', fontFamily: TITLE_FONT, fontSize: '32px', fontStyle: '700',
+    }).setOrigin(0, 0);
+    this.content.push(pointsText);
+    this.content.push(this.ui.label(PAD + 14, headTop + 52, t('empire.legacy.pointsLabel'), 'caption',
+      { fontSize: '10px', color: '#8a5f1c' }));
+    this.content.push(this.ui.label(PAD + 14, headTop + 70, t('empire.legacy.howEarned'), 'caption',
+      { fontSize: '9px', color: '#8a7a60', wordWrap: { width: 140 } }));
+
+    const slotsX = PAD + 168;
+    const slotsW = W - 168 - 12;
+    this.content.push(this.ui.label(slotsX, headTop + 12,
+      t('empire.legacy.carryHead', { n: legacy.loadout.length, max: LOADOUT_MAX }), 'caption',
+      { fontSize: '9px', color: '#1c6b58' }));
+    for (let i = 0; i < LOADOUT_MAX; i += 1) {
+      const id = legacy.loadout[i];
+      const sy = headTop + 30 + i * 28;
+      this.content.push(this.ui.panel({ x: slotsX, y: sy, width: slotsW, height: 24 },
+        { border: id ? INK_UI.jade : INK_UI.softBrush, borderWidth: id ? 1.4 : 1, fillAlpha: id ? 0.9 : 0.3 }));
+      this.content.push(this.ui.label(slotsX + 8, sy + 5,
+        id ? `${i + 1} · ${t(`empire.legacy.perk.${id}` as Parameters<typeof t>[0])}` : `${i + 1} · ${t('empire.legacy.slotEmpty')}`,
+        id ? 'label' : 'caption', { fontSize: '10px', ...(id ? { color: '#1c6b58' } : { color: '#8a7a60' }) }));
+    }
+
+    const bodyTop = headTop + HEAD_H + 10;
     const viewport = this.pageFloor() - bodyTop;
     const area = this.ui.scrollArea({ x: 0, y: bodyTop, width: GAME_WIDTH, height: viewport });
     this.pageScroll = area;
@@ -3701,28 +4231,88 @@ export class MenuScene extends Phaser.Scene {
     area.addTo(layer);
     this.content.push(layer);
     const body = area.content;
-
     let y = 0;
-    for (const perk of LEGACY_PERKS) {
-      const owned = legacy.perks.includes(perk.id);
-      const affordable = legacy.points >= perk.cost;
-      body.add(this.ui.card({ x: 28, y, width: GAME_WIDTH - 56, height: 74 }, {
-        title: t(`empire.legacy.perk.${perk.id}` as Parameters<typeof t>[0]),
-        subtitle: owned ? t('empire.legacy.owned') : t('empire.legacy.cost', { cost: perk.cost }),
-        body: t(`empire.legacy.perk.${perk.id}.d` as Parameters<typeof t>[0]),
-        border: owned ? INK_UI.jade : affordable ? INK_UI.gold : INK_UI.softBrush,
-        muted: !owned && !affordable,
-        actionPlacement: 'right',
-        action: {
-          label: owned ? t('empire.legacy.ownedShort') : t('empire.legacy.buy'),
-          variant: owned ? 'disabled' : affordable ? 'primary' : 'disabled',
-          disabled: owned || !affordable,
-          onClick: () => {
-            if (purchaseLegacyPerk(perk.id)) this.render();
-          },
-        },
-      }));
-      y += 82;
+
+    // ── The four sections ──────────────────────────────────────────────────
+    const costOf = (perk: (typeof LEGACY_PERKS)[number]) => nextPerkCost(perk, perkLevel(perk.id, legacy));
+    const canBuy = (perk: (typeof LEGACY_PERKS)[number]) => { const c = costOf(perk); return c !== undefined && legacy.points >= c; };
+    const carried = LEGACY_PERKS.filter((perk) => isEquipped(perk.id, legacy));
+    const affordable = LEGACY_PERKS.filter((perk) => !isEquipped(perk.id, legacy) && canBuy(perk));
+    const ownedDown = LEGACY_PERKS.filter((perk) => !isEquipped(perk.id, legacy) && !canBuy(perk) && perkLevel(perk.id, legacy) > 0);
+    const locked = LEGACY_PERKS.filter((perk) => perkLevel(perk.id, legacy) === 0 && !canBuy(perk))
+      .sort((a, b) => (costOf(a) ?? Infinity) - (costOf(b) ?? Infinity));
+    const sections: Array<{ key: 'carried' | 'affordable' | 'owned' | 'locked'; title: string; perks: typeof LEGACY_PERKS }> = [
+      { key: 'carried', title: t('empire.legacy.sec.carried', { n: carried.length, max: LOADOUT_MAX }), perks: carried },
+      { key: 'affordable', title: t('empire.legacy.sec.affordable'), perks: affordable },
+      { key: 'owned', title: t('empire.legacy.sec.owned'), perks: ownedDown },
+      { key: 'locked', title: t('empire.legacy.sec.locked'), perks: locked },
+    ];
+    if (legacy.points === 0 && carried.length === 0 && ownedDown.length === 0) {
+      const note = this.ui.label(GAME_WIDTH / 2, y + 2, t('empire.legacy.nothingYet'), 'caption',
+        { fontSize: '10.5px', align: 'center', color: '#8a5f1c', wordWrap: { width: W } }).setOrigin(0.5, 0);
+      body.add(note);
+      y += note.height + 12;
+    }
+
+    for (const section of sections) {
+      if (section.perks.length === 0) continue;
+      const head = this.add.text(28, y, section.title.toLocaleUpperCase('vi'), {
+        color: section.key === 'affordable' ? '#a4402c' : '#2a2118', fontFamily: TITLE_FONT, fontSize: '12px', fontStyle: '700',
+      }).setOrigin(0, 0);
+      head.setLetterSpacing?.(1.2);
+      body.add(head);
+      body.add(this.add.rectangle(28, y + 20, GAME_WIDTH - 56, 1, section.key === 'affordable' ? INK_UI.cinnabar : INK_UI.gold, 0.7).setOrigin(0, 0));
+      y += 30;
+
+      for (const perk of section.perks) {
+        const level = perkLevel(perk.id, legacy);
+        const owned = level > 0;
+        const equipped = isEquipped(perk.id, legacy);
+        const cost = costOf(perk);
+        const affordableNow = cost !== undefined && legacy.points >= cost;
+        const pips = '●'.repeat(level) + '○'.repeat(PERK_MAX_LEVEL - level);
+        // The second line says the one thing to know: the level held and the next step's price,
+        // or the price and the shortfall. Empty dots on a locked card said nothing.
+        const nextLine = cost === undefined
+          ? t('empire.legacy.max')
+          : affordableNow
+            ? (owned ? t('empire.legacy.upgradeCost', { level: level + 1, cost }) : t('empire.legacy.cost', { cost }))
+            : t('empire.legacy.short', { cost, n: cost - legacy.points });
+        const subtitle = owned ? `${pips} ${t('empire.legacy.level', { level, max: PERK_MAX_LEVEL })} · ${nextLine}` : nextLine;
+        const shown = Math.max(1, level);
+        const bodyText = shown < PERK_MAX_LEVEL
+          ? `${perkDescription(perk, shown)}\n${t('empire.legacy.next', { level: shown + 1, text: perkDescription(perk, shown + 1) })}`
+          : perkDescription(perk, shown);
+        const action = affordableNow
+          ? { label: owned ? t('empire.legacy.upgrade') : t('empire.legacy.buy'), variant: 'primary' as const, onClick: () => { if (purchaseLegacyPerk(perk.id)) this.render(); } }
+          : cost === undefined
+            ? { label: t('empire.legacy.maxShort'), variant: 'disabled' as const, disabled: true, onClick: () => undefined }
+            : undefined;
+        const card = this.ui.card({ x: 28, y, width: GAME_WIDTH - 56, height: 74 }, {
+          title: t(`empire.legacy.perk.${perk.id}` as Parameters<typeof t>[0]),
+          subtitle,
+          body: bodyText,
+          border: equipped ? INK_UI.jade : affordableNow ? INK_UI.cinnabar : owned ? INK_UI.gold : INK_UI.softBrush,
+          borderWidth: affordableNow || equipped ? 1.6 : 1,
+          fillAlpha: 1,
+          muted: section.key === 'locked',
+          actionPlacement: 'right',
+          ...(action ? { action } : {}),
+        });
+        body.add(card);
+        y += ((card.getData('cardHeight') as number | undefined) ?? 74) + 4;
+        if (owned) {
+          const full = !equipped && legacy.loadout.length >= LOADOUT_MAX;
+          body.add(this.ui.button({ x: 28, y, width: GAME_WIDTH - 56, height: 26 },
+            equipped ? t('empire.legacy.equipped') : full ? t('empire.legacy.loadoutFull', { max: LOADOUT_MAX }) : t('empire.legacy.equip'),
+            () => { if (toggleLoadout(perk.id)) this.render(); },
+            { variant: equipped ? 'secondary' : full ? 'disabled' : 'ghost', fontSize: '10.5px' }));
+          y += 26 + 10;
+        } else {
+          y += 6;
+        }
+      }
+      y += 8;
     }
     area.setContentHeight(Math.max(viewport, y + 8));
 
@@ -3865,7 +4455,6 @@ export class MenuScene extends Phaser.Scene {
     // by a formula that did not know how many rows it held, so the last one hung out of the bottom
     // and the widest ones were cut off by its own border.
     const ROW_HEIGHT = 30;
-    const ROW_GAP = 12;
     const PAD = 18;
     const life = getLifeSettings();
     const onOff = [
@@ -3996,10 +4585,14 @@ export class MenuScene extends Phaser.Scene {
         build: (y) => this.renderSettingRow(
           { x: contentX, y, width: contentWidth, height: ROW_HEIGHT },
           t('menu.sounds'),
-          onOff,
-          soundDirector.isEnabled() ? 'on' : 'off',
+          // Three states on the one row rather than a MUSIC row under it: at 620 tall the extra
+          // row pushed the sheet up over the wordmark. "Effects" is the paper under the thumb with
+          // no bed — for a player who wants nothing that could ever read as a music player.
+          (['off', 'effects', 'all'] as const).map((id) => ({ id, label: t(`menu.sound.${id}` as 'menu.sound.off') })),
+          !soundDirector.isEnabled() ? 'off' : soundDirector.isMusicEnabled() ? 'all' : 'effects',
           (id) => {
-            soundDirector.setEnabled(id === 'on');
+            soundDirector.setEnabled(id !== 'off');
+            if (id !== 'off') soundDirector.setMusicEnabled(id === 'all');
             this.render();
           },
         ),
@@ -4013,6 +4606,21 @@ export class MenuScene extends Phaser.Scene {
           life.seasons ? 'on' : 'off',
           (id) => {
             setLifeSettings({ seasons: id === 'on' });
+            this.render();
+          },
+        ),
+      },
+      // How much the interface itself moves. The reign-end sequence and the ledger's page are
+      // choreographed; `reduced` cuts every one of those durations to a beat (`motionMs`).
+      {
+        name: t('menu.motion'),
+        build: (y) => this.renderSettingRow(
+          { x: contentX, y, width: contentWidth, height: ROW_HEIGHT },
+          t('menu.motion'),
+          MOTION_LEVELS.map((id) => ({ id, label: t(`menu.motion.${id}` as 'menu.motion.full') })),
+          life.motion,
+          (id) => {
+            setLifeSettings({ motion: id });
             this.render();
           },
         ),
@@ -4034,6 +4642,11 @@ export class MenuScene extends Phaser.Scene {
         ),
       },
     ];
+
+    // The gap between rows gives way before the plate climbs over the wordmark: ten rows at a
+    // 12-unit gap on the 620 clamp put the plate's head through the title, and the motion row
+    // is the tenth. Eight units still reads as a list; the rows are 30 tall.
+    const ROW_GAP = settings.length >= 10 ? 8 : 12;
 
     const title = this.add.text(GAME_WIDTH / 2, 0, t('menu.settingsTitle'), {
       color: '#2a2118',
@@ -4686,6 +5299,133 @@ export class MenuScene extends Phaser.Scene {
     }
     this.modalObjects = [];
     this.installModalOpen = false;
+    if (this.sheetDismiss) {
+      this.input.off('pointermove', this.sheetDismiss.move);
+      this.sheetDismiss = undefined;
+    }
+  }
+
+  /**
+   * A swipe across the lineage row browses it: forty units of travel moves the open card one
+   * step, once per press. Read off the move stream, which no button swallows.
+   */
+  private onLineageSwipe(pointer: Phaser.Input.Pointer): void {
+    const row = this.lineageSwipe;
+    if (!row || !pointer.isDown || this.mode !== 'dynasty' || this.modalObjects.length > 0) return;
+    if (row.handled === pointer.downTime) return;
+    const downY = pointer.downY;
+    if (downY < row.top || downY > row.bottom) return;
+    const dx = designLength(pointer.x - pointer.downX);
+    const dy = Math.abs(designLength(pointer.y - downY));
+    if (Math.abs(dx) < 40 || dy > 30) return;
+    row.handled = pointer.downTime;
+    const next = Phaser.Math.Clamp(row.selected + (dx < 0 ? 1 : -1), 0, row.count - 1);
+    if (next === row.selected) return;
+    this.dynastyReign = next;
+    this.dynastyCountIn = true;
+    this.render();
+  }
+
+  /** A banked reign's chronicle, as it was written, opened from its epitaph. */
+  private openChronicleSheet(record: ReignRecord): void {
+    this.closeModal();
+    const lines = record.chronicle ?? [];
+    const modal = this.ui.modal({
+      title: t('dynasty.page.chronicleTitle', { n: record.n }),
+      subtitle: t('dynasty.page.epitaph', {
+        waves: record.waves, lands: record.lands,
+        ending: t(record.ending === 'collapse' ? 'dynasty.page.ending.collapse' : 'dynasty.page.ending.conquest'),
+      }),
+      onClose: () => this.closeModal(),
+      height: Math.min(GAME_HEIGHT - 24, 104 + 66 + 24 + Math.max(1, lines.length) * 34),
+    });
+    this.modalObjects.push(...modal.objects);
+    this.armSheetDismiss(modal.panelBounds);
+    const { contentBounds } = modal;
+    let cursor = contentBounds.y + 4;
+    if (lines.length === 0) {
+      this.modalObjects.push(this.ui.label(contentBounds.x + 4, cursor, t('dynasty.page.chronicleNone'), 'caption', { fontSize: '10.5px' }));
+      return;
+    }
+    for (const line of lines) {
+      const text = this.ui.label(contentBounds.x + 4, cursor, `· ${line}`, 'caption', { fontSize: '10.5px', wordWrap: { width: contentBounds.width - 8 } });
+      this.modalObjects.push(text);
+      cursor += text.height + 6;
+      if (cursor > contentBounds.y + contentBounds.height - 12) break;
+    }
+    this.riseSheet(this.modalObjects.filter((o) => !(o instanceof Phaser.GameObjects.Rectangle && o.width < GAME_WIDTH)));
+  }
+
+  /**
+   * A sheet closes the way a sheet does: a tap outside its panel, or a swipe down across it.
+   *
+   * Registered on the scene's own pointer stream because the modal's blocker swallows both
+   * halves of a press on purpose (the press-through fix), so a listener on the blocker would
+   * never hear the release. Removed by `closeModal`, whichever way the sheet went.
+   */
+  private armSheetDismiss(panel: UIBounds): void {
+    // The blocker swallows both halves of a press (the press-through fix) and stops propagation,
+    // so a scene-level release would never arrive. Four hit rectangles around the panel take the
+    // tap outside instead; they sit above the blocker because they are made after it.
+    const outside = [
+      { x: 0, y: 0, w: GAME_WIDTH, h: panel.y },
+      { x: 0, y: panel.y + panel.height, w: GAME_WIDTH, h: GAME_HEIGHT - panel.y - panel.height },
+      { x: 0, y: panel.y, w: panel.x, h: panel.height },
+      { x: panel.x + panel.width, y: panel.y, w: GAME_WIDTH - panel.x - panel.width, h: panel.height },
+    ];
+    let live = false;
+    for (const box of outside) {
+      if (box.w <= 0 || box.h <= 0) continue;
+      const zone = this.add.rectangle(box.x, box.y, box.w, box.h, 0xffffff, 0.001).setOrigin(0, 0).setInteractive();
+      zone.on('pointerup', (_p: Phaser.Input.Pointer, _x: number, _y: number, event: Phaser.Types.Input.EventData) => {
+        event.stopPropagation();
+        if (live) this.closeModal();
+      });
+      this.modalObjects.push(zone);
+    }
+    // The swipe down across the sheet: the move stream is not swallowed, and the pointer knows
+    // where it went down. Measured in design units, so a render scale does not change the feel.
+    const move = (pointer: Phaser.Input.Pointer): void => {
+      if (!live || !pointer.isDown) return;
+      if (designLength(pointer.y - pointer.downY) > 48) this.closeModal();
+    };
+    this.sheetDismiss = { move };
+    this.input.on('pointermove', move);
+    // Next frame, not now: the press that opened the sheet must not also close it.
+    this.time.delayedCall(0, () => { live = true; });
+  }
+
+  /**
+   * Every reign the house remembers, as a sheet — opened from the lineage row's "N earlier" stub.
+   */
+  private openReignsSheet(): void {
+    this.closeModal();
+    const store = getDynasty();
+    const history = dynastyHistory(store);
+    const ROW = 30;
+    const modal = this.ui.modal({
+      title: t('dynasty.page.allReigns'),
+      subtitle: t('dynasty.page.best', { score: store.bestScore.toLocaleString('en-US') }),
+      onClose: () => this.closeModal(),
+      height: Math.min(GAME_HEIGHT - 24, 104 + 66 + 16 + history.length * ROW),
+    });
+    this.modalObjects.push(...modal.objects);
+    this.armSheetDismiss(modal.panelBounds);
+    const { contentBounds } = modal;
+    let cursor = contentBounds.y + 4;
+    [...history].reverse().forEach((record) => {
+      const best = record.score > 0 && record.score === store.bestScore;
+      const line = `${t('dynasty.page.reign', { n: record.n })}${best ? ` · ${t('dynasty.page.record')}` : ''} · ${t('dynasty.page.epitaph', {
+        waves: record.waves, lands: record.lands,
+        ending: t(record.ending === 'collapse' ? 'dynasty.page.ending.collapse' : 'dynasty.page.ending.conquest'),
+      })}${record.trait ? ` · ${t(`dynasty.trait.${record.trait}` as Parameters<typeof t>[0])}` : ''}`;
+      this.modalObjects.push(this.ui.label(contentBounds.x + 4, cursor, line, 'caption',
+        { fontSize: '10px', wordWrap: { width: contentBounds.width - 70 }, ...(best ? { color: '#8a5f1c' } : {}) }));
+      this.modalObjects.push(this.ui.label(contentBounds.x + contentBounds.width - 4, cursor, record.score.toLocaleString('en-US'), 'label',
+        { fontSize: '12px', align: 'right', ...(best ? { color: '#8a5f1c' } : {}) }).setOrigin(1, 0));
+      cursor += ROW;
+    });
+    this.riseSheet(this.modalObjects.filter((o) => !(o instanceof Phaser.GameObjects.Rectangle && o.width < GAME_WIDTH)));
   }
 
   // ── Putting the game on the home screen ───────────────────────────────────
@@ -5130,4 +5870,88 @@ function createMenuRng(seed: number): () => number {
     value = (value * 1664525 + 1013904223) >>> 0;
     return value / 0x100000000;
   };
+}
+
+/**
+ * A hatched band: what is promised, drawn distinct from what is banked.
+ *
+ * Thin bars on a stride rather than a lighter fill — a second solid tone read as a second
+ * bar, and the difference between *held* and *would hold if the reign ended now* is the
+ * whole thing the segment is there to say.
+ */
+function drawHatch(g: Phaser.GameObjects.Graphics, x: number, y: number, width: number, height: number, colour: number): void {
+  if (width <= 1) return;
+  g.fillStyle(colour, 0.72);
+  for (let cursor = x; cursor < x + width; cursor += 4) {
+    g.fillRect(cursor, y, Math.min(2, x + width - cursor), height);
+  }
+}
+
+/**
+ * Which reign's chosen trait the ledger has already marked as new, so the mark shows once.
+ *
+ * Its own key rather than a field on the dynasty store: the store is the record and this is a
+ * fact about the page, and a store field would have made every harness fixture carry it.
+ */
+const SEEN_TRAIT_KEY = 'mandate:dynasty:seen-trait:v1';
+
+function readSeenTrait(): number {
+  try {
+    return Number(localStorage.getItem(SEEN_TRAIT_KEY) ?? 0) || 0;
+  } catch {
+    return 0;
+  }
+}
+
+function noteSeenTrait(reign: number): void {
+  try {
+    localStorage.setItem(SEEN_TRAIT_KEY, String(reign));
+  } catch {
+    // Nothing to do: the mark shows again next visit, which is the harmless failure.
+  }
+}
+
+/** The reign count the tablet last poured for — see the pour in `renderDynastyTablet`. */
+const POURED_KEY = 'mandate:dynasty:poured:v1';
+
+function readPouredReign(): number {
+  try {
+    const raw = localStorage.getItem(POURED_KEY);
+    // A fresh install with reigns already banked (an imported save) must not replay every reign
+    // it never saw: nothing recorded means "caught up to now".
+    if (raw === null) {
+      notePouredReign(getDynasty().reigns);
+      return getDynasty().reigns;
+    }
+    return Number(raw) || 0;
+  } catch {
+    return Number.MAX_SAFE_INTEGER;
+  }
+}
+
+function notePouredReign(reign: number): void {
+  try {
+    localStorage.setItem(POURED_KEY, String(reign));
+  } catch {
+    // Storage refused: the pour simply plays again next time, which is harmless.
+  }
+}
+
+/** Whether the tablet has said the live segment's promise — the score never falls — once. */
+const FLOOR_SAID_KEY = 'mandate:dynasty:floor-said:v1';
+
+function floorSaid(): boolean {
+  try {
+    return localStorage.getItem(FLOOR_SAID_KEY) === '1';
+  } catch {
+    return true;
+  }
+}
+
+function noteFloorSaid(): void {
+  try {
+    localStorage.setItem(FLOOR_SAID_KEY, '1');
+  } catch {
+    // Said again next time; harmless.
+  }
 }

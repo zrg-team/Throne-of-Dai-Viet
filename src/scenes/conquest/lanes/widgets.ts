@@ -232,19 +232,25 @@ export function showHeroPicker(self: ConquestUIScene, opts: {
         row.isBest ? t('ascent.pick.recommended') : '',
       ].filter(Boolean);
       const blocked = Boolean(row.blockedReason);
+      // A hero already at work is marked before anything else is read: the post is the first
+      // line, the card wears a cinnabar status and border. Choosing them pulls them off that post
+      // — which the confirm page repeats — so the mark is where the thumb lands.
+      const busy = Boolean(row.hero.assignedTo) && !row.isCurrent && !blocked;
       addRow(
         {
           title: tags.length > 0 ? `${heroTitleLine(row.hero)}\n${tags.join('  ·  ')}` : heroTitleLine(row.hero),
           subtitle: [
+            busy ? t('ascent.pick.busyLine', { post: row.postingLine }) : '',
             blocked ? row.blockedReason : row.effectLine,
-            row.postingLine,
+            busy ? '' : row.postingLine,
             row.vacates ?? '',
             row.statsLine,
             row.flavour,
           ].filter(Boolean).join('\n'),
-          border: row.isCurrent ? INK_UI.gold : blocked ? INK_UI.softBrush : row.isBest ? INK_UI.jade : INK_UI.brush,
+          border: row.isCurrent ? INK_UI.gold : blocked ? INK_UI.softBrush : busy ? INK_UI.cinnabar : row.isBest ? INK_UI.jade : INK_UI.brush,
           muted: blocked,
           portrait: row.hero,
+          ...(busy ? { status: t('ascent.pick.busy') } : {}),
         },
         blocked || row.isCurrent
           ? undefined

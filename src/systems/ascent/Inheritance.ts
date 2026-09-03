@@ -1,6 +1,6 @@
 import type { GameState } from '../../state/types';
-import { computeRunScore, getLegacy, LEGACY_PERKS, nextRankAbove, rankForScore } from '../../state/legacy';
-import { dynastyXpStep, getDynasty, isCrowned, levelForXp } from '../../state/dynasty';
+import { computeRunScore, getLegacy, LEGACY_PERKS, nextPerkCost, nextRankAbove, perkLevel, rankForScore } from '../../state/legacy';
+import { dynastyXpStep, getDynasty, isCrowned, levelForXp, noteLiveReign as writeLiveReign } from '../../state/dynasty';
 import { combineCost, deedDone, getCabinet, meltValue } from '../../state/cabinet';
 import { DYNASTY_TRAITS } from '../../data/dynastyTraits';
 import { findPowerCard } from '../../data/ascentCards';
@@ -123,9 +123,10 @@ export function readInheritance(state: GameState): InheritanceLedger | undefined
   const legacyEarned = Math.round(score / 10);
   const legacyTotalAfter = legacy.points + legacyEarned;
   const cheapest = LEGACY_PERKS
-    .filter((perk) => !legacy.perks.includes(perk.id))
+    .map((perk) => ({ perk, cost: nextPerkCost(perk, perkLevel(perk.id, legacy)) }))
+    .filter((entry): entry is { perk: typeof entry.perk; cost: number } => entry.cost !== undefined)
     .sort((a, b) => a.cost - b.cost)[0];
-  const nextPerk = cheapest ? { id: cheapest.id, short: Math.max(0, cheapest.cost - legacyTotalAfter) } : undefined;
+  const nextPerk = cheapest ? { id: cheapest.perk.id, short: Math.max(0, cheapest.cost - legacyTotalAfter) } : undefined;
 
   // ── Record ──
   const bestScore = legacy.bestScore;
@@ -181,4 +182,19 @@ export function noteRubbing(state: GameState, count = 1): void {
   const ascent = state.ascent;
   if (!ascent || count <= 0) return;
   ascent.rubbingsEarned = (ascent.rubbingsEarned ?? 0) + count;
+}
+
+/**
+ * Writes the reign in progress into the house's store, from the same reading the chip shows.
+ *
+ * Called when the run is written down (the away pause's autosave) and at every wave held, so the
+ * home page can draw a paused run's progress. A run that has already banked writes nothing: the
+ * banked number is the truth and the live line would only contradict it.
+ */
+export function noteLiveReign(state: GameState): void {
+  const ascent = state.ascent;
+  if (!ascent || state.gameMode !== 'ascent' || state.legacyBanked || ascent.arena) return;
+  const ledger = readInheritance(state);
+  if (!ledger) return;
+  writeLiveReign({ score: ledger.score, levelAfter: ledger.houseLevelAfter, waves: ascent.wavesSurvived });
 }

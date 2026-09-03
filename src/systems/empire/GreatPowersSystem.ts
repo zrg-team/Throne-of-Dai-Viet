@@ -59,22 +59,46 @@ export function initEmpireSim(kingdom: Kingdom): void {
   kingdom.age ??= rand(8);
 }
 
-// A pool of realm names a fallen empire can be reborn under.
-const EMPIRE_NAMES = [
-  'Đại Nam', 'Xích Quỷ', 'Văn Lang', 'Âu Lạc', 'Nam Việt', 'Vạn Xuân', 'Lâm Ấp',
-  'Chiêm Thành', 'Phù Nam', 'Chân Lạp', 'Đại Lý', 'Nam Chiếu', 'Cao Miên', 'Xiêm La',
-  'Ai Lao', 'Bồn Man', 'Thủy Xá', 'Hỏa Xá', 'Đại Cồ Việt',
-];
-const ROYAL_NAMES = [
-  'Lý Công Uẩn', 'Trần Hưng Đạo', 'Nguyễn Ánh', 'Lê Lợi', 'Đinh Tiên Hoàng',
-  'Trịnh Kiểm', 'Hồ Quý Ly', 'Mạc Đăng Dung', 'Lý Thường Kiệt', 'Trần Thủ Độ',
-];
+/**
+ * The realms a fallen empire can be reborn under — **the neighbours, never a Việt kingdom.**
+ *
+ * The pool used to open with Đại Nam, Văn Lang, Âu Lạc, Nam Việt, Vạn Xuân and Đại Cồ Việt, and
+ * the rival kings were Lý Công Uẩn and Trần Hưng Đạo: the player's own history, marching against
+ * them. Reported verbatim: *those enemies and their army styles must not be Vietnamese kingdoms*.
+ * The hosts were already dressed as the neighbours (`ENEMY_WARDROBES` is Song, Yuan, Ming, Qing,
+ * Chăm); the names now agree, and a reborn realm draws its name from the people its wardrobe
+ * belongs to, so a Ming-dressed host is not called Chiêm Thành.
+ */
+const EMPIRE_NAMES: Record<'han' | 'champa' | 'south', string[]> = {
+  // The northern courts, by the dynasty and the name they went by.
+  han: ['Nam Hán', 'Đại Tống', 'Đại Nguyên', 'Đại Minh', 'Đại Thanh', 'Nam Chiếu', 'Đại Lý'],
+  // The Chăm polities and the coast south of them.
+  champa: ['Chiêm Thành', 'Lâm Ấp', 'Hoàn Vương', 'Vijaya', 'Panduranga'],
+  // The Khmer, Tai and Lao realms to the south and west.
+  south: ['Phù Nam', 'Chân Lạp', 'Cao Miên', 'Xiêm La', 'Ai Lao', 'Lan Xang', 'Bồn Man', 'Thủy Xá', 'Hỏa Xá'],
+};
+const ROYAL_NAMES: Record<'han' | 'champa' | 'south', string[]> = {
+  han: ['Lưu Cung', 'Triệu Quang Nghĩa', 'Quách Quỳ', 'Thoát Hoan', 'Ô Mã Nhi', 'Trương Phụ', 'Liễu Thăng', 'Tôn Sĩ Nghị'],
+  champa: ['Chế Bồng Nga', 'Chế Mân', 'Chế Củ', 'Phạm Văn', 'Harivarman', 'Indravarman'],
+  south: ['Jayavarman', 'Suryavarman', 'Fa Ngum', 'Phra Naret', 'Setthathirath', 'Chao Anou'],
+};
+/** Which name pool a realm draws from: the people its hosts are dressed as. */
+function namePoolFor(kingdom: Kingdom): 'han' | 'champa' | 'south' {
+  const wardrobe = kingdom.wardrobe;
+  if (wardrobe === 'champa') return Math.random() < 0.5 ? 'champa' : 'south';
+  if (wardrobe === 'song' || wardrobe === 'yuan' || wardrobe === 'ming' || wardrobe === 'qing') return 'han';
+  return (['han', 'champa', 'south'] as const)[rand(3)];
+}
 const PERSONALITIES: KingdomPersonality[] = ['aggressive', 'defensive', 'economic', 'diplomatic', 'expansionist'];
 
-function pickEmpireName(state: GameState): string {
+function pickEmpireName(state: GameState, kingdom: Kingdom): string {
   const used = new Set(state.kingdoms.map((k) => k.name));
-  const free = EMPIRE_NAMES.filter((n) => !used.has(n));
-  return (free.length > 0 ? free : EMPIRE_NAMES)[rand((free.length > 0 ? free : EMPIRE_NAMES).length)];
+  const pool = EMPIRE_NAMES[namePoolFor(kingdom)];
+  const all = Object.values(EMPIRE_NAMES).flat();
+  const free = pool.filter((n) => !used.has(n));
+  const from = free.length > 0 ? free : all.filter((n) => !used.has(n));
+  const list = from.length > 0 ? from : all;
+  return list[rand(list.length)];
 }
 
 /** A fallen empire is reborn as a new realm in the same slot — a "new empire rises". */
@@ -87,9 +111,10 @@ function rebirthEmpire(state: GameState, kingdom: Kingdom): void {
     kingdom.ambassadorHeroId = undefined;
   }
   const personality = PERSONALITIES[rand(PERSONALITIES.length)];
-  kingdom.name = pickEmpireName(state);
+  kingdom.name = pickEmpireName(state, kingdom);
   kingdom.personality = personality;
-  kingdom.king = { name: ROYAL_NAMES[rand(ROYAL_NAMES.length)], personality, age: 0 };
+  const kings = ROYAL_NAMES[namePoolFor(kingdom)];
+  kingdom.king = { name: kings[rand(kings.length)], personality, age: 0 };
   kingdom.power = 26 + rand(12);
   kingdom.stability = 44 + rand(16);
   kingdom.age = 0;
@@ -158,7 +183,8 @@ export function tickGreatPowersYear(state: GameState): void {
       const deathChance = 0.02 + k.king.age * 0.012;
       if (Math.random() < deathChance) {
         const personality = PERSONALITIES[rand(PERSONALITIES.length)];
-        const heir = ROYAL_NAMES[rand(ROYAL_NAMES.length)];
+        const heirs = ROYAL_NAMES[namePoolFor(k)];
+        const heir = heirs[rand(heirs.length)];
         const old = k.king.name;
         k.king = { name: heir, personality, age: 0 };
         k.personality = personality;

@@ -223,7 +223,7 @@ export function laneList(self: ConquestUIScene,
 ): {
   content: UIBounds;
   addRow: (
-    opts: { title: string; subtitle: string; border: number; muted?: boolean; portrait?: Hero },
+    opts: { title: string; subtitle: string; border: number; muted?: boolean; portrait?: Hero; status?: string },
     onTap?: () => void,
   ) => void;
   addHeading: (title: string, hint?: string) => void;
@@ -353,7 +353,7 @@ export function laneList(self: ConquestUIScene,
   let y = 0;
 
   const addRow = (
-    opts: { title: string; subtitle: string; border: number; muted?: boolean; portrait?: Hero },
+    opts: { title: string; subtitle: string; border: number; muted?: boolean; portrait?: Hero; status?: string },
     onTap?: () => void,
   ) => {
     // A portrait sits in its own column beside the card, so a hero row is recognisable at a

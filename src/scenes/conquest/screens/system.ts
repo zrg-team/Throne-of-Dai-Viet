@@ -84,6 +84,34 @@ export function showSystemMenu(self: ConquestUIScene): void {
     },
   );
 
+  // The bar's hint card, on or off for this run. A card that appears over the bar every time
+  // the advice changes is a help to a new player and a nuisance to one who knows the lanes; a
+  // setting the player can see is a setting they can reverse.
+  const hintsMuted = self.state.ascent?.barHintsMuted ?? false;
+  item(
+    hintsMuted ? t('ascent.sys.hintsOff') : t('ascent.sys.hintsOn'),
+    'secondary',
+    () => {
+      if (self.state.ascent) self.state.ascent.barHintsMuted = !hintsMuted;
+      self.state.isStrategyPause = self.lanePauseBeforeOpen;
+      self.closeOverlay();
+      showSystemMenu(self);
+    },
+  );
+
+  // Hands-on rule (tự tay cai trị), on or off for this run — the same switch the mandate card offers at the founding.
+  const hardcore = self.state.ascent?.hardcore ?? false;
+  item(
+    hardcore ? t('ascent.sys.hardcoreOn') : t('ascent.sys.hardcoreOff'),
+    hardcore ? 'danger' : 'secondary',
+    () => {
+      if (self.state.ascent) self.state.ascent.hardcore = !hardcore;
+      self.state.isStrategyPause = self.lanePauseBeforeOpen;
+      self.closeOverlay();
+      showSystemMenu(self);
+    },
+  );
+
   // The collection. It used to be a button on the Reckoning, sharing the last row with the way
   // out of the run — a list of "???" rows competing for the foot of the one page a run has to say
   // what the reign did. It is chrome, so it lives with the chrome; without this row it would be

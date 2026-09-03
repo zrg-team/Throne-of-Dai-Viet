@@ -14,23 +14,177 @@
  * tracks by a composer, playing only where the game asked for them: under a battle, very quietly,
  * and never anywhere else.
  *
- * Not Phaser's SoundManager. The effects are built, not loaded, and the music streams through an
- * `<audio>` element; what the manager would have given us is four lines — the context is built
- * inside the first press (a user gesture by construction, so the autoplay policy is satisfied
- * rather than negotiated) and everything suspends when the tab goes away.
+ * Not Phaser's SoundManager. The effects are built, not loaded, and the music is decoded into
+ * the same context and played from buffers; what the manager would have given us is four lines —
+ * the context is built inside the first press (a user gesture by construction, so the autoplay
+ * policy is satisfied rather than negotiated) and everything suspends when the tab goes away.
+ *
+ * **Why the music is not an `<audio>` element any more.** It was, and the phone treated the game
+ * as a music player for it: a Now Playing card on the lock screen and in the Dynamic Island, a
+ * media notification on Android, transport controls for a bed that plays at eight percent under
+ * a map. That is what the OS does for any playing media element, and no `mediaSession` setting
+ * takes it back. Sound that comes out of an `AudioBufferSourceNode` is a game making a noise, not
+ * a track being played, and gets no card. The price is memory — a decoded minute of mono is
+ * eleven megabytes at the phone's rate — which is why every bed is capped at `BED_MAX_SECONDS`
+ * and the cache holds a couple of pieces, never the set. Reported as *"sound play feel like a
+ * music player (in lock screen, or island), not game music"*.
+ *
+ * Two switches, one above the other: SOUND is everything, MUSIC is the beds alone. A player who
+ * wants the paper under the thumb but nothing on the lock screen turns the second off.
  */
 
 const STORAGE_KEY = 'mandate:sound:v1';
 
-function readEnabled(): boolean {
-  if (typeof localStorage === 'undefined') return true;
+interface SoundSettings {
+  /** Everything the game is heard through. Off means silence, and the context is suspended. */
+  enabled: boolean;
+  /** The beds — menu, map, battle. Effects keep playing with this off. */
+  music: boolean;
+}
+
+function readSettings(): SoundSettings {
+  const fallback: SoundSettings = { enabled: true, music: true };
+  if (typeof localStorage === 'undefined') return fallback;
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return true;
-    return (JSON.parse(raw) as { enabled?: boolean }).enabled !== false;
+    if (!raw) return fallback;
+    const parsed = JSON.parse(raw) as { enabled?: boolean; music?: boolean };
+    return { enabled: parsed.enabled !== false, music: parsed.music !== false };
   } catch {
-    return true;
+    return fallback;
   }
+}
+
+/**
+ * The longest a bed is kept decoded. Every ambient piece is already trimmed to about a hundred
+ * seconds; the battle tracks are three to four minutes, and the first hundred seconds of a war
+ * march looped is a bed nobody notices repeating at twelve percent under a fight — while the
+ * whole track decoded would be forty megabytes of PCM on a phone that is also holding the map.
+ */
+const BED_MAX_SECONDS = 100;
+/** The fade baked on either side of a cut, so the loop seam is not a click. */
+const BED_SEAM_SECONDS = 1.2;
+/** Decoded pieces kept: the one playing on the map, the one under a fight, and one more. */
+const BED_CACHE = 3;
+
+/** Sources this module stopped on purpose, so their `ended` is not read as the piece finishing. */
+const stoppedByUs = new WeakSet<AudioBufferSourceNode>();
+
+/**
+ * One bed: a decoded piece, played from a buffer through its own gain, pausable.
+ *
+ * A buffer source cannot be paused, only stopped and started again from an offset, so the
+ * position is kept here. A context that is suspended (the tab hidden) freezes the source where it
+ * is and thaws it on resume, which is the pause a backgrounded fight needs for free.
+ */
+class Bed {
+  readonly gain: GainNode;
+  private source?: AudioBufferSourceNode;
+  private buffer?: AudioBuffer;
+  private startedAt = 0;
+  private offset = 0;
+  private loop = false;
+  /** The piece ran to its end (never true for a looping bed). */
+  ended = false;
+  onEnded?: () => void;
+
+  constructor(private readonly ctx: AudioContext) {
+    this.gain = ctx.createGain();
+    // Assigned, never scheduled — see the note in `battleMusic`.
+    this.gain.gain.value = 0.0001;
+    this.gain.connect(ctx.destination);
+  }
+
+  play(buffer: AudioBuffer, loop: boolean): void {
+    this.stopSource();
+    this.buffer = buffer;
+    this.loop = loop;
+    this.offset = 0;
+    this.ended = false;
+    this.startSource();
+  }
+
+  get playing(): boolean {
+    return this.source !== undefined;
+  }
+
+  /** Seconds into the piece, whether playing or paused. */
+  position(): number {
+    const buffer = this.buffer;
+    if (!buffer) return 0;
+    if (!this.source) return this.offset;
+    const at = this.offset + (this.ctx.currentTime - this.startedAt);
+    return this.loop ? at % buffer.duration : Math.min(at, buffer.duration);
+  }
+
+  pause(): void {
+    if (!this.source) return;
+    this.offset = this.position();
+    this.stopSource();
+  }
+
+  resume(): void {
+    if (this.source || !this.buffer || this.ended) return;
+    this.startSource();
+  }
+
+  dispose(): void {
+    this.stopSource();
+    this.buffer = undefined;
+    try { this.gain.disconnect(); } catch { /* context gone */ }
+  }
+
+  private startSource(): void {
+    const buffer = this.buffer;
+    if (!buffer) return;
+    const source = this.ctx.createBufferSource();
+    source.buffer = buffer;
+    source.loop = this.loop;
+    source.connect(this.gain);
+    source.onended = () => {
+      if (this.source === source) this.source = undefined;
+      if (stoppedByUs.has(source)) return;
+      this.ended = true;
+      this.offset = 0;
+      this.onEnded?.();
+    };
+    source.start(0, this.offset % buffer.duration);
+    this.startedAt = this.ctx.currentTime;
+    this.source = source;
+  }
+
+  private stopSource(): void {
+    const source = this.source;
+    if (!source) return;
+    this.source = undefined;
+    stoppedByUs.add(source);
+    try { source.stop(); } catch { /* never started */ }
+    try { source.disconnect(); } catch { /* already gone */ }
+  }
+}
+
+/**
+ * Cuts a decoded piece down to `BED_MAX_SECONDS` with a fade at either end of the cut, and hands
+ * the rest back to the garbage collector. A piece already inside the cap is returned untouched:
+ * the ambient set has its own fades baked in, and a second one would dent them.
+ */
+function capForLoop(ctx: AudioContext, buffer: AudioBuffer): AudioBuffer {
+  if (buffer.duration <= BED_MAX_SECONDS + 1) return buffer;
+  const rate = buffer.sampleRate;
+  const frames = Math.floor(BED_MAX_SECONDS * rate);
+  const seam = Math.floor(BED_SEAM_SECONDS * rate);
+  const cut = ctx.createBuffer(buffer.numberOfChannels, frames, rate);
+  for (let channel = 0; channel < buffer.numberOfChannels; channel += 1) {
+    const from = buffer.getChannelData(channel);
+    const to = cut.getChannelData(channel);
+    to.set(from.subarray(0, frames));
+    for (let i = 0; i < seam; i += 1) {
+      const k = i / seam;
+      to[i] *= k;
+      to[frames - 1 - i] *= k;
+    }
+  }
+  return cut;
 }
 
 /**
@@ -195,14 +349,15 @@ class SoundDirector {
   private ctx?: AudioContext;
   private out?: GainNode;
   private noise?: AudioBuffer;
-  private enabled = readEnabled();
+  private enabled = readSettings().enabled;
+  private musicEnabled = readSettings().music;
   /** Context time of the last voice played — see `claimVoice`. */
   private lastVoiceAt = -1;
+  /** Decoded pieces by URL, a few at a time — see `BED_CACHE`. */
+  private readonly buffers = new Map<string, Promise<AudioBuffer>>();
   /** The peaceful bed, and which screen asked for it. */
   private ambient?: {
-    el: HTMLAudioElement;
-    gain: GainNode;
-    source: MediaElementAudioSourceNode;
+    bed: Bed;
     scene: AmbientScene;
     /** The shuffled running order, and where in it we are. */
     queue: string[];
@@ -214,11 +369,22 @@ class SoundDirector {
   private pendingAmbient: AmbientScene = 'none';
   /** The bed under the current fight, if one is playing. */
   private music?: {
-    el: HTMLAudioElement;
-    gain: GainNode;
-    source: MediaElementAudioSourceNode;
+    bed: Bed;
     file: string;
   };
+  /**
+   * The fight's bed, paused where the field was left. Reported: *sound always starts from the
+   * beginning*. A fight left and re-entered — or the next fight on the same track — resumes from
+   * where it stopped instead of decoding and starting the piece over. One paused bed, not a
+   * cache of them: two fights on different tracks alternate, and the second replaces the first.
+   */
+  private pausedMusic?: { bed: Bed; file: string };
+  /**
+   * The peaceful bed, paused. The menu and the map are one piece of music as far as the player
+   * is concerned — one process, in their words — so leaving the map for the menu, or stopping
+   * the sound and starting it again, picks the set up where it was rather than reshuffling it.
+   */
+  private pausedAmbient?: { bed: Bed; scene: AmbientScene; queue: string[]; at: number };
 
   /**
    * **Any touch on the page counts as the gesture, not only a control.**
@@ -263,17 +429,10 @@ class SoundDirector {
       for (let i = 0; i < data.length; i += 1) data[i] = Math.random() * 2 - 1;
       document.addEventListener('visibilitychange', () => {
         if (!this.ctx) return;
-        if (document.hidden) {
-          void this.ctx.suspend();
-          // Suspending silences the graph but the element plays on underneath it, so a fight
-          // picked up after a minute away would resume a minute further into the track.
-          this.music?.el.pause();
-          this.ambient?.el.pause();
-        } else if (this.enabled) {
-          void this.ctx.resume();
-          void this.music?.el.play().catch(() => { /* nothing to do about a refusal */ });
-          if (!this.music) void this.ambient?.el.play().catch(() => { /* refused */ });
-        }
+        // Suspending the context freezes every buffer source where it is, so a fight picked up
+        // after a minute away resumes where it was left — the beds need no pause of their own.
+        if (document.hidden) void this.ctx.suspend();
+        else if (this.enabled) void this.ctx.resume();
       });
     }
     /**
@@ -298,8 +457,54 @@ class SoundDirector {
 
   /** Starts whatever screen asked for a bed while there was no context to play it into. */
   private startPendingAmbient(): void {
-    if (!this.enabled || this.ambient || this.pendingAmbient === 'none') return;
+    if (!this.enabled || !this.musicEnabled || this.ambient || this.pendingAmbient === 'none') return;
     this.ambientMusic(this.pendingAmbient);
+  }
+
+  /**
+   * A piece, decoded into the context and capped for looping — once per URL while it is cached.
+   *
+   * The callback form of `decodeAudioData`, because the promise form is missing on the Safari
+   * this game still meets in the wild; the wrapper is the same promise either way.
+   */
+  private decode(url: string): Promise<AudioBuffer> {
+    const ctx = this.ctx;
+    if (!ctx) return Promise.reject(new Error('no audio context'));
+    let pending = this.buffers.get(url);
+    if (!pending) {
+      pending = fetch(url)
+        .then((response) => {
+          if (!response.ok) throw new Error(`${response.status} for ${url}`);
+          return response.arrayBuffer();
+        })
+        .then((bytes) => new Promise<AudioBuffer>((resolve, reject) => {
+          void ctx.decodeAudioData(bytes, resolve, reject);
+        }))
+        .then((buffer) => capForLoop(ctx, buffer));
+      pending.catch(() => this.buffers.delete(url));
+      this.buffers.set(url, pending);
+      this.trimBuffers();
+    }
+    return pending;
+  }
+
+  /** Drops the oldest decoded pieces past the cap, never one that is playing. */
+  private trimBuffers(): void {
+    const inUse = new Set<string>();
+    if (this.ambient) inUse.add(this.ambientUrl(this.ambient.queue[this.ambient.at]));
+    if (this.music) inUse.add(this.battleUrl(this.music.file));
+    for (const key of this.buffers.keys()) {
+      if (this.buffers.size <= BED_CACHE) return;
+      if (!inUse.has(key)) this.buffers.delete(key);
+    }
+  }
+
+  private ambientUrl(file: string): string {
+    return `${import.meta.env.BASE_URL}audio/ambient/${file}`;
+  }
+
+  private battleUrl(file: string): string {
+    return `${import.meta.env.BASE_URL}audio/battle/${file}`;
   }
 
   /**
@@ -442,40 +647,75 @@ class SoundDirector {
    */
   ambientMusic(scene: AmbientScene): void {
     this.pendingAmbient = scene;
-    if (!this.enabled) return;
     if (scene === 'none') { this.stopAmbient(); return; }
+    if (!this.enabled || !this.musicEnabled) return;
     // Do not build a context for the menu's request; wait for the press that is coming anyway.
     if (!this.ctx || this.ctx.state !== 'running') return;
-    if (this.ambient?.scene === scene) return;
-    this.stopAmbient();
-
-    const ctx = this.ctx;
-    const queue = shuffled(AMBIENT_MUSIC[scene]);
-    const el = new Audio(`${import.meta.env.BASE_URL}audio/ambient/${queue[0]}`);
-    // **Not looped — sequenced.** Each piece plays once and hands over to the next after a short
-    // rest, and when the set is exhausted it is reshuffled. The element is reused rather than
-    // rebuilt: a `MediaElementAudioSourceNode` may only ever adopt one element, so the graph is
-    // built once here and every later piece is just a new `src` on the same element.
-    el.loop = false;
-    el.preload = 'auto';
-    el.addEventListener('ended', () => this.advanceAmbient());
-    const gain = ctx.createGain();
-    // Assigned, never scheduled — see the note in `battleMusic`.
-    gain.gain.value = 0.0001;
-    let source: MediaElementAudioSourceNode;
-    try {
-      source = ctx.createMediaElementSource(el);
-    } catch {
+    // One peaceful bed for the menu and the map alike: a set already playing carries on across
+    // the scene change, and a set that was paused resumes where it stopped.
+    if (this.ambient) {
+      this.adoptAmbientScene(this.ambient, scene);
       return;
     }
-    source.connect(gain);
-    gain.connect(ctx.destination);
-    this.ambient = { el, gain, source, scene, queue, at: 0 };
-    // A fight already playing keeps the room: the peaceful bed stays silent until it ends.
-    if (!this.music) {
-      void el.play().catch(() => { /* autoplay refused */ });
-      gain.gain.linearRampToValueAtTime(AMBIENT_LEVEL, ctx.currentTime + 2.5);
+    const paused = this.pausedAmbient;
+    if (paused) {
+      this.pausedAmbient = undefined;
+      const ambient = { bed: paused.bed, scene: paused.scene, queue: paused.queue, at: paused.at };
+      this.adoptAmbientScene(ambient, scene);
+      this.ambient = ambient;
+      if (paused.bed.ended) {
+        this.advanceAmbient();
+      } else {
+        paused.bed.resume();
+      }
+      const ctx = this.ctx;
+      paused.bed.gain.gain.cancelScheduledValues(ctx.currentTime);
+      paused.bed.gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+      paused.bed.gain.gain.linearRampToValueAtTime(AMBIENT_LEVEL, ctx.currentTime + 1.5);
+      return;
     }
+
+    // **Not looped — sequenced.** Each piece plays once and hands over to the next after a short
+    // rest, and when the set is exhausted it is reshuffled. One bed for the whole set: every
+    // later piece is a new buffer on the same gain.
+    const bed = new Bed(this.ctx);
+    const ambient = { bed, scene, queue: shuffled(AMBIENT_MUSIC[scene]), at: 0 };
+    bed.onEnded = () => this.advanceAmbient();
+    this.ambient = ambient;
+    this.playAmbientPiece(ambient);
+  }
+
+  /**
+   * The bed crosses from one screen to the other without a break: the piece playing carries on,
+   * and the pieces after it are the new screen's set, shuffled. The menu's two and the map's three
+   * are one process to the player; only the running order behind the current piece changes.
+   */
+  private adoptAmbientScene(ambient: NonNullable<typeof this.ambient>, scene: AmbientScene): void {
+    if (ambient.scene === scene || scene === 'none') return;
+    const current = ambient.queue[ambient.at];
+    const rest = shuffled(AMBIENT_MUSIC[scene].filter((file) => file !== current));
+    ambient.scene = scene;
+    ambient.queue = [current, ...rest];
+    ambient.at = 0;
+  }
+
+  /** Decodes the piece at the running order's cursor and starts it, unless the room was taken. */
+  private playAmbientPiece(ambient: NonNullable<typeof this.ambient>): void {
+    const file = ambient.queue[ambient.at];
+    void this.decode(this.ambientUrl(file)).then((buffer) => {
+      const ctx = this.ctx;
+      // The screen was left, or the set moved on, while this piece was decoding.
+      if (this.ambient !== ambient || !ctx || ambient.queue[ambient.at] !== file) return;
+      ambient.bed.play(buffer, false);
+      // A fight already playing keeps the room: the peaceful bed stays silent until it ends.
+      if (this.music) {
+        ambient.bed.pause();
+        return;
+      }
+      ambient.bed.gain.gain.cancelScheduledValues(ctx.currentTime);
+      ambient.bed.gain.gain.setValueAtTime(Math.max(0.0001, ambient.bed.gain.gain.value), ctx.currentTime);
+      ambient.bed.gain.gain.linearRampToValueAtTime(AMBIENT_LEVEL, ctx.currentTime + 2.5);
+    }).catch(() => { /* a piece that will not decode is a piece the room does without */ });
   }
 
   /**
@@ -500,12 +740,16 @@ class SoundDirector {
         live.queue = shuffled(AMBIENT_MUSIC[live.scene as 'menu' | 'map'], live.queue[live.at - 1]);
         live.at = 0;
       }
-      live.el.src = `${import.meta.env.BASE_URL}audio/ambient/${live.queue[live.at]}`;
-      void live.el.play().catch(() => { /* autoplay refused */ });
+      this.playAmbientPiece(live);
     }, low + Math.random() * (high - low));
   }
 
   /** Fades the peaceful bed down and lets it go. */
+  /**
+   * Stopping the peaceful bed pauses it: faded out over half a second, then held where it is, so
+   * the next `ambientMusic` resumes the same piece from the same bar. Only a second stop while
+   * one is already held disposes the older one.
+   */
   private stopAmbient(): void {
     if (this.ambientNext !== undefined) {
       window.clearTimeout(this.ambientNext);
@@ -515,15 +759,13 @@ class SoundDirector {
     this.ambient = undefined;
     if (!ambient) return;
     const ctx = this.ctx;
-    if (!ctx) { ambient.el.pause(); return; }
-    ambient.gain.gain.cancelScheduledValues(ctx.currentTime);
-    ambient.gain.gain.setValueAtTime(Math.max(0.0001, ambient.gain.gain.value), ctx.currentTime);
-    ambient.gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.6);
-    window.setTimeout(() => {
-      ambient.el.pause();
-      ambient.el.src = '';
-      try { ambient.source.disconnect(); ambient.gain.disconnect(); } catch { /* context gone */ }
-    }, 700);
+    if (!ctx) { ambient.bed.dispose(); return; }
+    this.pausedAmbient?.bed.dispose();
+    this.pausedAmbient = { bed: ambient.bed, scene: ambient.scene, queue: ambient.queue, at: ambient.at };
+    ambient.bed.gain.gain.cancelScheduledValues(ctx.currentTime);
+    ambient.bed.gain.gain.setValueAtTime(Math.max(0.0001, ambient.bed.gain.gain.value), ctx.currentTime);
+    ambient.bed.gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.6);
+    window.setTimeout(() => { if (this.pausedAmbient?.bed === ambient.bed) ambient.bed.pause(); }, 700);
   }
 
   /** Silences the peaceful bed for the duration of a fight, or gives it back. */
@@ -531,17 +773,17 @@ class SoundDirector {
     const ambient = this.ambient;
     const ctx = this.ctx;
     if (!ambient || !ctx) return;
-    ambient.gain.gain.cancelScheduledValues(ctx.currentTime);
-    ambient.gain.gain.setValueAtTime(Math.max(0.0001, ambient.gain.gain.value), ctx.currentTime);
+    ambient.bed.gain.gain.cancelScheduledValues(ctx.currentTime);
+    ambient.bed.gain.gain.setValueAtTime(Math.max(0.0001, ambient.bed.gain.gain.value), ctx.currentTime);
     if (quiet) {
-      ambient.gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.8);
-      window.setTimeout(() => { if (this.ambient === ambient && this.music) ambient.el.pause(); }, 900);
+      ambient.bed.gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.8);
+      window.setTimeout(() => { if (this.ambient === ambient && this.music) ambient.bed.pause(); }, 900);
     } else {
       // A piece that ran out under the fight is over; take the next one rather than replaying
       // its last moment.
-      if (ambient.el.ended) this.advanceAmbient();
-      else void ambient.el.play().catch(() => { /* autoplay refused */ });
-      ambient.gain.gain.linearRampToValueAtTime(AMBIENT_LEVEL, ctx.currentTime + 2);
+      if (ambient.bed.ended) this.advanceAmbient();
+      else ambient.bed.resume();
+      ambient.bed.gain.gain.linearRampToValueAtTime(AMBIENT_LEVEL, ctx.currentTime + 2);
     }
   }
 
@@ -558,13 +800,20 @@ class SoundDirector {
    * stay there for as long as these files ship. The epic pair is held back for the fields that
    * earn it (see `BATTLE_MUSIC`), which is the same >10,000-a-side line the mode already draws.
    *
-   * Streamed through an `<audio>` element rather than decoded into a buffer: these are three and
-   * four minutes long, and `decodeAudioData` on the pair would hold ~80 MB of PCM on a phone to
-   * play something at five percent. The element streams, and `createMediaElementSource` still
-   * gives the gain node the fade needs.
+   * Decoded into a buffer and capped at `BED_MAX_SECONDS`, not streamed through an `<audio>`
+   * element: the element put a Now Playing card on the lock screen (see the file comment). The
+   * cap is what keeps the decode from holding a whole four-minute track as PCM on a phone.
+   *
+   * The gain is assigned, not scheduled — and the difference was a bug the harness caught.
+   * `setValueAtTime(0.0001, now)` schedules an event *at* now, and `setBattleIntensity` opens
+   * with `cancelScheduledValues(now)`, which threw that event away and left the parameter at
+   * its default of **1**. Every fight therefore opened at full volume and slid down to five
+   * percent over the next second — the one thing "very very small" forbids. Measured at 0.72
+   * a quarter-second into a skirmish. A plain assignment (in `Bed`) is the intrinsic value:
+   * there is no event to cancel, and the ramp starts from silence.
    */
   battleMusic(trackKey: string, epic: boolean, intensity: number): void {
-    if (!this.enabled || !this.ensure()) return;
+    if (!this.enabled || !this.musicEnabled || !this.ensure()) return;
     const ctx = this.ctx;
     if (!ctx) return;
 
@@ -579,36 +828,30 @@ class SoundDirector {
     }
     this.stopBattleMusic();
 
-    const el = new Audio(`${import.meta.env.BASE_URL}audio/battle/${file}`);
-    el.loop = true;
-    el.preload = 'auto';
-    const gain = ctx.createGain();
-    /**
-     * Assigned, not scheduled — and the difference was a bug the harness caught.
-     *
-     * `setValueAtTime(0.0001, now)` schedules an event *at* now, and `setBattleIntensity` opens
-     * with `cancelScheduledValues(now)`, which threw that event away and left the parameter at
-     * its default of **1**. Every fight therefore opened at full volume and slid down to five
-     * percent over the next second — the one thing "very very small" forbids. Measured at 0.72
-     * a quarter-second into a skirmish. A plain assignment is the intrinsic value: there is no
-     * event to cancel, and the ramp starts from silence.
-     */
-    gain.gain.value = 0.0001;
-    let source: MediaElementAudioSourceNode;
-    try {
-      source = ctx.createMediaElementSource(el);
-    } catch {
-      // An element may only be adopted by one context, ever. Nothing to recover: stay silent.
+    // The same track, left a moment ago: resume it where it stopped rather than start over.
+    const paused = this.pausedMusic;
+    if (paused && paused.file === file) {
+      this.pausedMusic = undefined;
+      this.music = paused;
+      this.duckAmbient(true);
+      paused.bed.resume();
+      this.setBattleIntensity(intensity);
       return;
     }
-    source.connect(gain);
-    gain.connect(ctx.destination);
-    this.music = { el, gain, source, file };
+    if (paused) {
+      this.pausedMusic = undefined;
+      paused.bed.dispose();
+    }
+
+    const bed = new Bed(ctx);
+    this.music = { bed, file };
     // One bed at a time: the peaceful one goes quiet for as long as the fight lasts.
     this.duckAmbient(true);
-    // A fight is entered by pressing something, so the context is unlocked — but a rejected
-    // play() must not take the screen down with it.
-    void el.play().catch(() => { /* autoplay refused; the fight is not worse for it */ });
+    void this.decode(this.battleUrl(file)).then((buffer) => {
+      // The fight was left, or another took the field, while the track was decoding.
+      if (this.music?.bed !== bed) return;
+      bed.play(buffer, true);
+    }).catch(() => { /* a track that will not decode leaves the fight to its drums */ });
     this.setBattleIntensity(intensity);
   }
 
@@ -619,17 +862,16 @@ class SoundDirector {
     if (!music || !ctx) return;
     const level = MUSIC_MIN + (MUSIC_MAX - MUSIC_MIN) * Math.min(1, Math.max(0, intensity));
     // Ramped, not set: a beat that doubles the headcount must not step the volume.
-    music.gain.gain.cancelScheduledValues(ctx.currentTime);
-    music.gain.gain.setValueAtTime(Math.max(0.0001, music.gain.gain.value), ctx.currentTime);
-    music.gain.gain.linearRampToValueAtTime(Math.max(0.0001, level), ctx.currentTime + 1.2);
+    music.bed.gain.gain.cancelScheduledValues(ctx.currentTime);
+    music.bed.gain.gain.setValueAtTime(Math.max(0.0001, music.bed.gain.gain.value), ctx.currentTime);
+    music.bed.gain.gain.linearRampToValueAtTime(Math.max(0.0001, level), ctx.currentTime + 1.2);
   }
 
   /**
    * The fight is left, so the music leaves with it — the instruction was *stop if users leave*.
    *
-   * Faded rather than cut, then paused and dropped. The element is released because a page that
-   * opens twenty fights should not hold twenty `<audio>` elements, and each one can only ever
-   * belong to one audio context anyway.
+   * Faded rather than cut, then dropped. The decoded piece stays in the small cache, so a field
+   * re-entered a moment later does not decode its track again.
    */
   stopBattleMusic(): void {
     const music = this.music;
@@ -638,16 +880,15 @@ class SoundDirector {
     this.duckAmbient(false);
     if (!music) return;
     const ctx = this.ctx;
-    if (!ctx) { music.el.pause(); return; }
+    if (!ctx) { music.bed.dispose(); return; }
+    // Faded, then paused — not dropped. The field re-entered picks the track up where it left.
+    this.pausedMusic?.bed.dispose();
+    this.pausedMusic = music;
     const end = ctx.currentTime + 0.45;
-    music.gain.gain.cancelScheduledValues(ctx.currentTime);
-    music.gain.gain.setValueAtTime(Math.max(0.0001, music.gain.gain.value), ctx.currentTime);
-    music.gain.gain.exponentialRampToValueAtTime(0.0001, end);
-    window.setTimeout(() => {
-      music.el.pause();
-      music.el.src = '';
-      try { music.source.disconnect(); music.gain.disconnect(); } catch { /* context gone */ }
-    }, 550);
+    music.bed.gain.gain.cancelScheduledValues(ctx.currentTime);
+    music.bed.gain.gain.setValueAtTime(Math.max(0.0001, music.bed.gain.gain.value), ctx.currentTime);
+    music.bed.gain.gain.exponentialRampToValueAtTime(0.0001, end);
+    window.setTimeout(() => { if (this.pausedMusic?.bed === music.bed) music.bed.pause(); }, 550);
   }
 
   /**
@@ -706,9 +947,16 @@ class SoundDirector {
     src.stop(t + 0.1);
   }
 
+  private store(): void {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ enabled: this.enabled, music: this.musicEnabled }));
+    } catch { /* full quota */ }
+  }
+
+  /** SOUND: everything. Off is silence, and the context is suspended with it. */
   setEnabled(value: boolean): void {
     this.enabled = value;
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ enabled: value })); } catch { /* full quota */ }
+    this.store();
     if (!value) { this.stopBattleMusic(); this.stopAmbient(); }
     else if (this.pendingAmbient !== 'none') this.ambientMusic(this.pendingAmbient);
     if (!this.ctx) return;
@@ -720,24 +968,43 @@ class SoundDirector {
     return this.enabled;
   }
 
+  /**
+   * MUSIC: the beds alone. Off stops whatever is playing and refuses the next screen's request;
+   * the paper under the thumb goes on. On picks up whatever screen last asked for a bed.
+   */
+  setMusicEnabled(value: boolean): void {
+    this.musicEnabled = value;
+    this.store();
+    if (!value) { this.stopBattleMusic(); this.stopAmbient(); }
+    else if (this.enabled && this.pendingAmbient !== 'none') this.ambientMusic(this.pendingAmbient);
+  }
+
+  isMusicEnabled(): boolean {
+    return this.musicEnabled;
+  }
+
   /** For harnesses: no sound is provable from a screenshot. */
   debug(): {
-    enabled: boolean; context: string; music: string; musicGain: number;
-    ambient: string; ambientGain: number; ambientFile: string; ambientQueue: number;
-    ambientAt: number;
+    enabled: boolean; musicEnabled: boolean; context: string; music: string; musicGain: number;
+    musicPlaying: boolean; ambient: string; ambientGain: number; ambientFile: string;
+    ambientQueue: number; ambientAt: number; ambientPlaying: boolean; decoded: number;
   } {
     return {
       enabled: this.enabled,
+      musicEnabled: this.musicEnabled,
       context: this.ctx?.state ?? 'none',
       music: this.music?.file ?? 'none',
+      musicPlaying: this.music?.bed.playing ?? false,
       ambient: this.ambient?.scene ?? 'none',
       ambientFile: this.ambient?.queue[this.ambient.at] ?? 'none',
       // Where the piece has got to, which is the only way a harness can tell a bed that is
       // playing from one that is merely loaded.
-      ambientAt: Number((this.ambient?.el.currentTime ?? 0).toFixed(1)),
+      ambientAt: Number((this.ambient?.bed.position() ?? 0).toFixed(1)),
+      ambientPlaying: this.ambient?.bed.playing ?? false,
       ambientQueue: this.ambient?.queue.length ?? 0,
-      ambientGain: Number((this.ambient?.gain.gain.value ?? 0).toFixed(4)),
-      musicGain: Number((this.music?.gain.gain.value ?? 0).toFixed(4)),
+      ambientGain: Number((this.ambient?.bed.gain.gain.value ?? 0).toFixed(4)),
+      musicGain: Number((this.music?.bed.gain.gain.value ?? 0).toFixed(4)),
+      decoded: this.buffers.size,
     };
   }
 }

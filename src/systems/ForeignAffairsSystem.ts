@@ -6,10 +6,11 @@ import type { CampaignEvent, GameState, Kingdom, KingdomPersonality } from '../s
 import { t } from '../i18n';
 
 const ROYAL_NAMES = [
-  'Lý Công Uẩn', 'Trần Hưng Đạo', 'Nguyễn Ánh', 'Lê Lợi', 'Đinh Tiên Hoàng',
-  'Trịnh Kiểm', 'Nguyễn Hoàng', 'Lê Thánh Tông', 'Phùng Hưng', 'Triệu Quang Phục',
-  'Quách Mãnh', 'Đoàn Thượng', 'Hồ Quý Ly', 'Mạc Đăng Dung', 'Lý Thường Kiệt',
-  'Bùi Thị Xuân', 'Trần Thủ Độ', 'Nguyễn Trãi', 'Lê Văn Hưu', 'Đào Duy Từ',
+  // The neighbours' rulers, never the player's own history: reported as *those enemies must not
+  // be Vietnamese kingdoms*. Northern courts, Chăm kings, Khmer and Lao and Tai rulers.
+  'Lưu Cung', 'Triệu Quang Nghĩa', 'Thoát Hoan', 'Trương Phụ', 'Tôn Sĩ Nghị', 'Liễu Thăng',
+  'Chế Bồng Nga', 'Chế Mân', 'Chế Củ', 'Harivarman', 'Indravarman',
+  'Jayavarman', 'Suryavarman', 'Fa Ngum', 'Phra Naret', 'Setthathirath',
 ];
 
 const PERSONALITY_LABELS: Record<KingdomPersonality, string> = {
