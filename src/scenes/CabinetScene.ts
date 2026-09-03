@@ -266,7 +266,7 @@ export class CabinetScene extends Phaser.Scene {
     // ── Ways to earn more, folded: open by tap, and open by default only when there is nothing to scratch ──
     const earnOpen = this.faucetsOpen ?? !hero;
     y = this.sectionHeader(scroll, y, `${t('cabinet.faucets')}  ${earnOpen ? '▾' : '▸'}`);
-    this.gridTap(scroll, PAD, y - 26, W, 24, () => {
+    this.gridTap(scroll, PAD, y - 30, W, 28, () => {
       this.faucetsOpen = !earnOpen;
       this.pendingScroll = this.scroll ? -this.scroll.content.y : 0;
       this.render();
@@ -479,13 +479,21 @@ ${t('cabinet.grid.unfound')}`,
     scroll.setScroll(this.pendingScroll);
   }
 
+  /**
+   * A section's name, at a weight the body cannot be mistaken for. The headers were captions at
+   * the body's own size — *why is the title not highlighted? all text the same weight and size* —
+   * so the page read as one column of grey. Title face, small caps, ink-dark, with the band under.
+   */
   private sectionHeader(scroll: InkScrollArea, y: number, text: string): number {
-    const label = this.ui.label(PAD, y, text, 'caption', { fontSize: '10px' });
+    const label = this.add.text(PAD, y, text.toLocaleUpperCase('vi'), {
+      color: '#2a2118', fontFamily: TITLE_FONT, fontSize: '13px', fontStyle: '700',
+    }).setOrigin(0, 0);
+    label.setLetterSpacing?.(1.2);
     scroll.content.add(label);
     const band = this.add.graphics();
-    sawtoothBand(band, PAD, y + 16, GAME_WIDTH - PAD * 2, 5, 0.4);
+    sawtoothBand(band, PAD, y + 20, GAME_WIDTH - PAD * 2, 5, 0.5);
     scroll.content.add(band);
-    return y + 26;
+    return y + 30;
   }
 
   private faucetRow(scroll: InkScrollArea, y: number, label: string, status: string, accent: number): number {
