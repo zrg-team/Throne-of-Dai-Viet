@@ -545,17 +545,16 @@ ${t('cabinet.grid.unfound')}`,
       return object;
     };
     const dim = keep(this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, INK_UI.overlay, 0.6).setOrigin(0, 0).setInteractive());
+    dim.setDepth(DEPTH - 2);
     dim.on('pointerup', () => this.closeCardView());
 
     const bigW = 128;
     const bigH = Math.round(bigW * (CARD_FACE_H / CARD_FACE_W));
     const bigX = PAD;
     const bigY = 84;
-    // A sheet of its own under the card and its ladder: the page dims to sixty percent, and
-    // ladder type read straight through the rows behind it.
-    const sheetH = bigH + 14 + 38 + 8 + (canCombine(cardId) ? 46 : 0) + 32 + 24;
-    keep(this.ui.panel({ x: PAD - 8, y: bigY - 12, width: GAME_WIDTH - PAD * 2 + 16, height: sheetH + 12 },
-      { border: INK_UI.gold, borderWidth: 1.4, fillAlpha: 0.97 }));
+    // The sheet under the card and its ladder is drawn *last*, from the height the column actually
+    // took: sized up front from the face alone, a Vietnamese ladder that wrapped to three lines a
+    // level ran under the hand slots and the copies bar, and the buttons sat on the type.
     const face = stampCardFace(this, cardId, { x: bigX, y: bigY, width: bigW, height: bigH }, held.level);
     if (face) {
       keep(face);
@@ -597,8 +596,6 @@ ${t('cabinet.grid.unfound')}`,
       ly += 16;
     }
 
-    // The actions, under the face.
-    let by = bigY + bigH + 14;
     const W = GAME_WIDTH - PAD * 2;
     const inHand = openingHand().includes(cardId);
     const handOpen = inHand || openingHand().length < openingHandSlots();
@@ -608,8 +605,10 @@ ${t('cabinet.grid.unfound')}`,
     const slots = openingHandSlots();
     const slotW = 44;
     const slotH = Math.round(slotW * (CARD_FACE_H / CARD_FACE_W));
-    const slotsX = GAME_WIDTH - PAD - slots * (slotW + 6) + 6;
-    const slotsY = bigY + bigH - slotH;
+    // Under whichever is taller, the face or its ladder: the slots had been anchored to the
+    // face's foot, which is where the ladder's third line lands in Vietnamese.
+    const slotsX = PAD;
+    const slotsY = Math.max(bigY + bigH, ly) + 24;
     const slotBoxes: Array<{ x: number; y: number; w: number; h: number; filled: string | undefined }> = [];
     const handNow = openingHand();
     for (let i = 0; i < slots; i += 1) {
@@ -626,6 +625,8 @@ ${t('cabinet.grid.unfound')}`,
       }
     }
     keep(this.ui.label(slotsX, slotsY - 14, t('cabinet.view.dragHint'), 'caption', { fontSize: '8.5px' }));
+    // The actions, under the slots.
+    let by = slotsY + slotH + 12;
     if (face && !inHand && handOpen) {
       face.setInteractive({ draggable: true, useHandCursor: true });
       this.input.setDraggable(face);
@@ -678,6 +679,9 @@ ${t('cabinet.grid.unfound')}`,
     }
     keep(this.ui.button({ x: PAD, y: by, width: W, height: 32 }, t('cabinet.view.close'),
       () => this.closeCardView(), { variant: 'ghost', fontSize: '11px' }));
+    by += 32;
+    keep(this.ui.panel({ x: PAD - 8, y: bigY - 12, width: GAME_WIDTH - PAD * 2 + 16, height: by + 12 - (bigY - 12) },
+      { border: INK_UI.gold, borderWidth: 1.4, fillAlpha: 1 })).setDepth(DEPTH - 1);
 
     // Everything but the veil and the face rises into place behind the face's flip: the sheet is
     // opened, not switched on.
