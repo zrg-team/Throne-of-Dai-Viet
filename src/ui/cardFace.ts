@@ -333,6 +333,8 @@ export interface CardOverlayData {
   level?: 1 | 2 | 3;
   /** Slotted in the opening hand. */
   inHand?: boolean;
+  /** Copies held, as a count on the corner — the binder's *how many of this do I have*. */
+  held?: number;
 }
 
 /**
@@ -367,6 +369,22 @@ export function cardFaceOverlay(
       pips.strokeCircle(cx, cy, R);
     }
     container.add(pips);
+  }
+
+  // The count held, top-right, where the run's stack pips go: a cinnabar pill with ×N. Asked
+  // for as *can the list show a badge of the number of cards we have?* — the copies line under
+  // the face says what is still needed, not what is held.
+  if (data.held !== undefined && data.held > 0) {
+    const label = scene.add.text(0, 0, `×${data.held}`, {
+      color: '#f3e6c4', fontFamily: UI_FONT, fontSize: '10px', fontStyle: '700',
+    }).setOrigin(0.5);
+    const pillW = Math.max(22, Math.ceil(label.width) + 10);
+    const pill = scene.add.graphics();
+    pill.fillStyle(INK_UI.cinnabar, 1);
+    pill.fillRoundedRect(W - 12 - pillW, 8, pillW, 16, 8);
+    label.setPosition(W - 12 - pillW / 2, 16);
+    container.add(pill);
+    container.add(label);
   }
 
   // Copies toward the next combine, bottom-left, clear of the stars and the chop.

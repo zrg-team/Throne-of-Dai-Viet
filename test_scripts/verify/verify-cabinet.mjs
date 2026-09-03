@@ -331,6 +331,30 @@ const afterReal = await snapshot();
 check('a real 80 ms press on Close closes the view, and the tile beneath does not open its own',
   afterReal.view === 0 && afterReal.filter === before.filter && afterReal.mode === 'cabinet', JSON.stringify(afterReal));
 
+// A tap on the sheet's own content — the face, the ladder — is the sheet's, not the veil's.
+await openOverTile();
+const inside = await page.evaluate(() => {
+  const sc = window.__phaserGame.scene.getScene('CabinetScene');
+  const label = sc.viewObjects.find((o) => o.type === 'Text' && /Thang cấp|The ladder/.test(o.text));
+  return label ? { x: label.x + 40, y: label.y + 30 } : null;
+});
+if (inside) await page.evaluate(({ x, y }) => window.__tap(x, y), inside);
+await page.waitForTimeout(400);
+const afterInside = await snapshot();
+check('a one-task tap on the ladder text keeps the view open', afterInside.view > 0, JSON.stringify(afterInside));
+if (inside) {
+  const frame = await page.evaluate(() => { const c = document.querySelector('canvas').getBoundingClientRect(); const s = window.__phaserGame.scale.gameSize; return { ox: c.left, oy: c.top, kx: c.width / s.width, ky: c.height / s.height }; });
+  await page.mouse.move(frame.ox + 60 * frame.kx, frame.oy + 150 * frame.ky);
+  await page.mouse.down(); await page.waitForTimeout(80); await page.mouse.up();
+}
+await page.waitForTimeout(400);
+const afterFace = await snapshot();
+check('a real press on the card face keeps the view open', afterFace.view > 0, JSON.stringify(afterFace));
+await page.evaluate(() => window.__tap(195, 800));
+await page.waitForTimeout(400);
+const afterOutside = await snapshot();
+check('a tap on the veil outside the sheet still closes it', afterOutside.view === 0, JSON.stringify(afterOutside));
+
 await openOverTile();
 const slotAt = await viewButton('Đưa vào tay bài mở đầu');
 if (slotAt) await page.evaluate(({ x, y }) => window.__tap(x, y), slotAt);

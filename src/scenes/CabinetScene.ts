@@ -428,6 +428,7 @@ export class CabinetScene extends Phaser.Scene {
           copies: held.copies,
           need: combineCost(held.level),
           inHand: hand.includes(card.id),
+          held: held.copies,
         }));
         this.gridTap(scroll, x, cy, cellW, cellH, () => this.openCardView(card.id, {
           x, y: listTop + cy + (this.scroll?.content.y ?? 0), width: cellW, height: cellH,
@@ -566,6 +567,16 @@ ${t('cabinet.grid.unfound')}`,
     const bigH = Math.round(bigW * (CARD_FACE_H / CARD_FACE_W));
     const bigX = PAD;
     const bigY = 84;
+    // The sheet itself swallows what falls on it. Only the veil closed the view, and the veil
+    // was under the whole sheet, so a tap on the face, the ladder, the copies bar — anything but
+    // a button — closed it. Reported as *why does a click on the card or the content hide the
+    // modal?* Sized at the end with the sheet; an invisible rectangle, above the veil, below
+    // everything the sheet holds.
+    const sheetGuard = keep(this.add.rectangle(PAD - 8, bigY - 12, GAME_WIDTH - PAD * 2 + 16, GAME_HEIGHT, 0x000000, 0)
+      .setOrigin(0, 0).setInteractive());
+    sheetGuard.setDepth(DEPTH - 1);
+    sheetGuard.on('pointerdown', () => undefined);
+    sheetGuard.on('pointerup', () => undefined);
     // The sheet under the card and its ladder is drawn *last*, from the height the column actually
     // took: sized up front from the face alone, a Vietnamese ladder that wrapped to three lines a
     // level ran under the hand slots and the copies bar, and the buttons sat on the type.
@@ -578,7 +589,7 @@ ${t('cabinet.grid.unfound')}`,
       this.tweens.add({ targets: face, x: bigX + bigW / 2, y: bigY + bigH / 2, scale: restScale, duration: motionMs(260), ease: 'Cubic.easeOut' });
     }
     keep(cardFaceOverlay(this, { x: bigX, y: bigY, width: bigW, height: bigH }, {
-      level: held.level, copies: held.copies, need: combineCost(held.level), inHand: openingHand().includes(cardId),
+      level: held.level, copies: held.copies, need: combineCost(held.level), inHand: openingHand().includes(cardId), held: held.copies,
     }));
 
     // The ladder, beside the face: every level's line, the held one marked, the copies bar under it.
@@ -694,8 +705,11 @@ ${t('cabinet.grid.unfound')}`,
     keep(this.ui.button({ x: PAD, y: by, width: W, height: 32 }, t('cabinet.view.close'),
       () => this.closeCardView(), { variant: 'ghost', fontSize: '11px' }));
     by += 32;
-    keep(this.ui.panel({ x: PAD - 8, y: bigY - 12, width: GAME_WIDTH - PAD * 2 + 16, height: by + 12 - (bigY - 12) },
+    const sheetH = by + 12 - (bigY - 12);
+    keep(this.ui.panel({ x: PAD - 8, y: bigY - 12, width: GAME_WIDTH - PAD * 2 + 16, height: sheetH },
       { border: INK_UI.gold, borderWidth: 1.4, fillAlpha: 1 })).setDepth(DEPTH - 1);
+    sheetGuard.setSize(GAME_WIDTH - PAD * 2 + 16, sheetH);
+    (sheetGuard.input?.hitArea as Phaser.Geom.Rectangle | undefined)?.setSize(GAME_WIDTH - PAD * 2 + 16, sheetH);
 
     // Fresh furniture sorts at the BOTTOM of Phaser's hit list until it has been rendered once
     // (the list is last frame's); lifted, the sheet is on top from the moment it exists, and the
