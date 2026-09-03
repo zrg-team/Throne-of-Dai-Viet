@@ -728,7 +728,7 @@ console.log('\n=== REACHABILITY ===');
           const has = (rx) => labels.some((text) => rx.test(text));
           return {
             H,
-            ledger: has(/Dynasty Ledger|Tông Phả/i),
+            ledger: has(/^Dynasty|Tông Phả|Triều đại/i),
             // The sheet the door opens is where the shop lives now.
             play: has(/Dragon Ascent|Rồng Thăng/i),
             classic: has(/Classic Modes|Chế độ cổ điển/i),
@@ -746,7 +746,7 @@ console.log('\n=== REACHABILITY ===');
             const text = obj.list
               ? obj.list.filter((part) => part.type === 'Text').map((part) => part.text).join(' ')
               : obj.text;
-            return text ? /Ascension Legacy|Di Sản Thăng Thiên/i.test(text) : false;
+            return text ? /Ascension Legacy|Di Sản Thăng Thiên|Di Sản Truyền Đời/i.test(text) : false;
           });
         });
 
@@ -920,7 +920,7 @@ console.log('\n=== DOSSIER GATES ===');
       check(`${label} — every held trait's effect is printed`,
         ['wide-draft', 'quartermaster', 'twin-doctrine', 'deep-shelf'].every(() => true)
           && dynasty.texts.some((text) => /five cards|5 lá/.test(text)) && dynasty.texts.some((text) => /season|mùa/.test(text)));
-      const doors = dynasty.buttons.filter((b) => /Cabinet|Tàng Ấn|Legacy|Di Sản|Temple|Thái Miếu/.test(b.text));
+      const doors = dynasty.buttons.filter((b) => /Cabinet|Deck|Tàng Ấn|Bộ bài|Legacy|Di Sản|Temple|Thái Miếu/.test(b.text));
       const respec = dynasty.buttons.find((b) => /Renounce|Bỏ hết/.test(b.text));
       check(`${label} — the respec is the overflow row, under every door`,
         Boolean(respec) && doors.length >= 2 && doors.every((d) => d.y < respec.y));
@@ -950,7 +950,7 @@ console.log('\n=== DOSSIER GATES ===');
       const shop = await readPage(sheet, 'legacy');
       check(`${label} — no two visible texts overlap on the Legacy shop`, shop.hits.length === 0, shop.hits.slice(0, 3).join(' ; '));
       check(`${label} — the shop says owned, the cost, or short by N`,
-        shop.texts.some((text) => /Unlocked|Đã mở/.test(text)) && shop.texts.some((text) => /short by|còn thiếu/.test(text)));
+        shop.texts.some((text) => /Unlocked|Đã mở|Lv\d+\/\d+|Cấp \d+\/\d+/.test(text)) && shop.texts.some((text) => /short by|còn thiếu/.test(text)));
       await sheet.close();
     }
   }
@@ -973,7 +973,7 @@ console.log('\n=== DOSSIER GATES ===');
     check('the sheet at reign 3 stays inside its word budget (≤ 180) with every held effect printed',
       page3.words <= 180, `${page3.words} words`);
     check('the sheet names at most three currencies in its body (level/XP, traits, reigns)',
-      !page3.texts.some((text) => /rubbings|thác bản|Legacy \d|rank:/i.test(text)), page3.texts.filter((t) => /rubbing|thác|rank:/i.test(t)).join(' / '));
+      !page3.texts.some((text) => /rubbings|draws|thác bản|lượt rút|Legacy \d|rank:/i.test(text)), page3.texts.filter((t) => /rubbing|thác|rank:/i.test(t)).join(' / '));
     await three.close();
   }
 

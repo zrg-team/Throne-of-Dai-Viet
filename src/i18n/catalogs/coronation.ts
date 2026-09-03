@@ -80,7 +80,7 @@ export const enCoronation = {
   'coronation.ho': 'Họ',
   'coronation.given': 'Given name',
   'coronation.reroll': 'Roll a name',
-  'coronation.nameNote': 'The name the Tông Phả sheet, the ceremony and the Chronicle will use for every reign after this one.',
+  'coronation.nameNote': 'The name the Dynasty sheet, the ceremony and the Chronicle will use for every reign after this one.',
   'coronation.house': 'Nhà {name}',
   'coronation.armyNote': '{house} fields a {era}-styled army — hosts, levies and their commanders take the dynasty’s century.',
 
@@ -94,10 +94,10 @@ export const enCoronation = {
   'coronation.banner.field': 'Field',
   'coronation.banner.trim': 'Trim',
   'coronation.banner.emblem': 'Emblem',
-  'coronation.banner.where': 'The banner rides the house’s chrome: the Tông Phả sheet, the ceremony, the next-reign screen.',
+  'coronation.banner.where': 'The banner rides the house’s chrome: the Dynasty sheet, the ceremony, the next-reign screen.',
 
   'coronation.grows.title': 'This king grows.',
-  'coronation.grows.body': 'Every reign feeds the house. The badge on this portrait steps Common → Rare → Epic → Legendary with the dynasty’s level, traits stack on the Tông Phả sheet, and the Cabinet keeps every seal you bind.',
+  'coronation.grows.body': 'Every reign feeds the house. The badge on this portrait steps Common → Rare → Epic → Legendary with the dynasty’s level, traits stack on the Dynasty sheet, and the Dynasty Deck keeps every card you bind.',
   'coronation.grows.rank': 'Now: {rank} · dynasty level {level}',
   'coronation.follows': 'What follows: the mandate card — your opening advantage — and then who rises with you.',
 
@@ -218,15 +218,15 @@ export const viCoronation: Record<keyof typeof enCoronation, string> = {
   'coronation.lock.war': 'Giáp trụ — võ phục',
   'coronation.lock.war.how': 'giữ vững mười đợt trong một triều',
   'coronation.lock.jade': 'Ngọc, mũ miện và vương miện',
-  'coronation.lock.jade.how': 'đúc được ấn Ngọc đầu tiên',
+  'coronation.lock.jade.how': 'có được lá Ngọc đầu tiên',
   'coronation.lock.emblem.empires': 'bước tới thời Liệt Quốc',
   'coronation.lock.emblem.mandate': 'bước tới thời Thiên Mệnh',
-  'coronation.lock.plate': 'Khung Huyền Thoại xuất hiện ở cấp tông phả 20.',
+  'coronation.lock.plate': 'Khung Huyền Thoại xuất hiện ở cấp triều đại 20.',
 
   'coronation.ho': 'Họ',
   'coronation.given': 'Tên',
   'coronation.reroll': 'Gieo tên',
-  'coronation.nameNote': 'Tên này sẽ đi vào Tông Phả, vào đại lễ và vào sử ký của mọi triều về sau.',
+  'coronation.nameNote': 'Tên này sẽ đi vào Triều Đại, vào đại lễ và vào sử ký của mọi triều về sau.',
   'coronation.house': 'Nhà {name}',
   'coronation.armyNote': '{house} dựng binh theo lối {era} — quân, dân binh và tướng lĩnh đều mang phong khí ấy.',
 
@@ -240,11 +240,11 @@ export const viCoronation: Record<keyof typeof enCoronation, string> = {
   'coronation.banner.field': 'Nền',
   'coronation.banner.trim': 'Viền',
   'coronation.banner.emblem': 'Huy hiệu',
-  'coronation.banner.where': 'Cờ hiệu theo nhà: trang Tông Phả, đại lễ, và màn triều kế tiếp.',
+  'coronation.banner.where': 'Cờ hiệu theo nhà: trang Triều Đại, đại lễ, và màn triều kế tiếp.',
 
   'coronation.grows.title': 'Vị vua này sẽ lớn lên.',
-  'coronation.grows.body': 'Mỗi triều đều nuôi lấy nhà. Khung chân dung bước từ Thường → Hiếm → Kỳ → Huyền Thoại theo cấp tông phả, đức tính chồng lên trang Tông Phả, và Tàng Ấn Các giữ lại mọi ấn ngươi đã đóng.',
-  'coronation.grows.rank': 'Hiện thời: {rank} · cấp tông phả {level}',
+  'coronation.grows.body': 'Mỗi triều đều nuôi lấy nhà. Khung chân dung bước từ Thường → Hiếm → Kỳ → Huyền Thoại theo cấp triều đại, đức tính chồng lên trang Triều Đại, và bộ bài triều đại giữ lại mọi lá ngươi đã giữ.',
+  'coronation.grows.rank': 'Hiện thời: {rank} · cấp triều đại {level}',
   'coronation.follows': 'Tiếp theo: lá bài thiên mệnh — lợi thế mở triều — rồi tới người cùng ngươi dựng nghiệp.',
 
   'coronation.temple': 'Thái Miếu',
