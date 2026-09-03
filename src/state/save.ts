@@ -75,6 +75,24 @@ export function clearAutosave(): void {
   }
 }
 
+/**
+ * The run the device took, if that is what the newest slot is.
+ *
+ * The automatic slot exists only between leaving the screen and coming back to it: Save & Exit
+ * clears it (`clearAutosave`), and so does any deliberate way out. So an automatic snapshot that is
+ * still there when the front page opens means the game was ended by something other than the
+ * player — the phone reclaimed the app, the tab was closed, the process died — and the run inside
+ * it is one they never chose to leave. That is the case worth asking about on the way in, rather
+ * than leaving a Continue line for them to notice.
+ */
+export function pendingAutosave(): SaveSnapshot | undefined {
+  const automatic = readSlot(AUTOSAVE_SNAPSHOT_KEY);
+  if (!automatic) return undefined;
+  const manual = readSlot(SAVE_SNAPSHOT_KEY);
+  if (manual && Date.parse(manual.savedAt) >= Date.parse(automatic.savedAt)) return undefined;
+  return automatic;
+}
+
 /** The newer of the two slots — the player's own save, and the one the game took for them. */
 export function loadSnapshot(): SaveSnapshot | undefined {
   const manual = readSlot(SAVE_SNAPSHOT_KEY);

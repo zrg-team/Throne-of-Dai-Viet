@@ -35,6 +35,7 @@ node test_scripts/verify/verify-war-board.mjs           # every front on the boa
 node test_scripts/verify/verify-reinforce.mjs           # a lane page turn tears the fight down; relief always on the field; the call-up is a dial
 node test_scripts/verify/verify-expansion-prompt.mjs    # the expansion card only asks when something on it can be pressed
 node test_scripts/verify/verify-land-consequences.mjs   # ground is the ceiling on people; losing it costs; a held wave leaves the walls down; the governor commands
+node test_scripts/verify/verify-land-restore.mjs        # the people hold the walls; a hidden-roll defence still costs the province; the restore card pays for haste
 node test_scripts/verify/verify-crowding-and-price.mjs   # districts fill and then eat badly; a host is priced, not capped; lost ground ends its battle
 node test_scripts/verify/verify-land-tap.mjs             # the name plate is the province's tap target, and the ground answers only where no plate is drawn
 node test_scripts/verify/verify-button-press.mjs         # a button acts on the press, once — not on the release
@@ -113,5 +114,8 @@ empire economy was food-negative when in fact the harness had never constructed 
 - `verify/verify-ladder.mjs` — the quality ladder steps down under heat and climbs back on calm
   (run WITHOUT `?capture=1`, which pins the ladder for every other harness).
 - `verify/verify-fps-cap.mjs`, `verify/verify-tick-clock.mjs` — pacing and clock-carry contracts.
+- `verify/verify-resume.mjs` (`yarn verify:resume`) — coming back from the background: a throw
+  inside a step is re-armed, a lost context that is never restored reloads into the run, a
+  restored one repaints the faces, and the away pause sets and clears.
 - `diag/diag-army-hash.mjs` (`--save` baseline) — command-stream identity for `drawArmy`;
   `diag/diag-figure-reach.mjs` — no soldier's ink clipped by his stamp box.

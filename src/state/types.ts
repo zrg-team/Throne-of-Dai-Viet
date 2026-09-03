@@ -165,6 +165,17 @@ export interface Land {
    * the roll keep agreeing. Separate from `wallsBreached`, which is the masonry and heals slower.
    */
   garrisonExhaustion?: number;
+  /**
+   * Building levels a fought defence knocked down, by type, waiting to be rebuilt (Dragon
+   * Ascent). Each entry is one level taken off one building of that type; `rebuildRuins` puts
+   * them back a level at a time, or the restore card pays to put them back at once. A list rather
+   * than a count so the rebuild knows *what* was burnt.
+   */
+  ruins?: LandBuildingType[];
+  /** The wave the restore card was last raised for this province, so one fight asks once. */
+  restoreAskedWave?: number;
+  /** Turn until which the province rebuilds at treble pace — a `steady` restore was paid for. */
+  restoreHasteUntil?: number;
 }
 
 /** A host standing at a province's walls, waiting out the siege clock before it assaults. */
@@ -1681,6 +1692,13 @@ export interface FamineOption {
   affordable: boolean;
 }
 
+/** One answer on the restore card. See the `restore-land` prompt. */
+export interface RestoreOption {
+  id: 'haste' | 'steady' | 'endure';
+  cost?: Partial<ResourceBag>;
+  affordable: boolean;
+}
+
 /**
  * One answer to what a province is for, or who holds it.
  *
@@ -1822,6 +1840,28 @@ export type AscentPrompt =
   | { kind: 'parliament'; cardId: string }
   /** The granary is empty and still draining. What the realm does about it. */
   | { kind: 'famine'; shortfall: number; options: FamineOption[] }
+  /**
+   * A province was fought over and the fight cost it: how hard does the throne push the
+   * rebuilding? Raised by `chargeProvinceForDefence` once per province per wave, only for damage
+   * worth a decision. `haste` pays the whole bill and the province is whole at once; `steady`
+   * pays under half for treble pace; `endure` pays nothing and the district heals on its own
+   * clocks — walls over `WALL_REPAIR_SEASONS`, the turnout over `GARRISON_RECOVER_SEASONS`, a
+   * building level every `RUIN_REBUILD_TICKS`.
+   */
+  | {
+      kind: 'restore-land';
+      landId: string;
+      landName: string;
+      /** Masonry the fight knocked down, waiting to be rebuilt. */
+      breach: number;
+      /** Building levels burnt. */
+      ruins: number;
+      /** Militia who did not come back — people, charged to the district. */
+      dead: number;
+      /** Share of the turnout still recovering, 0–1. */
+      spent: number;
+      options: RestoreOption[];
+    }
   /**
    * What a province is for, and who holds it — asked when the realm is visibly short of
    * something, or a province is standing open.

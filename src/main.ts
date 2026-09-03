@@ -11,10 +11,13 @@ import { getMapTheme } from './ui/mapTheme';
 import { stampStats } from './ui/ink/stamp';
 import { installQualityLadder } from './game/qualityLadder';
 import { renderScaleNow } from './game/graphicsQuality';
+import { installResilience } from './game/resilience';
 
 declare global {
   interface Window {
     __mandateState?: GameState;
+    /** The loop and context watchdogs' own reading — see `game/resilience.ts`. */
+    __health?: ReturnType<typeof installResilience>['health'];
     /** Live census of the ink-stamp registry - backend, count, bytes, pools. */
     /** How a native shell tells the game it has a newer bundle waiting. See below. */
     __gameUpdateReady?: (version?: string) => void;
@@ -78,6 +81,10 @@ const game = new Phaser.Game(gameConfig);
 window.__phaserGame = game;
 window.__inkStamps = stampStats;
 window.__ladder = installQualityLadder(game);
+// The two watchdogs behind "come back from the background and the game is blank": a loop a throw
+// has killed is re-armed, a context the GPU never returned is reloaded, and the run is written
+// down before either. See `game/resilience.ts` for the three failures this stands against.
+window.__health = installResilience(game).health;
 window.__renderScale = renderScaleNow;
 window.__fpsProbe = (seconds = 3) => new Promise((resolve) => {
   // A rAF histogram: what the browser actually presented, not what the loop believes.
@@ -293,6 +300,7 @@ function describeAscentPromptOptions(state: GameState, prompt: NonNullable<GameS
       return state.politicsDeck.find((card) => card.id === prompt.cardId)?.choices.map((choice) => choice.id) ?? ['ok'];
     case 'envoy': return prompt.options.filter((option) => option.affordable).map((option) => option.id);
     case 'rival-demand': return prompt.options.filter((option) => option.affordable).map((option) => option.id);
+    case 'famine': case 'restore-land': return prompt.options.filter((option) => option.affordable).map((option) => option.id);
     case 'empire-response': return prompt.options.map((option) => option.id);
     // The ceremony. `dynasty-level` takes a trait id and nothing else — a driver that answered it
     // with 'ok' would leave the run's last card standing for ever, which is the exact failure the

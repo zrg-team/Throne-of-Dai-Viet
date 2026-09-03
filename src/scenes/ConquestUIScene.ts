@@ -950,6 +950,9 @@ export class ConquestUIScene extends Phaser.Scene {
   showMusterProposal(prompt: Extract<AscentPrompt, { kind: 'muster-proposal' }>): void { promptsRealm.showMusterProposal(this, prompt); }
 
   showFamine(prompt: Extract<AscentPrompt, { kind: 'famine' }>): void { promptsRealm.showFamine(this, prompt); }
+  showRestoreLand(prompt: Extract<AscentPrompt, { kind: 'restore-land' }>): void {
+    promptsRealm.showRestoreLand(this, prompt);
+  }
 
   showProvinceOrder(prompt: Extract<AscentPrompt, { kind: 'province-order' }>): void {
     promptsRealm.showProvinceOrder(this, prompt);

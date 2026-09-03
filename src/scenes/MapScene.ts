@@ -360,7 +360,7 @@ export class MapScene extends Phaser.Scene {
   create(): void {
     // A pending ladder step lands here, at the scene boundary, before any camera is set up.
     applyPendingRenderScale(this.game);
-    // The map's own bed, drawn from the Hanoi recordings. A fight silences it and hands it back
+    // The map's own bed, the composed pieces. A fight silences it and hands it back
     // (see `duckAmbient`), so the two never play together.
     soundDirector.ambientMusic('map');
     // The map build and its bakes take real frames; the ladder must not read them as the

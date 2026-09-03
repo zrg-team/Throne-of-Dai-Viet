@@ -7,6 +7,7 @@ import { seal, sawtoothBand } from './ink/devices';
 import { getLanguage, t } from '../i18n';
 import { TITLE_FONT, UI_FONT } from './fonts';
 import type { AscentRarity } from '../state/types';
+import { registerGpuBake, unregisterGpuBake } from '../game/gpuBakes';
 
 /**
  * The card face, baked. One RenderTexture per `(cardId, level, language)`, drawn once and
@@ -178,29 +179,44 @@ export function cardFaceTextureKey(
   const width = Math.ceil(boundsW * FACE_RASTER);
   const height = Math.ceil(boundsH * FACE_RASTER);
   const target = scene.make.renderTexture({ width, height }, false);
-  const face = buildCardFace(scene, cardId, lv);
-  face.setScale(FACE_RASTER);
-  if (tilt !== 0) {
-    // Rotated about the card's centre: place the top-left corner where the rotation of the
-    // centred card puts it. (Rotating an object *into a bake* is fine — the broken path is a
-    // rotated quad on the live display list.)
-    const a = Phaser.Math.DegToRad(tilt);
-    const cx = (width / 2) / FACE_RASTER;
-    const cy = (height / 2) / FACE_RASTER;
-    const ox = -CARD_FACE_W / 2;
-    const oy = -CARD_FACE_H / 2;
-    face.setRotation(a);
-    face.setPosition(
-      (cx + ox * Math.cos(a) - oy * Math.sin(a)) * FACE_RASTER,
-      (cy + ox * Math.sin(a) + oy * Math.cos(a)) * FACE_RASTER,
-    );
-  }
-  target.draw(face);
-  // Flush the buffered draw before the source dies — see the file comment.
-  target.render();
-  face.destroy(true);
+  // The painting is a closure so a restored GL context can run it again into the SAME texture
+  // (`game/gpuBakes.ts`): the saved key is shared with every image already stamped from it, so
+  // repainting in place brings every card on screen back without any consumer being told.
+  const paint = (into: Phaser.Scene): void => {
+    const face = buildCardFace(into, cardId, lv);
+    face.setScale(FACE_RASTER);
+    if (tilt !== 0) {
+      // Rotated about the card's centre: place the top-left corner where the rotation of the
+      // centred card puts it. (Rotating an object *into a bake* is fine — the broken path is a
+      // rotated quad on the live display list.)
+      const a = Phaser.Math.DegToRad(tilt);
+      const cx = (width / 2) / FACE_RASTER;
+      const cy = (height / 2) / FACE_RASTER;
+      const ox = -CARD_FACE_W / 2;
+      const oy = -CARD_FACE_H / 2;
+      face.setRotation(a);
+      face.setPosition(
+        (cx + ox * Math.cos(a) - oy * Math.sin(a)) * FACE_RASTER,
+        (cy + ox * Math.sin(a) + oy * Math.cos(a)) * FACE_RASTER,
+      );
+    }
+    target.clear();
+    target.draw(face);
+    // Flush the buffered draw before the source dies — see the file comment.
+    target.render();
+    face.destroy(true);
+  };
+  paint(scene);
   target.saveTexture(key);
   faceTextures.set(key, target);
+  registerGpuBake(scene.game, key, () => {
+    if (!faceTextures.has(key) || !scene.textures.exists(key)) {
+      unregisterGpuBake(key);
+      return;
+    }
+    // Built in whichever scene is live: the one that baked it may have been stopped since.
+    paint(scene.game.scene.getScenes(true)[0] ?? scene);
+  });
   return key;
 }
 

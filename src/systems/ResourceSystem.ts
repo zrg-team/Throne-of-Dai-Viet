@@ -1,6 +1,9 @@
 import { isEndlessMode, PLAYER_KINGDOM_ID } from '../game/constants';
 import {
-  GARRISON_RECOVER_SEASONS,
+  GARRISON_RECOVER_MIN_STEP,
+  GARRISON_RECOVER_SHARE,
+  MILITIA_OVER_CAP_DECAY,
+  MILITIA_POPULATION_SHARE,
   ARMY_CAMPAIGN_FOOD_MULT,
   ARMY_FOOD_PER_SOLDIER,
   ARMY_GOLD_PER_SOLDIER,
@@ -19,6 +22,7 @@ import {
   GOLD_SOFTCAP_FROM,
   HERO_RESERVE_UPKEEP_SHARE,
   MILITIA_REGROW_DELAY,
+  ASCENT_MILITIA_REGROW_DELAY,
   POP_CAPACITY_CAPITAL_MULT,
   POP_CROWDING_FOOD,
   POP_GROWTH_MIN_PER_TICK,
@@ -447,7 +451,7 @@ function eraMilitiaMult(state: GameState): number {
 export function militiaCapacity(state: GameState, land: Land): number {
   const built = land.buildings.reduce((sum, building) => sum + 1 + building.level * 0.5, 0);
   const base = land.defense * 2.2 + built * 16 + land.population * 0.12;
-  return Math.floor(
+  const cap = Math.floor(
     base
     * (0.4 + (land.loyalty / 100) * 0.6)
     * getFocusGarrisonMult(state, land)
@@ -458,6 +462,13 @@ export function militiaCapacity(state: GameState, land: Land): number {
     // men guarding their own village are not men marching to claim another.
     * (villageWatch(state) ? VILLAGE_WATCH_MILITIA : 1),
   );
+  // The watch is the people, so it cannot outnumber them (Dragon Ascent). Every multiplier above
+  // stacks on a figure that only *reads* the population — measured, 4,603 militia on 870 people.
+  // See `MILITIA_POPULATION_SHARE`.
+  if (state.gameMode === 'ascent') {
+    return Math.min(cap, Math.floor(land.population * MILITIA_POPULATION_SHARE));
+  }
+  return cap;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -540,11 +551,28 @@ export function growProvincialMilitia(state: GameState): void {
     // A district the war has just walked over is not raising a fresh watch the same afternoon.
     // Without this the militia stepped back up on the very next tick after a levy went home, which
     // is half of why a repelled wave cost the province nothing at all.
-    if (state.turn - (land.levyReturnedTurn ?? -MILITIA_REGROW_DELAY) < MILITIA_REGROW_DELAY) continue;
+    // The watch IS people (Dragon Ascent): when they die, starve or leave, the men under arms go
+    // with them at once — not at 4% a tick. Measured with only the soft decay, one province in
+    // five ticks still carried a watch larger than half its people. Before the regrow delay, so a
+    // district that has just buried its militia is bounded on the very tick it did.
+    if (state.gameMode === 'ascent') {
+      land.localSoldiers = Math.min(land.localSoldiers, Math.floor(land.population * MILITIA_POPULATION_SHARE));
+    }
+    const regrowDelay = state.gameMode === 'ascent' ? ASCENT_MILITIA_REGROW_DELAY : MILITIA_REGROW_DELAY;
+    if (state.turn - (land.levyReturnedTurn ?? -regrowDelay) < regrowDelay) continue;
+    // On seasons, like the walls and the turnout (Dragon Ascent). Stepping every tick refilled a
+    // watch that had just buried a third of itself inside five ticks, so the second host of a wave
+    // met a province at 1.05x the power the first had left it — measured across 58 such pairs with
+    // nothing paid to restore anything. `MILITIA_SEASONS_TO_FULL` is now seasons, as it says.
+    if (state.gameMode === 'ascent' && state.turn % 2 !== 0 && land.localSoldiers < militiaCapacity(state, land)) continue;
     const cap = militiaCapacity(state, land);
     if (land.localSoldiers >= cap) {
-      // Over capacity only happens when a province is lost and retaken, or its loyalty falls.
-      land.localSoldiers = Math.max(cap, land.localSoldiers - 2);
+      // Over capacity: a province lost and retaken, loyalty fallen, a decree that lifted the watch,
+      // or people dead in its defence. Shed as a share of the excess rather than a flat two men:
+      // at two a tick a watch of 6,400 on 6,000 people took three hundred ticks to come down,
+      // which is to say never.
+      const excess = land.localSoldiers - cap;
+      land.localSoldiers = Math.max(cap, land.localSoldiers - Math.max(2, Math.ceil(excess * MILITIA_OVER_CAP_DECAY)));
       continue;
     }
     const step = Math.max(2, Math.ceil(cap / MILITIA_SEASONS_TO_FULL));
@@ -617,7 +645,15 @@ export function recoverGarrison(state: GameState): void {
     const spent = land.garrisonExhaustion ?? 0;
     if (spent <= 0) continue;
     if (land.ownerId !== PLAYER_KINGDOM_ID) { land.garrisonExhaustion = undefined; continue; }
-    const step = 1 / GARRISON_RECOVER_SEASONS;
+    // A season is two ticks, and the dial is in seasons — it was stepping every tick, so "eight
+    // seasons" healed in eight ticks, inside the twelve of a wave, and the next contact met a
+    // whole province. A paid `steady` restore runs at four times the pace.
+    const hasted = (land.restoreHasteUntil ?? -1) > state.turn;
+    if (!hasted && state.turn % 2 !== 0) continue;
+    // A share of what is still spent, floored so it ends — see `GARRISON_RECOVER_SHARE`. A full
+    // charge clears in about `GARRISON_RECOVER_SEASONS` plus the floor's tail; a light one no
+    // longer vanishes inside a season.
+    const step = Math.max(spent * GARRISON_RECOVER_SHARE, GARRISON_RECOVER_MIN_STEP) * (hasted ? 2 : 1);
     const left = spent - step;
     land.garrisonExhaustion = left > 0.005 ? left : undefined;
   }
@@ -631,7 +667,10 @@ export function repairProvincialDefence(state: GameState): void {
     // A province in enemy hands rebuilds nothing for us. Left standing rather than cleared, so
     // retaking it does not hand back walls the fight knocked down.
     if (land.ownerId !== PLAYER_KINGDOM_ID) continue;
-    const step = Math.min(breach, Math.max(1, Math.ceil(breach / WALL_REPAIR_SEASONS)));
+    // On seasons, not ticks — see `recoverGarrison`. A `steady` restore quadruples the pace.
+    const hasted = (land.restoreHasteUntil ?? -1) > state.turn;
+    if (!hasted && state.turn % 2 !== 0) continue;
+    const step = Math.min(breach, Math.max(1, Math.ceil((breach * (hasted ? 2 : 1)) / WALL_REPAIR_SEASONS)));
     land.defense += step;
     land.wallsBreached = breach - step;
     if (land.wallsBreached <= 0) land.wallsBreached = undefined;

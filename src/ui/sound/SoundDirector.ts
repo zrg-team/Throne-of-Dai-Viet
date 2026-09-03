@@ -112,8 +112,8 @@ export const LANE_VOICES: Record<string, LaneVoice> = {
  * judged by ear, and were: *"battle sound a bit higher"*. 18–30% against the map's 8.5% makes
  * walking into a fight an audible change of room, which is the whole job of a battle bed.
  */
-const MUSIC_MIN = 0.15;
-const MUSIC_MAX = 0.19;
+const MUSIC_MIN = 0.12;
+const MUSIC_MAX = 0.16;
 
 /**
  * The five battle tracks, split by what the field deserves.
@@ -142,36 +142,27 @@ const BATTLE_MUSIC = {
  * track changing. Small has to mean "not the thing you are listening to", not "not there" —
  * which is what 3% and 5% turned out to mean.
  */
-const AMBIENT_LEVEL = 0.085;
+const AMBIENT_LEVEL = 0.065;
 
 /**
  * The peaceful beds, and what they are.
  *
- * Three are **real Vietnamese traditional music** — field recordings made in Hanoi by kevp888
- * (CC-BY 4.0), which is as close to the game's own world as free music gets: plucked strings, a
- * singer, a theatre. The other three are composed East-Asian pieces by hitctrl and marcelofg55
- * (CC-BY 3.0). All six are trimmed to about a hundred seconds with the fades baked in, so a loop
- * is silence meeting silence rather than a seam.
+ * Three composed East-Asian pieces by hitctrl and marcelofg55 (CC-BY 3.0), trimmed to about a
+ * hundred seconds with the fades baked in, so a loop is silence meeting silence rather than a seam.
  *
- * The menu leans on the composed pieces and the map on the recordings, but both draw from the
- * whole set: a front page that always sounds the same is a front page nobody hears twice.
+ * **The Hanoi field recordings are gone.** Three real Vietnamese recordings by kevp888 shipped
+ * first; two were cut after listening (a solo instrument and an unaccompanied voice are foreground
+ * music, not a bed) and the last, the theatre ensemble, was cut on request — *"remove Ha noi
+ * sounds"*. Nothing by kevp888 ships now, so nothing credits them. `encode-ambient-music.mjs` still
+ * records the sources if they are ever wanted back.
  */
 export const AMBIENT_MUSIC = {
   // The front page is brief; three is more than it needs.
-  menu: ['jade-kings-throne.mp3', 'misty-mountains.mp3', 'hanoi-theatre.mp3'],
+  menu: ['jade-kings-throne.mp3', 'misty-mountains.mp3'],
   // The map is where an hour is spent, so it plays these as a shuffled set rather than one
   // piece on repeat. A hundred seconds looped for an hour is a hundred seconds heard thirty-six
   // times.
-  //
-  // **Two Hanoi recordings were cut after listening**: `hanoi-strings` and `hanoi-singer` sounded
-  // wrong under the map — a solo instrument and an unaccompanied voice are foreground music, and a
-  // bed cannot be something the ear keeps turning towards. The theatre recording stays because it
-  // is an ensemble with room around it, which is what a bed is. Their files are not shipped;
-  // `encode-ambient-music.mjs` records the sources if they are ever wanted back.
-  map: [
-    'hanoi-theatre.mp3', 'bamboo-forest.mp3',
-    'jade-kings-throne.mp3', 'misty-mountains.mp3',
-  ],
+  map: ['bamboo-forest.mp3', 'jade-kings-throne.mp3', 'misty-mountains.mp3'],
 };
 
 /** The rest between two pieces — a player putting an instrument down, not a playlist. */

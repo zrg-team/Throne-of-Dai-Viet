@@ -14,6 +14,7 @@ import {
   recoverGarrison,
   repairProvincialDefence,
 } from '../ResourceSystem';
+import { rebuildRuins } from './RestoreSystem';
 import {
   progressArmyLogistics,
   progressMovementOrders,
@@ -326,6 +327,8 @@ export function advanceAscentTick(state: GameState): void {
   repairProvincialDefence(state);
   // And the turnout the last fight spent — the third half of the same recovery, on its own clock.
   recoverGarrison(state);
+  // And the farms and houses the fight burnt, a level at a time. See `RestoreSystem`.
+  rebuildRuins(state);
   detectConquests(state, ownedBefore);
   tickAscentProgress(state);
 

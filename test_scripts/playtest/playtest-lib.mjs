@@ -41,6 +41,8 @@ window.__ptOptions = (forState) => {
     case 'envoy': // posting a champion spends the one person the court has.
     case 'envoy': case 'province-order': return p.options.map((o) => o.id);
     case 'envoy': case 'famine': case 'rival-demand': return p.options.filter((o) => o.affordable).map((o) => o.id);
+    // The restore card: haste first, so the engaged policy pays the bill and the cost is measured.
+    case 'restore-land': return p.options.filter((o) => o.affordable).map((o) => o.id);
     case 'empire-response': return p.options.map((o) => o.id);
     // **The kinds below fell through to ['ok'], which nothing accepts.**
     //
@@ -61,7 +63,15 @@ window.__ptOptions = (forState) => {
     // stray id, so ['ok'] here would spin the ceremony forever.
     case 'bind-card': return p.options;
     case 'decree-offer': return [...p.projectIds, 'decline'];
-    case 'story-beat': return p.options.filter((o) => o.affordable).map((o) => o.id);
+    // A *blow* carries no options at all — the screen shows one Continue button and the resolver
+    // accepts any id for it. Returning [] here stopped every headless driver dead: the run kept
+    // ticking with the card pending, no later card ever surfaced, and the wave director's
+    // the empire-response sat in the queue for ever — measured on seed 55, a one-province realm
+    // "held" forty waves that were never launched. That is what the 85/85 baseline was scoring.
+    case 'story-beat': {
+      const open = p.options.filter((o) => o.affordable).map((o) => o.id);
+      return open.length ? open : ['ok'];
+    }
     case 'world-event': return p.options.filter((o) => o.affordable).map((o) => o.id);
     default: return ['ok'];
   }

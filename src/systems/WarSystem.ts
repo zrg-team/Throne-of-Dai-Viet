@@ -20,6 +20,9 @@ import {
   CAMPAIGN_TICKS_ON_CAPTURE,
   MASONRY_POWER_PER_DEFENSE,
   MILITIA_POWER_PER_MAN,
+  PEOPLE_PER_WALL_POINT,
+  WALL_MANNING_FLOOR,
+  WALL_MANNING_FREE_DEFENSE,
   MASONRY_SHARE_CAP,
   MIN_HOST_CREDIT,
   MUSTER_SUPPLY_COST_MULT,
@@ -249,6 +252,39 @@ export function militiaPowerPerMan(state: GameState): number {
 }
 
 /**
+ * How much of a province's masonry its people can actually man, 0–1 (Dragon Ascent).
+ *
+ * Walls were worth `defense × 8` whether the district behind them held six thousand people or
+ * three hundred, so a realm that had buried its people kept every wall it had ever bought at full
+ * strength. See `PEOPLE_PER_WALL_POINT`. One in every other mode.
+ */
+export function wallManning(state: GameState, land: Land): number {
+  if (state.gameMode !== 'ascent') return 1;
+  // Only the masonry above the palisade band needs people — see `WALL_MANNING_FREE_DEFENSE`.
+  const need = Math.max(0, land.defense - WALL_MANNING_FREE_DEFENSE) * PEOPLE_PER_WALL_POINT;
+  if (need <= 0) return 1;
+  return Math.max(WALL_MANNING_FLOOR, Math.min(1, land.population / need));
+}
+
+/**
+ * The static garrison of a province: walls the people can man, less the turnout the last fight
+ * spent, plus the militia that actually exists — on the ground's own terms.
+ *
+ * **The one formula.** The odds roll (`defenderPower`), the HUD's holding power
+ * (`landGarrisonPower`), the levy the walls turn out (`raiseGarrisonLevy`) and the enemy
+ * director's retreat test all read this, so none of them can disagree about a wall — and the
+ * roll used to: `defenderPower` applied neither `garrisonExhaustion` nor anything about people,
+ * so a province the watched fight had just spent rolled its full masonry a tick later.
+ */
+export function garrisonPower(state: GameState, land: Land): number {
+  return (land.defense * masonryPowerPerDefense(state) * wallManning(state, land)
+    * (1 - (land.garrisonExhaustion ?? 0))
+    + land.localSoldiers * militiaPowerPerMan(state))
+    * terrainDefenseMultiplier(land)
+    * getFocusDefenseMult(state, land);
+}
+
+/**
  * Masonry and field hosts added up, with the walls held to a minority share (Dragon Ascent).
  *
  * The one rule the whole "army saves the land" pass turns on: **the host is the deciding term of
@@ -310,12 +346,16 @@ function defenderPower(state: GameState, targetLand: Land): number {
   // Walls + local militia hold a district against small raids, but a serious host can
   // only be stopped by a standing field army — so keeping an army alive matters, and
   // turtling behind walls is no longer a win button (see WarSystem rebalance).
-  // A province set to defend holds harder than its wall count says — the whole point of that focus
-  // in Ascent. `getFocusDefenseMult` returns 1 in every other mode and for every other focus.
-  const garrison = (targetLand.defense * masonryPowerPerDefense(state)
-    + targetLand.localSoldiers * militiaPowerPerMan(state))
-    * terrainDefenseMultiplier(targetLand)
-    * getFocusDefenseMult(state, targetLand);
+  //
+  // **A levy already standing here *is* the garrison (Dragon Ascent).** With the war on two
+  // fronts the levy stays raised until every field is quiet, and a second host reaching the same
+  // ground in the meantime used to roll against fresh walls (`land.defense` untouched, exhaustion
+  // not yet written) plus a militia of zero (drawn into the levy) — the walls conjured twice, the
+  // men counted never. The mauled levy is what stands on the ground; it is what the roll meets.
+  const standingLevy = state.gameMode === 'ascent'
+    ? state.armies.find((army) => army.isLevy && army.kingdomId === targetLand.ownerId && army.landId === targetLand.id)
+    : undefined;
+  const garrison = standingLevy ? armyPower(state, standingLevy) : garrisonPower(state, targetLand);
 
   /**
    * **Every host present, in Dragon Ascent.**

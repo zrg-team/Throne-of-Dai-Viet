@@ -294,6 +294,7 @@ export function promptSignature(prompt: AscentPrompt): string {
     case 'envoy': return `${prompt.kingdomId}:${prompt.relations}`;
     case 'world-event': return `${prompt.eventId}:${prompt.kingdomId}:${prompt.otherKingdomId ?? ''}`;
     case 'famine': return `famine:${prompt.shortfall}`;
+    case 'restore-land': return `restore:${prompt.landId}:${prompt.breach}:${prompt.ruins}:${prompt.dead}`;
     case 'province-order': return `${prompt.landId}:${prompt.reason}:${prompt.options.map((option) => option.id).join(',')}`;
     case 'muster-proposal': return `muster:${prompt.heroId}:${prompt.plan.soldiers}:${prompt.purpose}`;
     case 'rival-demand': return `${prompt.demand}:${prompt.kingdomId}`;

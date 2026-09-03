@@ -214,7 +214,9 @@ const out = await page.evaluate(async () => {
     IS.dissolveGarrisonLevies(st);
     // ...and it must come back.
     const repairFrom = land.defense;
-    for (let i = 0; i < CFG.WALL_REPAIR_SEASONS + 4; i += 1) RS.repairProvincialDefence(st);
+    // A season is two ticks and the repair now steps on seasons (it used to step every tick, so
+    // "six seasons" was six ticks). Walk the clock honestly: two ticks a season.
+    for (let i = 0; i < (CFG.WALL_REPAIR_SEASONS + 4) * 2; i += 1) { st.turn += 1; RS.repairProvincialDefence(st); }
     r.walls = {
       defBefore,
       defAfter,

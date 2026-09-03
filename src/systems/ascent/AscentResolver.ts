@@ -23,6 +23,7 @@ import { resolveDoctrine } from './RealmDoctrineSystem';
 import { resolveEnvoy } from './EnvoySystem';
 import { resolveProvinceOrder } from './ProvinceOrderSystem';
 import { resolveFamine } from './FamineSystem';
+import { resolveRestore } from './RestoreSystem';
 import { raiseHostWithPlan } from './MusterSystem';
 import { CLAIM_DECLINE_TICKS, MUSTER_DECLINE_TICKS } from '../../game/ascentConfig';
 import { pushToast } from '../empire/notifications';
@@ -274,6 +275,11 @@ export function resolveAscentPrompt(state: GameState, choiceId: string): boolean
 
     case 'famine': {
       handled = resolveFamine(state, choiceId);
+      break;
+    }
+
+    case 'restore-land': {
+      handled = resolveRestore(state, prompt, choiceId);
       break;
     }
 

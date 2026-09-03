@@ -891,6 +891,13 @@ export const WALL_REPAIR_SEASONS = 6;
  * that is supposed to take time; a village re-forms its watch quickly.
  */
 export const MILITIA_REGROW_DELAY = 2;
+/**
+ * Dragon Ascent's value: four ticks (two seasons). The two-tick figure was tuned when the militia
+ * regrew every tick and nothing else a fight cost had a clock; now the walls, the turnout and the
+ * watch all recover on seasons, and a district that fought this season is not raising a fresh
+ * watch next season. See the note in `growProvincialMilitia`.
+ */
+export const ASCENT_MILITIA_REGROW_DELAY = 4;
 
 // ── The army saves the land ─────────────────────────────────────────────────
 /**
@@ -1438,6 +1445,18 @@ export const BATTLE_NUMBERS_FLOOR = 0.15;
  */
 export const GARRISON_RECOVER_SEASONS = 8;
 /**
+ * Recovery is a share of what is still spent, not a flat eighth.
+ *
+ * A flat `1/GARRISON_RECOVER_SEASONS` a season meant a light charge — the 5–10% a repelled raid
+ * costs — was gone by the next season, so a second host in the same wave met a whole province.
+ * Measured (endure policy, nothing paid): 53 of 53 second contacts met the province at or above
+ * the power the first had left it. A quarter of what remains each season, floored so it does end:
+ * a 0.1 charge takes five seasons, a 0.5 charge eleven — one wave and two, which is the shape
+ * asked for. `GARRISON_RECOVER_SEASONS` stays the upper bound a full charge takes to clear.
+ */
+export const GARRISON_RECOVER_SHARE = 0.25;
+export const GARRISON_RECOVER_MIN_STEP = 0.02;
+/**
  * Share of a levy's dead militia that is taken from the province's people.
  *
  * A militiaman is drawn from `land.population` through `militiaCapacity`, and his death used to
@@ -1446,6 +1465,101 @@ export const GARRISON_RECOVER_SEASONS = 8;
  * six thousand of ours left the province's population untouched and the realm's *up*, on spoils.
  */
 export const LEVY_DEAD_POPULATION_SHARE = 1;
+
+// ── The people hold the walls ───────────────────────────────────────────────
+/**
+ * Masonry a district can hold with nobody in particular behind it — palisades, a gate, a ditch.
+ *
+ * Manning was first written as `population / (defense × K)` over the whole wall, and that taxed
+ * *expansion*: a freshly claimed province has few people and its modest walls read half-manned,
+ * so the engaged policy lost ground it had just taken. Measured at 16 seeds: 81.3/85 with it,
+ * 85/85 without, and the ablation left every other rule of the round in place. Only the walls
+ * above this band need people, which is the case the report actually named — a level-five
+ * fortress on three hundred people.
+ */
+export const WALL_MANNING_FREE_DEFENSE = 40;
+/**
+ * People a point of `defense` above the free band needs behind it before it is worth its eight.
+ *
+ * Walls were `defense × 8` whether the district behind them held six thousand people or three
+ * hundred, so a realm that had buried its people kept every wall it had ever bought at full
+ * strength. Reported as *if your kingdom have no people why it defend still high?* Measured on
+ * seed 33 at wave 15: 325 people, 136 defense — a garrison that could not have manned a gate.
+ * Eight: the opening capital (66 defense, 300 people) needs 208 and is whole; a 440-defense
+ * fortress needs 3,200, which is a real city, not a village behind a big wall.
+ */
+export const PEOPLE_PER_WALL_POINT = 8;
+/** Manning never reads below this: an empty fortress is still a fortress to walk into. */
+export const WALL_MANNING_FLOOR = 0.3;
+/**
+ * The most of a district's people that can stand in its watch at once.
+ *
+ * `militiaCapacity` reads `population × 0.12`, but nothing bounded the militia *by* the people:
+ * over the cap it shed two men a tick, so a decree or a doctrine that lifted the watch once left it
+ * above its own people for hundreds of ticks. Measured: 4,603 militia on 870 people (seed 44,
+ * wave 21) and 6,400 on 5,992 (seed 55, wave 25 onward, the one-province realm that held forty
+ * waves with no army). Half is total mobilisation; nothing stands above it.
+ */
+export const MILITIA_POPULATION_SHARE = 0.5;
+/** Share of the excess a province over its watch cap sheds each tick. Was a flat 2 men. */
+export const MILITIA_OVER_CAP_DECAY = 0.04;
+
+// ── A held defence costs the province ───────────────────────────────────────
+/**
+ * How much of a province's turnout a *hidden-roll* defence spends, at even odds.
+ *
+ * Only the watched fight ever charged the province (`dissolveGarrisonLevies`), and the watched
+ * fight is 3% of engagements. The other 97% resolved in `resolveInvaderBattle`, where a held line
+ * cost the walls nothing and the militia nothing unless it sallied — so a walls-only capital
+ * repelled a wave for free, forever. Measured on seed 55: seventeen capital defences from wave 22
+ * to 42, every one `us 6958 -> 6958`, no army, one province, no end.
+ *
+ * Scaled by the odds: the share is this at parity, a third of it against a host a third the size,
+ * and it is what the levy would have lost had the screen opened. Both paths now go through
+ * `chargeProvinceForDefence`, so a second fight on the same ground in the same wave meets a
+ * province the first one already bled.
+ */
+export const HIDDEN_DEFENCE_LOSS_AT_PARITY = 0.3;
+/** A held defence always costs *something* — the men on the gate — and never the whole turnout. */
+export const HIDDEN_DEFENCE_LOSS_MIN = 0.06;
+export const HIDDEN_DEFENCE_LOSS_MAX = 0.55;
+/**
+ * Building levels a fought defence knocks down, per unit of `lostShare`, as a share of the
+ * province's buildings. A fight that spent 40% of the turnout on a district of ten buildings
+ * costs `0.4 × 0.5 × 10 = 2` levels — a farm and a house burnt, in the words of the report.
+ * Only levels above one are taken (a level-one farm stays a farm); walls are charged separately
+ * through the breach.
+ */
+export const RUIN_LEVELS_PER_LOSS = 0.5;
+/** Ticks per building level a province rebuilds on its own, with nobody paying for haste. */
+export const RUIN_REBUILD_TICKS = 8;
+/**
+ * The restore card is raised only for damage worth a decision: below these the province simply
+ * heals on its own clocks and the sheet's notes say so.
+ */
+export const RESTORE_ASK_MIN_BREACH = 5;
+export const RESTORE_ASK_MIN_SPENT = 0.25;
+/** Ticks after the last card before the restore card may take the screen — the director's own gap. */
+export const RESTORE_CARD_GAP_TICKS = 2;
+/**
+ * What haste costs. The bill is the damage priced: a course of wall, a building level, and the
+ * spent turnout (men to be fed and re-armed). `steady` pays this share of the full bill for the
+ * work done at treble pace rather than at once; `endure` pays nothing and waits.
+ */
+export const RESTORE_GOLD_PER_BREACH = 5;
+export const RESTORE_SUPPLIES_PER_BREACH = 2;
+export const RESTORE_GOLD_PER_LEVEL = 20;
+export const RESTORE_FOOD_PER_LEVEL = 10;
+export const RESTORE_SUPPLIES_PER_LEVEL = 8;
+/** Gold and food per hundred men of spent turnout, to re-arm and feed the wounded. */
+export const RESTORE_GOLD_PER_100_SPENT = 3;
+export const RESTORE_FOOD_PER_100_SPENT = 4;
+export const RESTORE_STEADY_SHARE = 0.45;
+/** Ticks the steady rebuild runs at treble pace. */
+export const RESTORE_STEADY_TICKS = 6;
+/** Exhaustion left after haste / steady: money re-arms men; it does not un-wound them. */
+export const RESTORE_HASTE_EXHAUSTION_LEFT = 0.25;
+export const RESTORE_STEADY_EXHAUSTION_LEFT = 0.6;
 /**
  * Milliseconds a single beat is held on screen.
  *

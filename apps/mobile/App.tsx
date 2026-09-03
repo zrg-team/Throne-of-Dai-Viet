@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Linking, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { AppState, Linking, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { WebView, type WebViewNavigation } from 'react-native-webview';
@@ -64,6 +64,37 @@ const KNOCKS = 10;
 const KNOCK_GAP_MS = 300;
 
 /**
+ * The web view's process can be killed under a backgrounded app — Android's renderer under memory
+ * pressure, WebKit's content process on iOS — and what is left on screen is a white view that
+ * never paints again: "focus the app and it is blank". Neither platform brings it back on its own.
+ *
+ * Two things follow. The view is remounted under a new `key` rather than reloaded, because Android
+ * leaves the dead one unusable and a `reload()` on it does nothing. And the page is told why, in
+ * the same `sessionStorage` slot `src/game/resilience.ts` writes before its own reloads, so
+ * `MenuScene` carries the player straight back into the run the game autosaved on the way out.
+ */
+const RELOAD_REASON_KEY = 'mandate:reload-reason:v1';
+function reloadReasonScript(count: number): string {
+  const reason = JSON.stringify({ cause: 'shell-restart', count, at: new Date().toISOString() });
+  return `try { sessionStorage.setItem(${JSON.stringify(RELOAD_REASON_KEY)}, ${JSON.stringify(reason)}); } catch (e) {}\n`;
+}
+
+/**
+ * Asked of the page every time the app comes back to the foreground. A live page answers within
+ * a frame with its own health reading; a dead process answers nothing, which is the one signal
+ * neither platform's termination callback is guaranteed to give.
+ */
+const HEALTH_PING = `(function () {
+  var health = window.__health ? JSON.stringify(window.__health()) : '{}';
+  if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage('pong:' + health);
+})(); true;`;
+/**
+ * Generous on purpose: a page that is alive but busy — rebuilding the map on the resume frame on
+ * a slow phone — must not be mistaken for a dead one. A wrong restart costs a reload, never a run.
+ */
+const PONG_MS = 4000;
+
+/**
  * Ask the origin for the game's own index, from the JS thread.
  *
  * Deliberately `index.html` rather than `/`: a directory index can be answered by a server that
@@ -126,10 +157,21 @@ function Shell() {
   // React 19 requires the initial value spelled out; `useRef<T>()` no longer implies undefined.
   const server = useRef<Server | undefined>(undefined);
   const web = useRef<WebView>(null);
+  /** Bumped to mount a fresh web view after its process died — see `reloadReasonScript`. */
+  const [webKey, setWebKey] = useState(0);
+  const restarts = useRef(0);
+  /** When the page last answered `HEALTH_PING`. */
+  const pongAt = useRef(0);
 
   const note = useCallback((line: string) => {
     setDiary((prior) => [...prior, line]);
   }, []);
+
+  const restart = useCallback((why: string) => {
+    restarts.current += 1;
+    note(`web view restart ${restarts.current}: ${why}`);
+    setWebKey((key) => key + 1);
+  }, [note]);
 
   useKeepAwake();
 
@@ -308,6 +350,28 @@ function Shell() {
   }, [giveUp, ready]);
 
   /**
+   * Coming back to the foreground: ask the page whether it is still there.
+   *
+   * `onRenderProcessGone` and `onContentProcessDidTerminate` below catch the cases the platform
+   * reports. A process the OS killed while the app was suspended is not always one of them — the
+   * app can be resumed with a web view that simply never paints — so the shell asks, and a page
+   * that does not answer within `PONG_MS` is mounted again.
+   */
+  useEffect(() => {
+    if (!ready || failed) return;
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state !== 'active') return;
+      const asked = Date.now();
+      web.current?.injectJavaScript(HEALTH_PING);
+      setTimeout(() => {
+        if (pongAt.current >= asked) return;
+        restart('no answer from the page after resume');
+      }, PONG_MS);
+    });
+    return () => subscription.remove();
+  }, [failed, ready, restart]);
+
+  /**
    * Content updates, offered rather than applied.
    *
    * `checkAutomatically` is NEVER and nothing here calls `reloadAsync` on its own, which is the
@@ -420,16 +484,33 @@ function Shell() {
       <StatusBar style="dark" />
     {origin ? (
         <WebView
+          key={webKey}
           ref={web}
           source={{ uri: origin }}
           style={[styles.web, { opacity: ready ? 1 : 0 }]}
           originWhitelist={[`http://127.0.0.1:${PORT}*`, `http://localhost:${PORT}*`]}
           onShouldStartLoadWithRequest={handleRequest}
           // Before the bundle's first line: `src/main.ts` reads the descriptor at module scope.
-          injectedJavaScriptBeforeContentLoaded={shellDescriptorScript()}
+          // The reason comes first so the descriptor's own last line stays the script's last line.
+          injectedJavaScriptBeforeContentLoaded={
+            (restarts.current > 0 ? reloadReasonScript(restarts.current) : '') + shellDescriptorScript()
+          }
+          // The platform's own word that the process is gone. iOS could `reload()` here, but one
+          // path for both keeps the reason injection and the diary line identical.
+          onContentProcessDidTerminate={() => restart('WebKit content process terminated')}
+          onRenderProcessGone={({ nativeEvent }) =>
+            restart(`Android render process gone (crashed: ${nativeEvent.didCrash})`)
+          }
           onMessage={(event) => {
-            if (event.nativeEvent.data === 'boot:ready') {
+            const data = event.nativeEvent.data;
+            if (data === 'boot:ready') {
               reveal();
+            }
+            // The page answering the resume ping, with its own health reading for the diary.
+            if (typeof data === 'string' && data.startsWith('pong:')) {
+              pongAt.current = Date.now();
+              note(`resume: ${data.slice(5, 300)}`);
+              return;
             }
             // The player tapped Reload on the version line. Restart onto the bundle already down.
             if (event.nativeEvent.data === 'update:apply') {
