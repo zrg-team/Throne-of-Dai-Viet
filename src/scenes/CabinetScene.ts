@@ -178,6 +178,12 @@ export class CabinetScene extends Phaser.Scene {
 
     const listTop = 80;
     const scroll = this.ui.scrollArea({ x: 0, y: listTop, width: GAME_WIDTH, height: backY - listTop - 6 });
+    // `addTo` is not a convenience: it parents the hit zone *under* the list. Left unparented, the
+    // zone — made after the content, so above it — took every tap on the page, and the report
+    // was *I cannot click anything, does it really work?* Nothing inside the list had ever fired.
+    const layer = this.add.container(0, 0);
+    scroll.addTo(layer);
+    this.keep(layer);
     this.scroll = scroll;
     const W = GAME_WIDTH - PAD * 2;
     let y = 4;

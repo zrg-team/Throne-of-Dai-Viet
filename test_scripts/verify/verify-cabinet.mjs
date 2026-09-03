@@ -213,6 +213,43 @@ check('bind step raises played cards, best first', result.bindRaised);
 check('a stray id binds nothing', result.bindRefusesStray);
 check('binding files the card', result.bindLands);
 check('bind advances to next-reign', result.bindAdvances);
+console.log('=== THE PAGE TAKES TAPS ===');
+// The page: every tap on it was eaten by the scroll area's own hit zone, because the area was
+// never parented (`addTo`). A press on the hero button must turn the page to the scratch.
+await page.evaluate(async () => {
+  localStorage.setItem('mandate:language:v1', 'vi');
+  const cab = await import('/src/state/cabinet.ts');
+  localStorage.setItem('mandate:cabinet:v1', JSON.stringify({ rubbings: 8, rubbingPity: 0, cards: {}, hand: [], deeds: [] }));
+  cab.resetCabinetCache?.();
+  const g = window.__phaserGame;
+  for (const s of g.scene.getScenes(true)) g.scene.stop(s.scene.key);
+  g.scene.start('CabinetScene');
+});
+await page.waitForTimeout(900);
+const tapAt = async (find, label) => {
+  const spot = await page.evaluate((find) => {
+    const g = window.__phaserGame; const sc = g.scene.getScene('CabinetScene');
+    const walk = (o, acc) => { acc.push(o); if (o.list) o.list.forEach((c) => walk(c, acc)); return acc; };
+    const all = walk({ list: sc.children.list }, []).filter((o) => o.input?.enabled);
+    const hit = find === 'hero' ? all.find((o) => o.type === 'Rectangle' && o.input.hitArea.width > 300 && o.input.hitArea.height === 44)
+      : all.filter((o) => o.type === 'Zone' && o.width === 83)[1];
+    if (!hit) return null;
+    const m = hit.getWorldTransformMatrix();
+    const w = hit.input.hitArea?.width ?? hit.width, h = hit.input.hitArea?.height ?? hit.height;
+    const origin = hit.type === 'Rectangle' ? 0.5 : 0;
+    const r = g.canvas.getBoundingClientRect();
+    const sx = r.width / g.scale.gameSize.width, sy = r.height / g.scale.gameSize.height;
+    return { x: r.x + (m.tx + (0.5 - origin) * w) * sx, y: r.y + (m.ty + (0.5 - origin) * h) * sy };
+  }, find);
+  if (!spot) return null;
+  await page.mouse.move(spot.x, spot.y); await page.mouse.down(); await page.waitForTimeout(80); await page.mouse.up();
+  await page.waitForTimeout(500);
+  return page.evaluate(() => { const sc = window.__phaserGame.scene.getScene('CabinetScene'); return { mode: sc.mode, filter: sc.filter }; });
+};
+const filterTap = await tapAt('filter', 'filter');
+check('a tap on a binder filter inside the list lands', filterTap?.filter === 'held', JSON.stringify(filterTap));
+const heroTap = await tapAt('hero', 'hero');
+check('a press on the scratch button turns the page to the scratch', heroTap?.mode === 'rubbing', JSON.stringify(heroTap));
 check('no console errors', errors.length === 0, errors.slice(0, 3).join(' | '));
 
 await browser.close();

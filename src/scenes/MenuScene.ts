@@ -4138,7 +4138,8 @@ export class MenuScene extends Phaser.Scene {
       const equipped = isEquipped(perk.id, legacy);
       const cost = nextPerkCost(perk, level);
       const affordable = cost !== undefined && legacy.points >= cost;
-      const pips = '★'.repeat(level) + '☆'.repeat(PERK_MAX_LEVEL - level);
+      // Ten dots, not ten stars in the title: the title kept the name; the ladder moved under it.
+      const pips = '●'.repeat(level) + '○'.repeat(PERK_MAX_LEVEL - level);
       // Three states, each said in the unit the player acts on: the level held, the next level's
       // cost, or short by exactly this many — "Cost: 640" against a vault of 310 made the player
       // do the subtraction the page should have done.
@@ -4149,14 +4150,16 @@ export class MenuScene extends Phaser.Scene {
           : owned
             ? t('empire.legacy.upgradeCost', { level: level + 1, cost })
             : t('empire.legacy.cost', { cost });
-      const subtitle = owned ? `${t('empire.legacy.owned')} · ${t('empire.legacy.level', { level })} · ${nextLine}` : nextLine;
+      const subtitle = owned
+        ? `${pips} ${t('empire.legacy.level', { level, max: PERK_MAX_LEVEL })} · ${nextLine}`
+        : `${pips} ${nextLine}`;
       // The effect at the level held (or what level one would do), and the next level ghosted.
       const shown = Math.max(1, level);
       const bodyText = shown < PERK_MAX_LEVEL
         ? `${perkDescription(perk, shown)}\n${t('empire.legacy.next', { level: shown + 1, text: perkDescription(perk, shown + 1) })}`
         : perkDescription(perk, shown);
       const card = this.ui.card({ x: 28, y, width: GAME_WIDTH - 56, height: 74 }, {
-        title: `${t(`empire.legacy.perk.${perk.id}` as Parameters<typeof t>[0])}  ${pips}`,
+        title: t(`empire.legacy.perk.${perk.id}` as Parameters<typeof t>[0]),
         subtitle,
         body: bodyText,
         border: equipped ? INK_UI.jade : owned ? INK_UI.gold : affordable ? INK_UI.gold : INK_UI.softBrush,

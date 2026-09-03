@@ -1,8 +1,9 @@
 /**
  * The Legacy vault and the manual reign.
  *
- * The vault: twenty perks on a three-step ladder, a loadout of three, and only the loadout applied
- * to a fresh reign — with the old one-time store read as level one so nobody's purchases vanish.
+ * The vault: twenty perks on a ten-step ladder, a loadout of three, and only the loadout applied
+ * to a fresh reign — with the old stores migrated (one-time buy -> Lv3 of 10; three-step Lv1/2/3 ->
+ * 3/7/10) so nobody's purchases vanish.
  * Hands-on rule (tự tay cai trị): a fully manual run raises none of the cards a lane can do for you, keeps the events
  * that have consequences, and the autopilot does nothing but hold the ground.
  *
@@ -31,18 +32,27 @@ const vault = await page.evaluate(async () => {
   const cab = await import('/src/state/cabinet.ts');
   const out = {};
   out.count = L.LEGACY_PERKS.length;
-  out.everyLadder = L.LEGACY_PERKS.every((p) => p.cost.length === 3 && p.cost[0] < p.cost[1] && p.cost[1] < p.cost[2] && p.levels.length === 3);
+  out.everyLadder = L.LEGACY_PERKS.every((p) => p.cost.length === 10 && p.cost.every((c, i) => i === 0 || c > p.cost[i - 1]) && p.levels.length === 10);
+  // Every level is worth more than the one below it, or at least as much (the whole-number perks step).
+  const worth = (lv) => Object.values(lv).reduce((sum, v) => sum + (typeof v === 'number' ? Math.abs(v) : Object.values(v).reduce((s2, m) => s2 + Math.abs(m), 0)), 0);
+  out.monotone = L.LEGACY_PERKS.every((p) => p.levels.every((lv, i) => i === 0 || worth(lv) >= worth(p.levels[i - 1])));
+  out.smallSteps = L.LEGACY_PERKS.every((p) => worth(p.levels[0]) <= worth(p.levels[9]) / 3 + 1e-9);
+  // A three-step store migrates onto the tenths.
+  localStorage.setItem('mandate:legacy:v1', JSON.stringify({ points: 0, bestScore: 0, ascensions: 0, perks: ['salt-charter', 'masons-guild', 'settlers'], perkLevels: { 'salt-charter': 1, 'masons-guild': 2, settlers: 3 }, loadout: ['salt-charter'], codes: [] }));
+  const migrated = L.getLegacy();
+  out.migrated = { ...migrated.perkLevels, ladder: migrated.ladder };
   // The old store: two bought perks, no levels, no loadout.
   localStorage.setItem('mandate:legacy:v1', JSON.stringify({ points: 500, bestScore: 0, ascensions: 0, perks: ['founders-purse', 'settlers'], codes: [] }));
   const old = L.getLegacy();
   out.compat = { levels: old.perkLevels, loadout: old.loadout };
   // The ladder: buying raises the level and spends the step's cost; a fourth carry is refused.
   const before = L.getLegacy().points;
+  out.levelBefore = L.perkLevel('founders-purse');
   out.bought = L.purchaseLegacyPerk('founders-purse');
   const mid = L.getLegacy();
   out.levelAfter = L.perkLevel('founders-purse', mid);
   out.spent = before - mid.points;
-  out.expectedSpent = L.LEGACY_PERKS.find((p) => p.id === 'founders-purse').cost[1];
+  out.expectedSpent = L.LEGACY_PERKS.find((p) => p.id === 'founders-purse').cost[out.levelBefore];
   L.purchaseLegacyPerk('salt-charter');
   L.purchaseLegacyPerk('masons-guild');
   out.loadoutAfterBuys = L.getLegacy().loadout.slice();
@@ -60,15 +70,17 @@ const vault = await page.evaluate(async () => {
   const bare = createAscentGameState({ seaSides: 1, difficulty: 'normal' });
   out.goldDelta = withPerks.resources.gold - bare.resources.gold;
   out.humansDelta = withPerks.resources.humans - bare.resources.humans;
-  out.expectedGold = L.LEGACY_PERKS.find((p) => p.id === 'founders-purse').levels[1].gold;
+  out.expectedGold = L.LEGACY_PERKS.find((p) => p.id === 'founders-purse').levels[out.levelAfter - 1].gold;
   out.hasSalt = withPerks.activeCourtModifiers.some((m) => m.id === 'legacy-salt-charter');
   out.hasMasons = withPerks.activeCourtModifiers.some((m) => m.id === 'legacy-masons-guild');
   localStorage.removeItem('mandate:legacy:v1');
   return out;
 });
-check('twenty perks, each on a three-step ladder', vault.count === 20 && vault.everyLadder, `${vault.count}`);
-check('an old store reads its bought perks as level one and carries them', vault.compat.levels['founders-purse'] === 1 && vault.compat.loadout.length === 2, JSON.stringify(vault.compat));
-check('buying a held perk raises it a level at the ladder\'s price', vault.bought && vault.levelAfter === 2 && vault.spent === vault.expectedSpent, `Lv${vault.levelAfter}, spent ${vault.spent} of ${vault.expectedSpent}`);
+check('twenty perks, each on a ten-step ladder with rising prices', vault.count === 20 && vault.everyLadder, `${vault.count}`);
+check('every level is worth at least the one below, and the first step is at most a third of the top', vault.monotone && vault.smallSteps);
+check('a three-step store migrates Lv1/2/3 onto 3/7/10 and is stamped', vault.migrated['salt-charter'] === 3 && vault.migrated['masons-guild'] === 7 && vault.migrated.settlers === 10 && vault.migrated.ladder === 10, JSON.stringify(vault.migrated));
+check('a one-time-buy store reads its bought perks as Lv3 of 10 and carries them', vault.compat.levels['founders-purse'] === 3 && vault.compat.loadout.length === 2, JSON.stringify(vault.compat));
+check('buying a held perk raises it a level at the ladder\'s price', vault.bought && vault.levelAfter === vault.levelBefore + 1 && vault.spent === vault.expectedSpent, `Lv${vault.levelBefore} -> ${vault.levelAfter}, spent ${vault.spent} of ${vault.expectedSpent}`);
 check('a fourth perk is refused a slot', vault.fourth === false && vault.loadoutNow.length === 3, vault.loadoutNow.join(','));
 check('only the loadout reaches a fresh reign: gold from the carried purse, none from the set-down settlers', vault.goldDelta === vault.expectedGold && vault.humansDelta === 0, `gold +${vault.goldDelta} (want ${vault.expectedGold}), people +${vault.humansDelta}`);
 check('a carried modifier perk stands as a court modifier, a set-down one does not', vault.hasSalt === true && vault.hasMasons === false, `salt ${vault.hasSalt}, masons ${vault.hasMasons}`);

@@ -30,6 +30,8 @@ interface LegacyStore {
    * game that is earned by *how* you played rather than by how long you lasted.
    */
   codes?: string[];
+  /** Which ladder the levels are counted on: unset or 3 is the three-step store, 10 is this one. */
+  ladder?: number;
 }
 
 /**
@@ -62,49 +64,66 @@ export interface LegacyPerkLevel {
 
 export interface LegacyPerk {
   id: string;
-  /** Points for level one, two and three. */
-  cost: [number, number, number];
-  levels: [LegacyPerkLevel, LegacyPerkLevel, LegacyPerkLevel];
+  /** Points for each level, one to `PERK_MAX_LEVEL`. */
+  cost: number[];
+  levels: LegacyPerkLevel[];
   /** The numbers the description prints, per level — `{a}` and `{b}` in the catalog. */
   params: (level: LegacyPerkLevel) => Record<string, number>;
 }
 
 /** How many perks ride into a reign. */
 export const LOADOUT_MAX = 3;
-export const PERK_MAX_LEVEL = 3;
+/**
+ * Ten steps, not three. *Why only three levels? Make it ten, but each increase much smaller.* Each
+ * level is a tenth of the top; the top is about what the old third level gave, and the ten steps
+ * together cost more than the three did — the step is small, the ladder is not.
+ */
+export const PERK_MAX_LEVEL = 10;
+/** A store from the three-step ladder: its levels were thirds of the top, so they map onto tenths. */
+const THREE_STEP_MIGRATION: Record<number, number> = { 1: 3, 2: 7, 3: 10 };
+const LADDER_VERSION = 10;
 
-const ladder = (base: number): [number, number, number] => [base, Math.round(base * 1.6), Math.round(base * 2.4)];
-const pct = (value: number | undefined): number => Math.round(Math.abs(value ?? 0) * 100);
-const three = <T extends LegacyPerkLevel>(a: T, b: T, c: T): [T, T, T] => [a, b, c];
+/** Ten prices, climbing gently: half the old base for the first, about 2.4 bases for the ten. */
+const ladder = (base: number): number[] =>
+  Array.from({ length: PERK_MAX_LEVEL }, (_, i) => Math.round(base * 0.5 * (1 + 0.15 * i)));
+/** Percent, one decimal — a 0.3% guard perk printed as 0% is a perk that does nothing. */
+const pct = (value: number | undefined): number => Math.round(Math.abs(value ?? 0) * 1000) / 10;
+/** Ten levels from a rule of the level. */
+const steps = (at: (level: number) => LegacyPerkLevel): LegacyPerkLevel[] =>
+  Array.from({ length: PERK_MAX_LEVEL }, (_, i) => at(i + 1));
+const mod = (key: keyof NonNullable<LegacyPerkLevel['modifier']>, per: number) =>
+  steps((n) => ({ modifier: { [key]: Math.round(per * n * 10000) / 10000 } }));
 
 export const LEGACY_PERKS: LegacyPerk[] = [
-  { id: 'founders-purse', cost: ladder(60), levels: three({ gold: 60 }, { gold: 120 }, { gold: 180 }), params: (l) => ({ a: l.gold ?? 0 }) },
-  { id: 'settlers', cost: ladder(70), levels: three({ humans: 80 }, { humans: 160 }, { humans: 240 }), params: (l) => ({ a: l.humans ?? 0 }) },
-  { id: 'full-granary', cost: ladder(55), levels: three({ food: 40, supplies: 15 }, { food: 80, supplies: 30 }, { food: 120, supplies: 45 }), params: (l) => ({ a: l.food ?? 0, b: l.supplies ?? 0 }) },
-  { id: 'mandate-of-birth', cost: ladder(110), levels: three({ edictPoints: 1 }, { edictPoints: 1 }, { edictPoints: 2 }), params: (l) => ({ a: l.edictPoints ?? 0 }) },
-  { id: 'war-chest', cost: ladder(120), levels: three({ gold: 40, supplies: 20 }, { gold: 80, supplies: 40 }, { gold: 120, supplies: 60 }), params: (l) => ({ a: l.gold ?? 0, b: l.supplies ?? 0 }) },
-  { id: 'salt-charter', cost: ladder(80), levels: three({ modifier: { marketGoldOutputModifier: 0.03 } }, { modifier: { marketGoldOutputModifier: 0.06 } }, { modifier: { marketGoldOutputModifier: 0.09 } }), params: (l) => ({ a: pct(l.modifier?.marketGoldOutputModifier) }) },
-  { id: 'quartermaster-corps', cost: ladder(80), levels: three({ modifier: { recruitSpeedModifier: 0.05 } }, { modifier: { recruitSpeedModifier: 0.10 } }, { modifier: { recruitSpeedModifier: 0.15 } }), params: (l) => ({ a: pct(l.modifier?.recruitSpeedModifier) }) },
-  { id: 'masons-guild', cost: ladder(80), levels: three({ modifier: { buildingCostModifier: -0.04 } }, { modifier: { buildingCostModifier: -0.08 } }, { modifier: { buildingCostModifier: -0.12 } }), params: (l) => ({ a: pct(l.modifier?.buildingCostModifier) }) },
-  { id: 'corvee-rolls', cost: ladder(80), levels: three({ modifier: { buildSpeedBonus: 0.05 } }, { modifier: { buildSpeedBonus: 0.10 } }, { modifier: { buildSpeedBonus: 0.15 } }), params: (l) => ({ a: pct(l.modifier?.buildSpeedBonus) }) },
-  { id: 'tribute-treaties', cost: ladder(90), levels: three({ modifier: { acquisitionCostModifier: -0.04 } }, { modifier: { acquisitionCostModifier: -0.08 } }, { modifier: { acquisitionCostModifier: -0.12 } }), params: (l) => ({ a: pct(l.modifier?.acquisitionCostModifier) }) },
-  { id: 'veterans-pensions', cost: ladder(80), levels: three({ modifier: { armyGoldUpkeepModifier: -0.04 } }, { modifier: { armyGoldUpkeepModifier: -0.08 } }, { modifier: { armyGoldUpkeepModifier: -0.12 } }), params: (l) => ({ a: pct(l.modifier?.armyGoldUpkeepModifier) }) },
-  { id: 'drill-yards', cost: ladder(80), levels: three({ modifier: { armyXpModifier: 0.05 } }, { modifier: { armyXpModifier: 0.10 } }, { modifier: { armyXpModifier: 0.15 } }), params: (l) => ({ a: pct(l.modifier?.armyXpModifier) }) },
-  { id: 'border-forts', cost: ladder(70), levels: three({ capitalDefense: 4 }, { capitalDefense: 8 }, { capitalDefense: 12 }), params: (l) => ({ a: l.capitalDefense ?? 0 }) },
-  { id: 'first-levy', cost: ladder(70), levels: three({ capitalSoldiers: 20 }, { capitalSoldiers: 40 }, { capitalSoldiers: 60 }), params: (l) => ({ a: l.capitalSoldiers ?? 0 }) },
-  { id: 'rubbing-press', cost: ladder(90), levels: three({ rubbings: 1 }, { rubbings: 1 }, { rubbings: 2 }), params: (l) => ({ a: l.rubbings ?? 0 }) },
-  { id: 'court-favor', cost: ladder(80), levels: three({ influence: 3 }, { influence: 6 }, { influence: 9 }), params: (l) => ({ a: l.influence ?? 0 }) },
-  { id: 'granary-wagons', cost: ladder(70), levels: three({ modifier: { buildingSuppliesUpkeepModifier: -0.04 } }, { modifier: { buildingSuppliesUpkeepModifier: -0.08 } }, { modifier: { buildingSuppliesUpkeepModifier: -0.12 } }), params: (l) => ({ a: pct(l.modifier?.buildingSuppliesUpkeepModifier) }) },
-  { id: 'loyal-guards', cost: ladder(120), levels: three({ modifier: { armyPowerModifier: 0.01 } }, { modifier: { armyPowerModifier: 0.02 } }, { modifier: { armyPowerModifier: 0.03 } }), params: (l) => ({ a: pct(l.modifier?.armyPowerModifier) }) },
-  { id: 'census-scribes', cost: ladder(70), levels: three({ modifier: { courtCardSpeedModifier: 0.05 } }, { modifier: { courtCardSpeedModifier: 0.10 } }, { modifier: { courtCardSpeedModifier: 0.15 } }), params: (l) => ({ a: pct(l.modifier?.courtCardSpeedModifier) }) },
-  { id: 'thrifty-stewards', cost: ladder(70), levels: three({ modifier: { buildingGoldUpkeepModifier: -0.04 } }, { modifier: { buildingGoldUpkeepModifier: -0.08 } }, { modifier: { buildingGoldUpkeepModifier: -0.12 } }), params: (l) => ({ a: pct(l.modifier?.buildingGoldUpkeepModifier) }) },
+  { id: 'founders-purse', cost: ladder(60), levels: steps((n) => ({ gold: 20 * n })), params: (l) => ({ a: l.gold ?? 0 }) },
+  { id: 'settlers', cost: ladder(70), levels: steps((n) => ({ humans: 25 * n })), params: (l) => ({ a: l.humans ?? 0 }) },
+  { id: 'full-granary', cost: ladder(55), levels: steps((n) => ({ food: 12 * n, supplies: 5 * n })), params: (l) => ({ a: l.food ?? 0, b: l.supplies ?? 0 }) },
+  // The two whole-number perks step every few levels; between steps the price still climbs, which
+  // is the honest shape of a thing that cannot be a third of a point.
+  { id: 'mandate-of-birth', cost: ladder(110), levels: steps((n) => ({ edictPoints: Math.ceil(n / 4) })), params: (l) => ({ a: l.edictPoints ?? 0 }) },
+  { id: 'war-chest', cost: ladder(120), levels: steps((n) => ({ gold: 12 * n, supplies: 6 * n })), params: (l) => ({ a: l.gold ?? 0, b: l.supplies ?? 0 }) },
+  { id: 'salt-charter', cost: ladder(80), levels: mod('marketGoldOutputModifier', 0.01), params: (l) => ({ a: pct(l.modifier?.marketGoldOutputModifier) }) },
+  { id: 'quartermaster-corps', cost: ladder(80), levels: mod('recruitSpeedModifier', 0.015), params: (l) => ({ a: pct(l.modifier?.recruitSpeedModifier) }) },
+  { id: 'masons-guild', cost: ladder(80), levels: mod('buildingCostModifier', -0.012), params: (l) => ({ a: pct(l.modifier?.buildingCostModifier) }) },
+  { id: 'corvee-rolls', cost: ladder(80), levels: mod('buildSpeedBonus', 0.015), params: (l) => ({ a: pct(l.modifier?.buildSpeedBonus) }) },
+  { id: 'tribute-treaties', cost: ladder(90), levels: mod('acquisitionCostModifier', -0.012), params: (l) => ({ a: pct(l.modifier?.acquisitionCostModifier) }) },
+  { id: 'veterans-pensions', cost: ladder(80), levels: mod('armyGoldUpkeepModifier', -0.012), params: (l) => ({ a: pct(l.modifier?.armyGoldUpkeepModifier) }) },
+  { id: 'drill-yards', cost: ladder(80), levels: mod('armyXpModifier', 0.015), params: (l) => ({ a: pct(l.modifier?.armyXpModifier) }) },
+  { id: 'border-forts', cost: ladder(70), levels: steps((n) => ({ capitalDefense: Math.round(1.2 * n) })), params: (l) => ({ a: l.capitalDefense ?? 0 }) },
+  { id: 'first-levy', cost: ladder(70), levels: steps((n) => ({ capitalSoldiers: 6 * n })), params: (l) => ({ a: l.capitalSoldiers ?? 0 }) },
+  { id: 'rubbing-press', cost: ladder(90), levels: steps((n) => ({ rubbings: Math.ceil(n / 3) })), params: (l) => ({ a: l.rubbings ?? 0 }) },
+  { id: 'court-favor', cost: ladder(80), levels: steps((n) => ({ influence: n })), params: (l) => ({ a: l.influence ?? 0 }) },
+  { id: 'granary-wagons', cost: ladder(70), levels: mod('buildingSuppliesUpkeepModifier', -0.012), params: (l) => ({ a: pct(l.modifier?.buildingSuppliesUpkeepModifier) }) },
+  { id: 'loyal-guards', cost: ladder(120), levels: mod('armyPowerModifier', 0.003), params: (l) => ({ a: pct(l.modifier?.armyPowerModifier) }) },
+  { id: 'census-scribes', cost: ladder(70), levels: mod('courtCardSpeedModifier', 0.015), params: (l) => ({ a: pct(l.modifier?.courtCardSpeedModifier) }) },
+  { id: 'thrifty-stewards', cost: ladder(70), levels: mod('buildingGoldUpkeepModifier', -0.012), params: (l) => ({ a: pct(l.modifier?.buildingGoldUpkeepModifier) }) },
 ];
 
 export function getLegacyPerk(id: string): LegacyPerk | undefined {
   return LEGACY_PERKS.find((p) => p.id === id);
 }
 
-/** The level a perk stands at, 0–3. */
+/** The level a perk stands at, 0–`PERK_MAX_LEVEL`. */
 export function perkLevel(id: string, store: LegacyStore = getLegacy()): number {
   return Math.max(0, Math.min(PERK_MAX_LEVEL, store.perkLevels[id] ?? 0));
 }
@@ -142,7 +161,7 @@ function canUseLocalStorage(): boolean {
 }
 
 function emptyLegacy(): LegacyStore {
-  return { points: 0, bestScore: 0, ascensions: 0, perks: [], perkLevels: {}, loadout: [], codes: [] };
+  return { points: 0, bestScore: 0, ascensions: 0, perks: [], perkLevels: {}, loadout: [], codes: [], ladder: LADDER_VERSION };
 }
 
 export function getLegacy(): LegacyStore {
@@ -153,16 +172,20 @@ export function getLegacy(): LegacyStore {
     const parsed = JSON.parse(raw) as Partial<LegacyStore>;
     const known = new Set(LEGACY_PERKS.map((perk) => perk.id));
     // Levels first; a store from before the ladder lists bought perks by id, and each is level one.
+    // A store from the three-step ladder is read through the migration table: what was bought as
+    // a third of the top stays a third of the top.
+    const fromThreeStep = parsed.ladder !== LADDER_VERSION;
+    const lift = (n: number): number => (fromThreeStep ? THREE_STEP_MIGRATION[Math.min(3, n)] ?? PERK_MAX_LEVEL : Math.min(PERK_MAX_LEVEL, n));
     const perkLevels: Record<string, number> = {};
     if (parsed.perkLevels && typeof parsed.perkLevels === 'object') {
       for (const [id, level] of Object.entries(parsed.perkLevels as Record<string, unknown>)) {
         if (!known.has(id)) continue;
         const n = Math.floor(Number(level));
-        if (Number.isFinite(n) && n > 0) perkLevels[id] = Math.min(PERK_MAX_LEVEL, n);
+        if (Number.isFinite(n) && n > 0) perkLevels[id] = lift(n);
       }
     }
     if (Array.isArray(parsed.perks)) {
-      for (const id of parsed.perks) if (typeof id === 'string' && known.has(id) && !perkLevels[id]) perkLevels[id] = 1;
+      for (const id of parsed.perks) if (typeof id === 'string' && known.has(id) && !perkLevels[id]) perkLevels[id] = lift(1);
     }
     const owned = Object.keys(perkLevels);
     // A loadout from before the slots existed: the first three bought perks ride, as they always did.
@@ -177,6 +200,7 @@ export function getLegacy(): LegacyStore {
       perkLevels,
       loadout,
       codes: Array.isArray(parsed.codes) ? parsed.codes.filter((id) => typeof id === 'string') : [],
+      ladder: LADDER_VERSION,
     };
   } catch {
     return emptyLegacy();
