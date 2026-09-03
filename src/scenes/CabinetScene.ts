@@ -598,14 +598,18 @@ ${t('cabinet.grid.unfound')}`,
     // took: sized up front from the face alone, a Vietnamese ladder that wrapped to three lines a
     // level ran under the hand slots and the copies bar, and the buttons sat on the type.
     const face = stampCardFace(this, cardId, { x: bigX, y: bigY, width: bigW, height: bigH }, held.level);
+    // The face's scale at rest, read BEFORE the fly-in shrinks it: the drag's return tween read
+    // the live scale mid-flight and put the card back at the tile's size, beside its own badges.
+    let faceRestScale = 1;
     if (face) {
       keep(face);
       // From the tile to its place: the face is the object, the tile is where it lives.
       const restScale = face.scale;
+      faceRestScale = restScale;
       face.setPosition(from.x + from.width / 2, from.y + from.height / 2).setScale(restScale * (from.width / bigW));
       this.tweens.add({ targets: face, x: bigX + bigW / 2, y: bigY + bigH / 2, scale: restScale, duration: motionMs(260), ease: 'Cubic.easeOut' });
     }
-    keep(cardFaceOverlay(this, { x: bigX, y: bigY, width: bigW, height: bigH }, {
+    const faceOverlay = keep(cardFaceOverlay(this, { x: bigX, y: bigY, width: bigW, height: bigH }, {
       level: held.level, copies: held.copies, need: combineCost(held.level), inHand: openingHand().includes(cardId), held: held.copies,
     }));
 
@@ -680,14 +684,27 @@ ${t('cabinet.grid.unfound')}`,
       this.input.setDraggable(face);
       const restX = bigX + bigW / 2;
       const restY = bigY + bigH / 2;
-      const restScale = face.scale;
+      const restScale = faceRestScale;
+      // Carried, the face rides above everything on the sheet — it was drawn at the sheet's
+      // depth, so the labels built after it printed straight over the card as it crossed them
+      // (*because the card is transparent, dragging looks buggy*) — and its badges, which do
+      // not travel, hide until it lands.
+      face.on('dragstart', () => {
+        face.setDepth(DEPTH + 3).setScale(restScale * 1.05);
+        faceOverlay.setVisible(false);
+      });
       face.on('drag', (_p: Phaser.Input.Pointer, dragX: number, dragY: number) => {
         face.setPosition(dragX, dragY);
       });
       face.on('dragend', () => {
         const hit = slotBoxes.find((box) => !box.filled && face.x >= box.x - 8 && face.x <= box.x + box.w + 8 && face.y >= box.y - 8 && face.y <= box.y + box.h + 8);
         if (!hit) {
-          this.tweens.add({ targets: face, x: restX, y: restY, duration: motionMs(220), ease: 'Cubic.easeOut' });
+          this.tweens.add({
+            targets: face, x: restX, y: restY, scale: restScale, duration: motionMs(220), ease: 'Cubic.easeOut',
+            // A hair under the sheet's depth: set back to DEPTH itself the face re-sorts to the END of
+            // its depth band, above the badges it had been under, and the badges vanish behind it.
+            onComplete: () => { face.setDepth(DEPTH - 0.5); faceOverlay.setVisible(true); },
+          });
           return;
         }
         face.disableInteractive();
