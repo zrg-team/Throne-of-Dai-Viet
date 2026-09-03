@@ -26,6 +26,7 @@ node test_scripts/gate/smoke.mjs                    # every mode boots, ticks, d
 node test_scripts/verify/verify-ascent.mjs          # the Dragon Ascent loop end to end
 node test_scripts/verify/verify-dynasty.mjs         # the Tong Pha ledger: XP banks once, the ceremony walks, every trait is read
 node test_scripts/verify/verify-cabinet.mjs         # the Cabinet of Seals: rubbings honour pity, x3 combines, cabinet levels reach the draft, the bind step binds
+node test_scripts/verify/verify-inheritance.mjs     # the next-reign chip: promises exactly what the ceremony pays (XP, level, Legacy, rubbings, bind), hides under prompts, opens/shuts, guards its taps
 node test_scripts/verify/verify-coronation.mjs      # Le Dang Quang: the rite raises once ever, a skip writes a whole king, era law holds, the badge steps with the house
 node test_scripts/verify/verify-invasion-lifecycle.mjs  # every invasion announces its start and its end
 node test_scripts/verify/verify-invasion-reach.mjs      # a wave that is sent can walk to the realm, and does

@@ -1,5 +1,6 @@
 import { isVassal } from './VassalSystem';
 import { addRubbings, grantDeed } from '../../state/cabinet';
+import { noteRubbing } from './Inheritance';
 import { NEUTRAL_OWNER_ID, PLAYER_KINGDOM_ID } from '../../game/constants';
 import {
   BOSS_EVERY_N_WAVES,
@@ -786,12 +787,14 @@ function resolveWaveResult(state: GameState): void {
   // merely survived — a decade of waves that ends with the seat in enemy hands is not a deed.
   if (heldCapital && ascent.wavesSurvived % 10 === 0) {
     addRubbings(1);
+    noteRubbing(state);
     pushToast(state, t('ascent.cabinet.rubbingEarned', { wave: ascent.wavesSurvived }), 'reward');
   }
   // The Coronation's first lock, opened on the same condition and by the same rule — *held*, not
   // merely survived. Ten waves is roughly where a player has learned what the clock is, which is
   // exactly what the greyed war-harness row in the creator promised them it would take.
   if (heldCapital && ascent.wavesSurvived >= 10 && grantDeed('wave-ten')) {
+    noteRubbing(state);
     pushToast(state, t('coronation.unlock.warHarness'), 'reward');
   }
 

@@ -4,6 +4,7 @@ import { t } from '../../i18n';
 import { estateStanding, ESTATE_CRISIS } from '../DecreeSystem';
 import { pushToast } from './notifications';
 import { grantDeed } from '../../state/cabinet';
+import { noteRubbing } from '../ascent/Inheritance';
 
 /** Ordered eras and the cumulative Mandate points needed to enter each. */
 export const ERA_ORDER: EraId[] = ['founding', 'rivalry', 'empires', 'mandate'];
@@ -130,8 +131,8 @@ export function addMandate(state: GameState, amount: number): void {
         // the Coronation. Deeds rather than a new store, and paid out here rather than at the
         // doctrine card, because this is the one place an era is *entered* — a big award can
         // cross two at once, and the loop above is already written to announce both.
-        if (era === 'empires') grantDeed('era-empires');
-        if (era === 'mandate') grantDeed('era-mandate');
+        if (era === 'empires' && grantDeed('era-empires')) noteRubbing(state);
+        if (era === 'mandate' && grantDeed('era-mandate')) noteRubbing(state);
       }
     }
     mandate.era = newEra;

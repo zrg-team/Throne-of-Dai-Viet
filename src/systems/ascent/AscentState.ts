@@ -107,6 +107,7 @@ export function createAscentState(): AscentState {
     laneStats: createLaneStats(),
     wavesSurvived: 0,
     heroesSummoned: 0,
+    rubbingsEarned: 0,
     promptCooldowns: {},
     promptWaiting: {},
     famineCooldown: 0,

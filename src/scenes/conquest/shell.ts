@@ -31,6 +31,7 @@ import {
 import { playWaveBanner } from '../../ui/ascent/waveBanner';
 import { AscentHud } from '../../ui/ascent/AscentHud';
 import { AdvisorStrip } from '../../ui/ascent/AdvisorStrip';
+import { InheritanceChip } from '../../ui/ascent/InheritanceChip';
 import { WhisperLine } from '../../ui/ascent/WhisperLine';
 import { hasSeenRunTour, takeGuidedRun } from '../../state/tour';
 import { ActionBar } from '../../ui/ActionBar';
@@ -108,6 +109,9 @@ export function create(self: ConquestUIScene): void {
   // Under the advisor, and a door rather than a notice: every whisper has a scene written for
   // it that nothing in this mode could reach.
   self.whispers = new WhisperLine(self, (storyId) => self.showStoryPage(storyId));
+  // The next reign, read from this one. Above the bar and beside the map controls, and never in
+  // the layout: it floats over the map exactly as the paused badge does.
+  self.inheritance = new InheritanceChip(self, () => renderActionBar(self));
 
   // Taken once, here, rather than read where it is used: the flag is a one-shot handoff from the
   // manual and any second reader would find it already spent.
@@ -124,6 +128,7 @@ export function create(self: ConquestUIScene): void {
     window.__hudTapBounds = [];
     self.advisor.destroy();
     self.whispers.destroy();
+    self.inheritance.destroy();
     self.runTour?.destroy();
     self.runTour = undefined;
     self.waveBanner?.destroy();
@@ -166,6 +171,11 @@ export function refresh(self: ConquestUIScene): void {
   // close runs `refresh` again, which brings it straight back up to date.
   if (!self.state.pendingAscentPrompt && self.openPromptKey === '') self.advisor.render(self.state);
   self.whispers.render(self.state, self.advisor.bottom());
+  // Same guard as the advisor: hidden under every card and lane, so re-reading the stores for
+  // an invisible chip is pure cost. Its floor follows the inspect card the way the controls do.
+  if (!self.state.pendingAscentPrompt && self.openPromptKey === '') {
+    self.inheritance.render(self.state, inspectCardTop(self) ?? GAME_HEIGHT - ACTION_BAR_HEIGHT);
+  }
 
   // A lane that renders nothing has stranded the player: the bar and the map controls are
   // torn down before the screen is built, so an empty modal layer means no UI at all and no
@@ -377,13 +387,15 @@ export function renderActionBar(self: ConquestUIScene): void {
   if (!hidden) self.actionBar.refresh();
   self.advisor.setVisible(!hidden);
   self.whispers.setVisible(!hidden);
+  self.inheritance.setVisible(!hidden);
   renderMapControls(self, hidden);
   // Composed wholesale on every refresh, from the stack's recorded rectangles plus whatever the
   // advisor and the whisper strip currently occupy. The controls themselves are keyed and only
   // rebuilt when they move; the published guard list is cheap and must always be current.
   window.__hudTapBounds = hidden
     ? [{ x: 0, y: 0, width: GAME_WIDTH, height: GAME_HEIGHT }]
-    : [...self.mapControlBounds, ...self.advisor.tapBounds(), ...self.whispers.tapBounds()];
+    : [...self.mapControlBounds, ...self.advisor.tapBounds(), ...self.whispers.tapBounds(),
+      ...self.inheritance.tapBounds()];
   renderPausedBadge(self, hidden);
   self.maybeRunTour(hidden);
 }
@@ -398,7 +410,10 @@ export function renderActionBar(self: ConquestUIScene): void {
  * indicator that only reports does not earn that cost.
  */
 function renderPausedBadge(self: ConquestUIScene, hidden: boolean): void {
-  const key = hidden || !self.state.isStrategyPause ? '' : 'paused';
+  // The badge is centred, and the chip's plate reaches x=266 from the left — so when the chip is
+  // up the badge stands above it rather than printing through its headline.
+  const chipTop = self.inheritance.visible() ? self.inheritance.top() : undefined;
+  const key = hidden || !self.state.isStrategyPause ? '' : `paused:${chipTop ?? '-'}`;
   if (key === self.pausedBadgeKey && (key === '') === (self.pausedBadge === undefined)) return;
   self.pausedBadgeKey = key;
   self.pausedBadge?.destroy();
@@ -408,7 +423,7 @@ function renderPausedBadge(self: ConquestUIScene, hidden: boolean): void {
   const width = 128;
   const height = 24;
   const x = (GAME_WIDTH - width) / 2;
-  const y = GAME_HEIGHT - ACTION_BAR_HEIGHT - height - 10;
+  const y = (chipTop ?? GAME_HEIGHT - ACTION_BAR_HEIGHT) - height - 10;
 
   const badge = self.add.container(0, 0).setDepth(430);
   badge.add(self.ui.panel({ x, y, width, height }, {

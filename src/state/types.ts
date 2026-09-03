@@ -2656,6 +2656,13 @@ export interface AscentState {
   laneStats: AscentLaneStats;
   wavesSurvived: number;
   heroesSummoned: number;
+  /**
+   * Rubbings the cabinet's in-run faucets paid *this reign* — the tenth-wave milestone and the
+   * deeds. A receipt, not a wallet: the rubbings themselves are in `mandate:cabinet:v1`, which
+   * has no memory of which reign paid them. Read by `readInheritance` for the live ledger.
+   * Optional so a save from before it existed loads as zero.
+   */
+  rubbingsEarned?: number;
 
   // ── Decision scheduler (see systems/ascent/DecisionDirector.ts) ──
   /** Ticks remaining before each prompt kind may be raised again. */

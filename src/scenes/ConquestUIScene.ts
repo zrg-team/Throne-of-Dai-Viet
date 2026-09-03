@@ -7,6 +7,7 @@ import { type MapItemRenderer } from '../ui/MapItemRenderer';
 import { type CardIconId } from '../ui/CardIcons';
 import { AscentHud } from '../ui/ascent/AscentHud';
 import { AdvisorStrip } from '../ui/ascent/AdvisorStrip';
+import { InheritanceChip } from '../ui/ascent/InheritanceChip';
 import { WhisperLine } from '../ui/ascent/WhisperLine';
 import { Copilot, type CopilotStep } from '../ui/Copilot';
 import type { CoronationSheet } from '../ui/coronation/CoronationSheet';
@@ -180,6 +181,9 @@ export class ConquestUIScene extends Phaser.Scene {
 
   /** The Chronicle's ambient lines, which this mode had no surface for at all. */
   whispers!: WhisperLine;
+
+  /** What this reign has earned for the next one, above the bar. Built once, written into. */
+  inheritance!: InheritanceChip;
 
   /** The Chronicle shelf currently open; kept while a story page is inspected and revisited. */
   chronicleTab: 'actions' | 'ongoing' | 'heard' | 'recorded' = 'actions';
