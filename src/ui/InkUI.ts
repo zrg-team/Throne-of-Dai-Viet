@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { GAME_HEIGHT, GAME_WIDTH } from '../game/constants';
 import { addPressFeedback } from './animations';
 import {
-  installPressWatch, liftForInput, markControlBorn, noteControlFired, pressIsEchoOnto, releaseNotOwnedBy, sheetIsUp } from './inputGeneration';
+  installPressWatch, liftForInput, markControlBorn, noteControlFired, pressIsEchoOnto, releaseNotOwnedBy, sheetIsUp, insideSheet } from './inputGeneration';
 import { CARD_ICON_SIZE, drawCardIcon, type CardIconId } from './CardIcons';
 import { UI_FONT } from './fonts';
 import { RectClip } from './ink/clipRect';
@@ -451,7 +451,8 @@ export class InkScrollArea {
   private containsPointer(pointer: { x: number; y: number }): boolean {
     // Deaf under a sheet — asked here because both the drag and the wheel come through this
     // gate. A scene without a registered sheet locks its lists by hand (`setLocked`).
-    if (this.locked || sheetIsUp()) return false;
+    // Only a list UNDER the sheet is locked — a list inside it is the sheet's own and scrolls.
+    if (this.locked || (sheetIsUp() && !insideSheet(this.container))) return false;
     const at = designPointer(pointer);
     return (
       at.x >= this.bounds.x &&
