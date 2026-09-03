@@ -205,38 +205,22 @@ export class CabinetScene extends Phaser.Scene {
     const heroTitle = hero ? t('cabinet.hero.title', { n: store.rubbings }) : t('cabinet.hero.none');
     const heroBody = this.ui.label(PAD + 12, 0, hero ? t('cabinet.hero.body') : t('cabinet.hero.noneBody'), 'caption',
       { fontSize: '10px', wordWrap: { width: W - 24 } });
-    const pityLine = this.ui.label(PAD + 12, 0, store.rubbingPity >= PITY_HARD_CAP
+    // Title, one sentence, the button, then the odds as a footnote under it — in that order.
+    // The odds line used to sit between the sentence and the button with a ring floating at
+    // the panel's edge, and the block read as three things fighting: *this looks messy*.
+    const pityLine = this.ui.label(PAD + 12 + 18, 0, store.rubbingPity >= PITY_HARD_CAP
       ? t('cabinet.rub.pityDue')
-      : t('cabinet.rub.pity', { n: store.rubbingPity, cap: PITY_HARD_CAP }), 'caption', { fontSize: '9px', color: '#8a5f1c', wordWrap: { width: W - 60 } });
-    const heroH = 12 + 20 + 4 + heroBody.height + 6 + pityLine.height + (hero ? 8 + 44 : 0) + 12;
+      : t('cabinet.rub.pity', { n: store.rubbingPity, cap: PITY_HARD_CAP }), 'caption', { fontSize: '9px', color: '#8a7a60', wordWrap: { width: W - 24 - 18 } });
+    const heroH = 12 + 20 + 4 + heroBody.height + (hero ? 10 + 44 : 0) + 8 + pityLine.height + 12;
     scroll.content.add(this.ui.panel({ x: PAD, y, width: W, height: heroH },
-      { border: hero ? INK_UI.cinnabar : INK_UI.softBrush, borderWidth: hero ? 1.6 : 1.2, fillAlpha: 0.72 }));
+      { border: hero ? INK_UI.cinnabar : INK_UI.softBrush, borderWidth: hero ? 1.6 : 1.2, fillAlpha: 0.9 }));
     scroll.content.add(this.ui.label(PAD + 12, y + 12, heroTitle, 'label', { fontSize: '15px', ...(hero ? { color: '#a4402c' } : {}) }));
     heroBody.setY(y + 12 + 20 + 4);
     scroll.content.add(heroBody);
-    pityLine.setY(heroBody.y + heroBody.height + 6);
-    scroll.content.add(pityLine);
-    // The pity ring beside its line: the lottery shows its odds. It fills toward the hard
-    // guarantee of gold-or-better, and it is gold when it is one pull away.
-    {
-      const cx = PAD + W - 24;
-      const cy = pityLine.y + 6;
-      const share = Math.min(1, store.rubbingPity / PITY_HARD_CAP);
-      const ring = this.add.graphics();
-      ring.lineStyle(3, INK_UI.softBrush, 0.35);
-      ring.strokeCircle(cx, cy, 10);
-      if (share > 0) {
-        ring.lineStyle(3, share >= 1 - 1 / PITY_HARD_CAP ? INK_UI.gold : INK_UI.brush, 0.9);
-        ring.beginPath();
-        ring.arc(cx, cy, 10, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * share, false);
-        ring.strokePath();
-      }
-      ring.setData('pityRing', share);
-      scroll.content.add(ring);
-    }
+    let cursor = heroBody.y + heroBody.height;
     if (hero) {
       scroll.content.add(this.ui.button(
-        { x: PAD + 12, y: pityLine.y + pityLine.height + 8, width: W - 24, height: 44 },
+        { x: PAD + 12, y: cursor + 10, width: W - 24, height: 44 },
         t('cabinet.hero.rub', { n: store.rubbings }),
         () => {
           this.reveal = revealRubbing();
@@ -247,6 +231,27 @@ export class CabinetScene extends Phaser.Scene {
         },
         { variant: 'primary', fontSize: '14px' },
       ));
+      cursor += 10 + 44;
+    }
+    pityLine.setY(cursor + 8);
+    scroll.content.add(pityLine);
+    // The pity ring is the line's own icon now, a small dial at its head: it fills toward the
+    // hard guarantee of gold-or-better, and turns gold when it is one pull away.
+    {
+      const cx = PAD + 12 + 7;
+      const cy = pityLine.y + 6;
+      const share = Math.min(1, store.rubbingPity / PITY_HARD_CAP);
+      const ring = this.add.graphics();
+      ring.lineStyle(2.5, INK_UI.softBrush, 0.35);
+      ring.strokeCircle(cx, cy, 6);
+      if (share > 0) {
+        ring.lineStyle(2.5, share >= 1 - 1 / PITY_HARD_CAP ? INK_UI.gold : INK_UI.brush, 0.9);
+        ring.beginPath();
+        ring.arc(cx, cy, 6, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * share, false);
+        ring.strokePath();
+      }
+      ring.setData('pityRing', share);
+      scroll.content.add(ring);
     }
     y += heroH + 10;
 
