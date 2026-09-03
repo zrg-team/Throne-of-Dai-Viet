@@ -350,11 +350,50 @@ if (inside) {
 await page.waitForTimeout(400);
 const afterFace = await snapshot();
 check('a real press on the card face keeps the view open', afterFace.view > 0, JSON.stringify(afterFace));
+// The list under the sheet is deaf: a drag and a wheel over the page move nothing while the view is up.
+const scrollBefore = (await snapshot()).scroll;
+{
+  const frame = await page.evaluate(() => { const c = document.querySelector('canvas').getBoundingClientRect(); const s = window.__phaserGame.scale.gameSize; return { ox: c.left, oy: c.top, kx: c.width / s.width, ky: c.height / s.height }; });
+  await page.mouse.move(frame.ox + 195 * frame.kx, frame.oy + 760 * frame.ky);
+  await page.mouse.down();
+  for (let y = 760; y >= 560; y -= 20) { await page.mouse.move(frame.ox + 195 * frame.kx, frame.oy + y * frame.ky); await page.waitForTimeout(16); }
+  await page.mouse.up();
+  await page.waitForTimeout(300);
+  await page.mouse.move(frame.ox + 195 * frame.kx, frame.oy + 300 * frame.ky);
+  await page.mouse.wheel(0, 240);
+  await page.waitForTimeout(300);
+}
+const afterScrollTry = await snapshot();
+check('a drag and a wheel over the page move nothing while the view is up, and the drag does not close it', afterScrollTry.scroll === scrollBefore && afterScrollTry.view > 0, JSON.stringify({ before: scrollBefore, after: afterScrollTry }));
 await page.evaluate(() => window.__tap(195, 800));
 await page.waitForTimeout(400);
 const afterOutside = await snapshot();
 check('a tap on the veil outside the sheet still closes it', afterOutside.view === 0, JSON.stringify(afterOutside));
 
+// The positive control: with no view up, the same drag DOES scroll the list.
+{
+  const frame = await page.evaluate(() => { const c = document.querySelector('canvas').getBoundingClientRect(); const s = window.__phaserGame.scale.gameSize; return { ox: c.left, oy: c.top, kx: c.width / s.width, ky: c.height / s.height }; });
+  const before = (await snapshot()).scroll;
+  // The list sits at its far end after the staging scroll, so the finger travels DOWN (the list scrolls back up).
+  await page.mouse.move(frame.ox + 195 * frame.kx, frame.oy + 560 * frame.ky);
+  await page.mouse.down();
+  for (let y = 560; y <= 760; y += 20) { await page.mouse.move(frame.ox + 195 * frame.kx, frame.oy + y * frame.ky); await page.waitForTimeout(16); }
+  await page.mouse.up();
+  await page.waitForTimeout(400);
+  const after = (await snapshot()).scroll;
+  check('with no view up, the same drag scrolls the list (the lock is a lock, not a dead list)', after !== before, `${before} -> ${after}`);
+}
+// Back from the deck returns to the page that opened it.
+{
+  const frame = await page.evaluate(() => { const c = document.querySelector('canvas').getBoundingClientRect(); const s = window.__phaserGame.scale.gameSize; return { ox: c.left, oy: c.top, kx: c.width / s.width, ky: c.height / s.height }; });
+  await page.mouse.move(frame.ox + 195 * frame.kx, frame.oy + 815 * frame.ky);
+  await page.mouse.down(); await page.waitForTimeout(80); await page.mouse.up();
+  await page.waitForTimeout(900);
+  const where = await page.evaluate(() => { const g = window.__phaserGame; return { menu: g.scene.isActive('MenuScene'), mode: g.scene.getScene('MenuScene').mode }; });
+  check('Back from the deck lands on the dynasty page, not the front page', where.menu && where.mode === 'dynasty', JSON.stringify(where));
+  await page.evaluate(() => { const g = window.__phaserGame; for (const s of g.scene.getScenes(true)) g.scene.stop(s.scene.key); g.scene.start('CabinetScene'); });
+  await page.waitForTimeout(900);
+}
 await openOverTile();
 const slotAt = await viewButton('Đưa vào tay bài mở đầu');
 if (slotAt) await page.evaluate(({ x, y }) => window.__tap(x, y), slotAt);

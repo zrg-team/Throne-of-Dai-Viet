@@ -263,6 +263,15 @@ export function setContainerInputEnabled(
   }
 }
 
+/**
+ * Whether a sheet is up right now, by the registered probe. Lists ask before they scroll: a
+ * sheet's guard stops what is *hit*, but a list scrolls off the scene's own pointer stream and
+ * was never hit at all — so the page kept moving under the modal.
+ */
+export function sheetIsUp(): boolean {
+  return Boolean(sheetProbe?.());
+}
+
 /** Whether the live press began while a sheet was on screen. */
 export function pressBeganUnderSheet(): boolean {
   return pressUnderSheet;

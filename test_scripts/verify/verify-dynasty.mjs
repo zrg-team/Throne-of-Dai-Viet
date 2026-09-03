@@ -497,6 +497,9 @@ console.log('\n=== RESPEC ===');
   // way, which is what the tap needs.
   const findRespec = () => seat.evaluate(() => {
     const menu = window.__phaserGame.scene.getScene('MenuScene');
+    // The row is the last thing on a page that now scrolls (the table lists every trait with its
+    // effect): scroll to the foot first, so the point returned is one the mouse can reach.
+    menu.pageScroll?.setScroll?.(1e6);
     const rows = [...menu.content, ...(menu.pageScroll?.content.list ?? [])];
     for (const obj of rows) {
       if (!obj.list) continue;
@@ -656,7 +659,11 @@ console.log('\n=== VIETNAMESE ===');
     const menu = window.__phaserGame.scene.getScene('MenuScene');
     const height = window.__phaserGame.scale.gameSize.height;
     let lowest = 0;
+    // The scrolling body is measured by its viewport, not by the rows inside it: the stencil clips
+    // pixels, not bounds, and a list longer than the sheet is what a scroll area is for.
+    const scrollLayer = menu.content.find((obj) => obj.list?.includes?.(menu.pageScroll?.container));
     for (const obj of menu.content) {
+      if (obj === scrollLayer) { lowest = Math.max(lowest, menu.pageScroll.bounds.y + menu.pageScroll.bounds.height); continue; }
       const b = obj.getBounds?.();
       if (b) lowest = Math.max(lowest, b.bottom);
     }
@@ -970,8 +977,8 @@ console.log('\n=== DOSSIER GATES ===');
     const page3 = await readPage(three, 'dynasty');
     // The redesign carries the lineage, the epitaph and the effect lines the P1 sheet did not;
     // its budget is measured here and held, and printed so the number is never a guess.
-    check('the sheet at reign 3 stays inside its word budget (≤ 180) with every held effect printed',
-      page3.words <= 180, `${page3.words} words`);
+    check('the sheet at reign 3 stays inside its word budget (≤ 250) with every held effect and every table effect printed',
+      page3.words <= 250, `${page3.words} words`);
     check('the sheet names at most three currencies in its body (level/XP, traits, reigns)',
       !page3.texts.some((text) => /rubbings|draws|thác bản|lượt rút|Legacy \d|rank:/i.test(text)), page3.texts.filter((t) => /rubbing|thác|rank:/i.test(t)).join(' / '));
     await three.close();

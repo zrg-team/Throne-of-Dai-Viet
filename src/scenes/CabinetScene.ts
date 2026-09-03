@@ -180,7 +180,7 @@ export class CabinetScene extends Phaser.Scene {
       'caption', { fontSize: '11px', align: 'center' }).setOrigin(0.5, 0));
 
     const backY = GAME_HEIGHT - BACK_BAR_HEIGHT - 10;
-    this.chrome(this.ui.backBar(backY, () => this.scene.start('MenuScene')));
+    this.chrome(this.ui.backBar(backY, () => this.scene.start('MenuScene', { mode: 'dynasty' })));
 
     const listTop = 80;
     const scroll = this.ui.scrollArea({ x: 0, y: listTop, width: GAME_WIDTH, height: backY - listTop - 6 });
@@ -561,7 +561,19 @@ ${t('cabinet.grid.unfound')}`,
     };
     const dim = keep(this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, INK_UI.overlay, 0.6).setOrigin(0, 0).setInteractive());
     dim.setDepth(DEPTH - 2);
-    dim.on('pointerup', () => this.closeCardView());
+    // The list under the sheet is deaf while the sheet is up: it scrolled off the scene's pointer
+    // stream, which no guard over the sheet can intercept. *When a modal shows I can still scroll
+    // behind it.*
+    this.scroll?.setLocked(true);
+    // A tap on the veil closes; a drag that ends on it does not — a finger that tried to scroll
+    // and found the page locked should not lose the sheet for it.
+    let veilDown: { x: number; y: number } | undefined;
+    dim.on('pointerdown', (pointer: Phaser.Input.Pointer) => { veilDown = { x: pointer.x, y: pointer.y }; });
+    dim.on('pointerup', (pointer: Phaser.Input.Pointer) => {
+      const moved = veilDown ? Math.hypot(pointer.x - veilDown.x, pointer.y - veilDown.y) : 0;
+      veilDown = undefined;
+      if (moved < 12) this.closeCardView();
+    });
 
     const bigW = 128;
     const bigH = Math.round(bigW * (CARD_FACE_H / CARD_FACE_W));
@@ -633,7 +645,13 @@ ${t('cabinet.grid.unfound')}`,
     // Under whichever is taller, the face or its ladder: the slots had been anchored to the
     // face's foot, which is where the ladder's third line lands in Vietnamese.
     const slotsX = PAD;
-    const slotsY = Math.max(bigY + bigH, ly) + 24;
+    // The hand, named and explained where it is used — *what does "drag the card into a slot"
+    // mean, why would I do that?* — before the slots it refers to.
+    const blockBottom = Math.max(bigY + bigH, ly) + 14;
+    const handHead = keep(this.ui.label(PAD, blockBottom, t('cabinet.view.handHead', { n: openingHand().length, max: slots }), 'label',
+      { fontSize: '11px', color: '#1c6b58' }));
+    const handWhy = keep(this.ui.label(PAD, blockBottom + 16, t('cabinet.view.handWhy'), 'caption', { fontSize: '9px', wordWrap: { width: W } }));
+    const slotsY = handWhy.y + handWhy.height + 8;
     const slotBoxes: Array<{ x: number; y: number; w: number; h: number; filled: string | undefined }> = [];
     const handNow = openingHand();
     for (let i = 0; i < slots; i += 1) {
@@ -649,9 +667,9 @@ ${t('cabinet.grid.unfound')}`,
         this.dashedRect(g, sx, slotsY, slotW, slotH);
       }
     }
-    keep(this.ui.label(slotsX, slotsY - 14, t('cabinet.view.dragHint'), 'caption', { fontSize: '8.5px' }));
-    // The actions, under the slots.
-    let by = slotsY + slotH + 12;
+    keep(this.ui.label(slotsX, slotsY + slotH + 4, t('cabinet.view.dragHint'), 'caption', { fontSize: '8.5px', color: '#8a7a60' }));
+    // The actions, under the slots and their hint.
+    let by = slotsY + slotH + 22;
     if (face && !inHand && handOpen) {
       face.setInteractive({ draggable: true, useHandCursor: true });
       this.input.setDraggable(face);
@@ -740,6 +758,7 @@ ${t('cabinet.grid.unfound')}`,
     quietUntilNextFrame(this);
     for (const object of this.viewObjects) object.destroy();
     this.viewObjects = [];
+    this.scroll?.setLocked(false);
   }
 
   // ── The combine ceremony ──────────────────────────────────────────────────

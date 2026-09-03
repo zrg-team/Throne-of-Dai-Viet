@@ -185,6 +185,15 @@ export class MenuScene extends Phaser.Scene {
   /** Set while the install sheet is up, so the tip does not re-arm underneath it. */
   private installModalOpen = false;
   private mode: MenuMode = 'main';
+  /** Where Back goes from a page that another page opened: the shop and the king open from the
+   *  dynasty page and must return there, not to the front page. */
+  private returnMode?: MenuMode;
+
+  init(data?: { mode?: MenuMode }): void {
+    // Another scene coming back to a page (the deck's Back returns to the dynasty page): the mode
+    // rides in as scene data. Without it the scene restarts wherever it last was.
+    if (data?.mode) this.mode = data.mode;
+  }
   /**
    * Printed on the Continue line instead of the save's date when the page has just reloaded
    * itself to get its picture back and the run could not be re-entered on its own — see `create`.
@@ -2335,7 +2344,7 @@ export class MenuScene extends Phaser.Scene {
     }
     // The ledger draws its own head (`renderDynastyTitleBar`): a masthead that spent the top
     // 236 units of a 620 sheet on a name the player had just read is why the page scrolled.
-    if (this.mode !== 'dynasty') this.renderTitle();
+    if (this.mode !== 'dynasty' && this.mode !== 'legacy') this.renderTitle();
     // The wordmark is outside the arrival on purpose: it is the same block of type on every page,
     // and a title that re-landed on each navigation would be the one thing on the sheet that never
     // holds still.
@@ -2428,7 +2437,9 @@ export class MenuScene extends Phaser.Scene {
    */
   private footBackBar(): void {
     this.content.push(this.ui.backBar(GAME_HEIGHT - BACK_BAR_BAND, () => {
-      this.mode = 'main';
+      // One step back, not all the way: a page opened from the dynasty page returns to it.
+      this.mode = this.returnMode ?? 'main';
+      this.returnMode = undefined;
       this.render();
     }));
   }
@@ -3116,19 +3127,19 @@ export class MenuScene extends Phaser.Scene {
    * 620 clamp that was a third of the screen spent on a title the player had already read on the
    * page they came from. The ledger is a document; a document has a heading, not a masthead.
    */
-  private renderDynastyTitleBar(): number {
+  private renderDynastyTitleBar(title: string = t('dynasty.title'), withMark = true): number {
     const store = getDynasty();
     // A band of parchment under the head: the front page's seal is painted at the top of the
     // sheet behind every mode, and a title set straight onto it printed through the emblem.
     this.content.push(this.add.rectangle(0, 0, GAME_WIDTH, 56, INK_UI.parchment, 0.94).setOrigin(0, 0));
-    this.content.push(this.add.text(GAME_WIDTH / 2, 28, t('dynasty.title'), {
+    this.content.push(this.add.text(GAME_WIDTH / 2, 28, title, {
       color: '#2a2118', fontFamily: TITLE_FONT, fontSize: '20px', fontStyle: '700', align: 'center',
     }).setOrigin(0.5));
     const rule = this.add.rectangle(GAME_WIDTH / 2, 47, 120, 1.5, INK_UI.gold, 0.85);
     this.content.push(rule);
     // The house's mark rides the head's right edge once there is a house: the same banner the
     // chip carries in-run, so the page and the run agree about whose ledger this is.
-    if (store.founder) {
+    if (withMark && store.founder) {
       const mark = drawHouseBanner(this, houseBanner(), 22, 30);
       mark.setPosition(GAME_WIDTH - 44, 13);
       this.content.push(mark);
@@ -3202,7 +3213,7 @@ export class MenuScene extends Phaser.Scene {
         this.content.push(this.ui.label(GAME_WIDTH / 2, top + 10 + 68 + 6, houseText, 'label', houseStyle)
           .setOrigin(0.5, 0));
         this.content.push(this.ui.button({ x: PAD, y: top + plateHeight + 12, width: W, height: 40 },
-          t('coronation.temple'), () => { this.mode = 'temple'; this.render(); },
+          t('coronation.temple'), () => { this.returnMode = 'dynasty'; this.mode = 'temple'; this.render(); },
           { variant: 'secondary', fontSize: '12px', subLabel: t('coronation.temple.sub') }));
       }
       this.footBackBar();
@@ -3616,6 +3627,12 @@ export class MenuScene extends Phaser.Scene {
       'caption', { fontSize: '10px', backgroundColor: 'rgba(243,230,196,0.82)', padding: { x: 4, y: 1 } });
     body.add(headerLeft);
     y += headerLeft.height + 5;
+    // What the section is, in one line — *"Phẩm chất": what is that? no information* — and how
+    // it is used: two are laid out at each level, one is kept, tap to read one.
+    const hintText = this.ui.label(PAD, y, t('dynasty.page.traitsHint'), 'caption',
+      { fontSize: '9.5px', color: '#6b5a44', wordWrap: { width: W }, backgroundColor: 'rgba(243,230,196,0.82)', padding: { x: 4, y: 1 } });
+    body.add(hintText);
+    y += hintText.height + 8;
 
     const name = (id: string) => t(`dynasty.trait.${id}` as Parameters<typeof t>[0]);
     const effect = (id: string) => t(`dynasty.trait.${id}.d` as Parameters<typeof t>[0]);
@@ -3651,17 +3668,24 @@ export class MenuScene extends Phaser.Scene {
     // What is still on the table, as one row: the names, and what the next level does with them.
     // One row rather than one per trait, because every one of them is the same fact — not yet
     // taken — and the page's height is the page's fit at the 620 clamp.
+    // What is still on the table: one row each, with what it does, and a tap opens its sheet.
+    // A joined string of seven names said nothing and answered no tap.
     if (table.length > 0) {
-      const names = table.map(name).join(' · ');
-      const namesH = measure(names, '10px', W - 20);
-      const rowH = 8 + 14 + 2 + namesH + 2 + 12 + 8;
-      body.add(this.ui.panel({ x: PAD, y, width: W, height: rowH }, { border: INK_UI.softBrush, fillAlpha: 0.72 }));
-      body.add(this.ui.label(PAD + 10, y + 8, t('dynasty.page.tableRow', { n: table.length }), 'label',
-        { fontSize: '11px', color: '#6b5a44' }));
-      body.add(this.ui.label(PAD + 10, y + 8 + 16, names, 'caption', { fontSize: '10px', wordWrap: { width: W - 20 } }));
-      body.add(this.ui.label(PAD + 10, y + 8 + 16 + namesH + 2, t(table.length >= 2 ? 'dynasty.page.tableNext' : 'dynasty.page.tableLast'),
-        'caption', { fontSize: '9.5px', color: '#8a7a60' }));
-      y += rowH + 4;
+      const tableHead = this.ui.label(PAD, y,
+        `${t('dynasty.page.tableRow', { n: table.length })} · ${t(table.length >= 2 ? 'dynasty.page.tableNext' : 'dynasty.page.tableLast')}`,
+        'caption', { fontSize: '9.5px', color: '#8a7a60', wordWrap: { width: W } });
+      body.add(tableHead);
+      y += tableHead.height + 4;
+      for (const id of table) {
+        const effectH = measure(effect(id), '9px', W - 40);
+        const rowH = 6 + 14 + effectH + 6;
+        body.add(this.ui.panel({ x: PAD, y, width: W, height: rowH }, { border: INK_UI.softBrush, fillAlpha: 0.6 }));
+        body.add(this.ui.label(PAD + 10, y + 6, name(id), 'label', { fontSize: '11px', color: '#4a3b28' }));
+        body.add(this.ui.label(PAD + 10, y + 6 + 14, effect(id), 'caption', { fontSize: '9px', wordWrap: { width: W - 40 } }));
+        body.add(this.ui.label(PAD + W - 10, y + rowH / 2, '›', 'label', { fontSize: '14px', color: '#8a7a60' }).setOrigin(1, 0.5));
+        body.add(this.ui.button({ x: PAD, y, width: W, height: rowH }, '', () => this.openTraitSheet(id), { frameless: true }));
+        y += rowH + 4;
+      }
     }
     return y + 6;
   }
@@ -3715,14 +3739,14 @@ export class MenuScene extends Phaser.Scene {
             : t('dynasty.shopSubPerks', { total: legacy.points, n: legacy.loadout.length, max: LOADOUT_MAX }),
         ...(affordable ? { pending: '✓' } : {}),
         enabled: true,
-        open: () => { this.mode = 'legacy'; this.render(); },
+        open: () => { this.returnMode = 'dynasty'; this.mode = 'legacy'; this.render(); },
       });
     }
     doors.push({
       label: t('coronation.temple'),
       sub: crowned ? t('coronation.temple.sub') : t('coronation.temple.uncrowned'),
       enabled: crowned,
-      open: () => { this.mode = 'temple'; this.render(); },
+      open: () => { this.returnMode = 'dynasty'; this.mode = 'temple'; this.render(); },
     });
     // Owed rows first; otherwise the order above. Both halves keep it, so the page is stable.
     const ordered = [...doors.filter((door) => door.pending), ...doors.filter((door) => !door.pending)];
@@ -4149,29 +4173,57 @@ export class MenuScene extends Phaser.Scene {
     tablet.setData('menuTablet', 'dynasty');
   }
 
+  /**
+   * The vault, as a page with one focus.
+   *
+   * It was twenty equal cards scrolling under a translucent masthead, over the front page's
+   * landscape: the mountains printed through the type, the previous card's button peeked out
+   * under the title, every button was the same grey, and nothing said what the page was for —
+   * *colours a mess, no focus, nobody knows what this is.* So: its own head on paper, like the
+   * ledger. A header that says the two things that matter — how many points you hold and what
+   * rides into the next reign, as three slots — and a list in four sections in the order a
+   * player acts on them: what is carried, what can be bought right now (the page's one primary),
+   * what is unlocked but set down, and what is still locked, cheapest first. Locked cards carry
+   * their price and the shortfall, not a row of empty dots and a dead button.
+   */
   private renderLegacyShop(): void {
     const legacy = getLegacy();
-    this.content.push(this.add.text(GAME_WIDTH / 2, this.vy(236), t('empire.legacy.shopTitle'), {
-      color: '#2a2118', fontFamily: TITLE_FONT, fontSize: '20px', fontStyle: '700', align: 'center',
-    }).setOrigin(0.5));
-    // Six under the title's foot rather than on it: at the 620 clamp the two lines touched.
-    this.content.push(this.add.text(GAME_WIDTH / 2, this.vy(268), t('empire.legacy.banked', { total: legacy.points }), {
-      color: '#8a5f1c', fontFamily: UI_FONT, fontSize: '13px', align: 'center',
-    }).setOrigin(0.5));
-    // What rides into the next reign: the loadout, named, with the slots it fills.
-    const carried = legacy.loadout.map((id) => t(`empire.legacy.perk.${id}` as Parameters<typeof t>[0]));
-    this.content.push(this.add.text(GAME_WIDTH / 2, this.vy(286), carried.length > 0
-      ? t('empire.legacy.loadout', { n: carried.length, max: LOADOUT_MAX, list: carried.join(' · ') })
-      : t('empire.legacy.loadoutEmpty', { max: LOADOUT_MAX }), {
-      color: '#1c6b58', fontFamily: UI_FONT, fontSize: '10px', align: 'center', wordWrap: { width: GAME_WIDTH - 56 },
-    }).setOrigin(0.5, 0));
+    const PAD = 20;
+    const W = GAME_WIDTH - PAD * 2;
+    const headTop = this.renderDynastyTitleBar(t('empire.legacy.shopTitle'), false) + 10;
+    // Paper under the whole page: the front page's landscape and seal are painted behind every
+    // mode, and the list scrolled over mountains. A shop is read on a plain sheet.
+    this.content.push(this.add.rectangle(0, 56, GAME_WIDTH, this.pageFloor() - 56, INK_UI.parchment, 0.96).setOrigin(0, 0));
 
-    /**
-     * Five cards do not fit a 620 sheet, and never did — the last one printed through the way back
-     * long before this phase. Same scrolling body as the ledger it now opens from; `addTo` parents
-     * the swallow-zone before the content, or the zone lands on top and eats every Buy.
-     */
-    const bodyTop = this.vy(316);
+    // ── The header: points, and the three slots that ride ──────────────────
+    const HEAD_H = 122;
+    this.content.push(this.ui.panel({ x: PAD, y: headTop, width: W, height: HEAD_H },
+      { border: INK_UI.gold, borderWidth: 1.4, fillAlpha: 1 }));
+    const pointsText = this.add.text(PAD + 14, headTop + 10, legacy.points.toLocaleString('en-US'), {
+      color: '#8a5f1c', fontFamily: TITLE_FONT, fontSize: '32px', fontStyle: '700',
+    }).setOrigin(0, 0);
+    this.content.push(pointsText);
+    this.content.push(this.ui.label(PAD + 14, headTop + 52, t('empire.legacy.pointsLabel'), 'caption',
+      { fontSize: '10px', color: '#8a5f1c' }));
+    this.content.push(this.ui.label(PAD + 14, headTop + 70, t('empire.legacy.howEarned'), 'caption',
+      { fontSize: '9px', color: '#8a7a60', wordWrap: { width: 140 } }));
+
+    const slotsX = PAD + 168;
+    const slotsW = W - 168 - 12;
+    this.content.push(this.ui.label(slotsX, headTop + 12,
+      t('empire.legacy.carryHead', { n: legacy.loadout.length, max: LOADOUT_MAX }), 'caption',
+      { fontSize: '9px', color: '#1c6b58' }));
+    for (let i = 0; i < LOADOUT_MAX; i += 1) {
+      const id = legacy.loadout[i];
+      const sy = headTop + 30 + i * 28;
+      this.content.push(this.ui.panel({ x: slotsX, y: sy, width: slotsW, height: 24 },
+        { border: id ? INK_UI.jade : INK_UI.softBrush, borderWidth: id ? 1.4 : 1, fillAlpha: id ? 0.9 : 0.3 }));
+      this.content.push(this.ui.label(slotsX + 8, sy + 5,
+        id ? `${i + 1} · ${t(`empire.legacy.perk.${id}` as Parameters<typeof t>[0])}` : `${i + 1} · ${t('empire.legacy.slotEmpty')}`,
+        id ? 'label' : 'caption', { fontSize: '10px', ...(id ? { color: '#1c6b58' } : { color: '#8a7a60' }) }));
+    }
+
+    const bodyTop = headTop + HEAD_H + 10;
     const viewport = this.pageFloor() - bodyTop;
     const area = this.ui.scrollArea({ x: 0, y: bodyTop, width: GAME_WIDTH, height: viewport });
     this.pageScroll = area;
@@ -4179,72 +4231,88 @@ export class MenuScene extends Phaser.Scene {
     area.addTo(layer);
     this.content.push(layer);
     const body = area.content;
-
     let y = 0;
-    // The carried perks first, then the bought, then the rest: what rides is what the page is
-    // about; the ladder below it is what the vault still has to offer.
-    const ordered = [...LEGACY_PERKS].sort((a, b) => {
-      const rank = (perk: typeof a) => (isEquipped(perk.id, legacy) ? 0 : perkLevel(perk.id, legacy) > 0 ? 1 : 2);
-      return rank(a) - rank(b);
-    });
-    for (const perk of ordered) {
-      const level = perkLevel(perk.id, legacy);
-      const owned = level > 0;
-      const equipped = isEquipped(perk.id, legacy);
-      const cost = nextPerkCost(perk, level);
-      const affordable = cost !== undefined && legacy.points >= cost;
-      // Ten dots, not ten stars in the title: the title kept the name; the ladder moved under it.
-      const pips = '●'.repeat(level) + '○'.repeat(PERK_MAX_LEVEL - level);
-      // Three states, each said in the unit the player acts on: the level held, the next level's
-      // cost, or short by exactly this many — "Cost: 640" against a vault of 310 made the player
-      // do the subtraction the page should have done.
-      const nextLine = cost === undefined
-        ? t('empire.legacy.max')
-        : !affordable
-          ? t('empire.legacy.short', { cost, n: cost - legacy.points })
-          : owned
-            ? t('empire.legacy.upgradeCost', { level: level + 1, cost })
-            : t('empire.legacy.cost', { cost });
-      const subtitle = owned
-        ? `${pips} ${t('empire.legacy.level', { level, max: PERK_MAX_LEVEL })} · ${nextLine}`
-        : `${pips} ${nextLine}`;
-      // The effect at the level held (or what level one would do), and the next level ghosted.
-      const shown = Math.max(1, level);
-      const bodyText = shown < PERK_MAX_LEVEL
-        ? `${perkDescription(perk, shown)}\n${t('empire.legacy.next', { level: shown + 1, text: perkDescription(perk, shown + 1) })}`
-        : perkDescription(perk, shown);
-      const card = this.ui.card({ x: 28, y, width: GAME_WIDTH - 56, height: 74 }, {
-        title: t(`empire.legacy.perk.${perk.id}` as Parameters<typeof t>[0]),
-        subtitle,
-        body: bodyText,
-        border: equipped ? INK_UI.jade : owned ? INK_UI.gold : affordable ? INK_UI.gold : INK_UI.softBrush,
-        muted: !owned && !affordable,
-        actionPlacement: 'right',
-        action: {
-          label: cost === undefined ? t('empire.legacy.maxShort') : owned ? t('empire.legacy.upgrade') : t('empire.legacy.buy'),
-          variant: cost === undefined ? 'disabled' : affordable ? 'primary' : 'disabled',
-          disabled: cost === undefined || !affordable,
-          onClick: () => {
-            if (purchaseLegacyPerk(perk.id)) this.render();
-          },
-        },
-      });
-      body.add(card);
-      // Stride by the card's *measured* height: a card grows to its wrapped body, and a fixed 82
-      // printed the Vietnamese descriptions through the card below.
-      y += ((card.getData('cardHeight') as number | undefined) ?? 74) + 4;
-      // The slot: carried into the next reign, or set down. A bought perk that is not carried
-      // does nothing, and the row says so.
-      if (owned) {
-        const full = !equipped && legacy.loadout.length >= LOADOUT_MAX;
-        body.add(this.ui.button({ x: 28, y, width: GAME_WIDTH - 56, height: 26 },
-          equipped ? t('empire.legacy.equipped') : full ? t('empire.legacy.loadoutFull', { max: LOADOUT_MAX }) : t('empire.legacy.equip'),
-          () => { if (toggleLoadout(perk.id)) this.render(); },
-          { variant: equipped ? 'secondary' : full ? 'disabled' : 'ghost', fontSize: '10.5px' }));
-        y += 26 + 8;
-      } else {
-        y += 4;
+
+    // ── The four sections ──────────────────────────────────────────────────
+    const costOf = (perk: (typeof LEGACY_PERKS)[number]) => nextPerkCost(perk, perkLevel(perk.id, legacy));
+    const canBuy = (perk: (typeof LEGACY_PERKS)[number]) => { const c = costOf(perk); return c !== undefined && legacy.points >= c; };
+    const carried = LEGACY_PERKS.filter((perk) => isEquipped(perk.id, legacy));
+    const affordable = LEGACY_PERKS.filter((perk) => !isEquipped(perk.id, legacy) && canBuy(perk));
+    const ownedDown = LEGACY_PERKS.filter((perk) => !isEquipped(perk.id, legacy) && !canBuy(perk) && perkLevel(perk.id, legacy) > 0);
+    const locked = LEGACY_PERKS.filter((perk) => perkLevel(perk.id, legacy) === 0 && !canBuy(perk))
+      .sort((a, b) => (costOf(a) ?? Infinity) - (costOf(b) ?? Infinity));
+    const sections: Array<{ key: 'carried' | 'affordable' | 'owned' | 'locked'; title: string; perks: typeof LEGACY_PERKS }> = [
+      { key: 'carried', title: t('empire.legacy.sec.carried', { n: carried.length, max: LOADOUT_MAX }), perks: carried },
+      { key: 'affordable', title: t('empire.legacy.sec.affordable'), perks: affordable },
+      { key: 'owned', title: t('empire.legacy.sec.owned'), perks: ownedDown },
+      { key: 'locked', title: t('empire.legacy.sec.locked'), perks: locked },
+    ];
+    if (legacy.points === 0 && carried.length === 0 && ownedDown.length === 0) {
+      const note = this.ui.label(GAME_WIDTH / 2, y + 2, t('empire.legacy.nothingYet'), 'caption',
+        { fontSize: '10.5px', align: 'center', color: '#8a5f1c', wordWrap: { width: W } }).setOrigin(0.5, 0);
+      body.add(note);
+      y += note.height + 12;
+    }
+
+    for (const section of sections) {
+      if (section.perks.length === 0) continue;
+      const head = this.add.text(28, y, section.title.toLocaleUpperCase('vi'), {
+        color: section.key === 'affordable' ? '#a4402c' : '#2a2118', fontFamily: TITLE_FONT, fontSize: '12px', fontStyle: '700',
+      }).setOrigin(0, 0);
+      head.setLetterSpacing?.(1.2);
+      body.add(head);
+      body.add(this.add.rectangle(28, y + 20, GAME_WIDTH - 56, 1, section.key === 'affordable' ? INK_UI.cinnabar : INK_UI.gold, 0.7).setOrigin(0, 0));
+      y += 30;
+
+      for (const perk of section.perks) {
+        const level = perkLevel(perk.id, legacy);
+        const owned = level > 0;
+        const equipped = isEquipped(perk.id, legacy);
+        const cost = costOf(perk);
+        const affordableNow = cost !== undefined && legacy.points >= cost;
+        const pips = '●'.repeat(level) + '○'.repeat(PERK_MAX_LEVEL - level);
+        // The second line says the one thing to know: the level held and the next step's price,
+        // or the price and the shortfall. Empty dots on a locked card said nothing.
+        const nextLine = cost === undefined
+          ? t('empire.legacy.max')
+          : affordableNow
+            ? (owned ? t('empire.legacy.upgradeCost', { level: level + 1, cost }) : t('empire.legacy.cost', { cost }))
+            : t('empire.legacy.short', { cost, n: cost - legacy.points });
+        const subtitle = owned ? `${pips} ${t('empire.legacy.level', { level, max: PERK_MAX_LEVEL })} · ${nextLine}` : nextLine;
+        const shown = Math.max(1, level);
+        const bodyText = shown < PERK_MAX_LEVEL
+          ? `${perkDescription(perk, shown)}\n${t('empire.legacy.next', { level: shown + 1, text: perkDescription(perk, shown + 1) })}`
+          : perkDescription(perk, shown);
+        const action = affordableNow
+          ? { label: owned ? t('empire.legacy.upgrade') : t('empire.legacy.buy'), variant: 'primary' as const, onClick: () => { if (purchaseLegacyPerk(perk.id)) this.render(); } }
+          : cost === undefined
+            ? { label: t('empire.legacy.maxShort'), variant: 'disabled' as const, disabled: true, onClick: () => undefined }
+            : undefined;
+        const card = this.ui.card({ x: 28, y, width: GAME_WIDTH - 56, height: 74 }, {
+          title: t(`empire.legacy.perk.${perk.id}` as Parameters<typeof t>[0]),
+          subtitle,
+          body: bodyText,
+          border: equipped ? INK_UI.jade : affordableNow ? INK_UI.cinnabar : owned ? INK_UI.gold : INK_UI.softBrush,
+          borderWidth: affordableNow || equipped ? 1.6 : 1,
+          fillAlpha: 1,
+          muted: section.key === 'locked',
+          actionPlacement: 'right',
+          ...(action ? { action } : {}),
+        });
+        body.add(card);
+        y += ((card.getData('cardHeight') as number | undefined) ?? 74) + 4;
+        if (owned) {
+          const full = !equipped && legacy.loadout.length >= LOADOUT_MAX;
+          body.add(this.ui.button({ x: 28, y, width: GAME_WIDTH - 56, height: 26 },
+            equipped ? t('empire.legacy.equipped') : full ? t('empire.legacy.loadoutFull', { max: LOADOUT_MAX }) : t('empire.legacy.equip'),
+            () => { if (toggleLoadout(perk.id)) this.render(); },
+            { variant: equipped ? 'secondary' : full ? 'disabled' : 'ghost', fontSize: '10.5px' }));
+          y += 26 + 10;
+        } else {
+          y += 6;
+        }
       }
+      y += 8;
     }
     area.setContentHeight(Math.max(viewport, y + 8));
 
