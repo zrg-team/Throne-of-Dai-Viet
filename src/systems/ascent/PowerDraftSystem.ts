@@ -15,6 +15,7 @@ import { doctrineDraftBonus } from './RealmDoctrineSystem';
 import { enqueueAscentPrompt } from './AscentState';
 import { hasTrait } from '../../state/dynasty';
 import { cabinetLevel, cabinetWeightMult, grantDeed, learnRecipe, openingHand, recipeLearned } from '../../state/cabinet';
+import { noteRubbing } from './Inheritance';
 import { t } from '../../i18n';
 import type { AscentState, CourtModifier, GameState, PowerCardDef } from '../../state/types';
 
@@ -229,7 +230,7 @@ function maybeEvolve(state: GameState, ascent: AscentState, taken: PowerCardDef)
   // The forge learns the recipe the moment it is completed in a run: from now on the parents
   // call each other out in every draft, from run one. The first forging is also a deed.
   learnRecipe(result.id);
-  grantDeed('first-evolution');
+  if (grantDeed('first-evolution')) noteRubbing(state);
 
   // pushToast already records the event in the persistent log.
   const name = t(`ascent.card.${result.id}` as Parameters<typeof t>[0]);
@@ -256,7 +257,7 @@ export function takePowerCard(state: GameState, cardId: string): boolean {
 
   applyPowerCardEffect(state, card, stack);
   ascent.cardStacks[cardId] = stack + 1;
-  if (card.rarity === 'jade') grantDeed('first-jade');
+  if (card.rarity === 'jade' && grantDeed('first-jade')) noteRubbing(state);
   ascent.pendingLevelUps = Math.max(0, ascent.pendingLevelUps - 1);
   ascent.rerollCost = rerollPriceFor(ascent.level);
   // Power draws attention. Skipping the draft is now a real option rather than a strictly

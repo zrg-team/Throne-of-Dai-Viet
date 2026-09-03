@@ -237,6 +237,19 @@ export function rankForScore(bestScore: number): string {
   return t(`empire.rank.${key}` as Parameters<typeof t>[0]);
 }
 
+/**
+ * The first rung above a score, for the in-run ledger's "Lord at 340 more".
+ *
+ * Returns the label rather than the key because `RANKS` is private and every reader of this
+ * file already gets labels from `rankForScore`; two readers spelling the same rung two ways is
+ * the fault `formatNumber` exists to prevent. Undefined past the top of the ladder.
+ */
+export function nextRankAbove(score: number): { label: string; minScore: number } | undefined {
+  const above = RANKS.find((rank) => rank.minScore > score);
+  if (!above) return undefined;
+  return { label: t(`empire.rank.${above.key}` as Parameters<typeof t>[0]), minScore: above.minScore };
+}
+
 export function currentRankLabel(): string {
   return rankForScore(getLegacy().bestScore);
 }
