@@ -10,7 +10,7 @@ import { Asset } from 'expo-asset';
 import { Directory, File, Paths } from 'expo-file-system';
 import { unzip } from 'react-native-zip-archive';
 import * as Updates from 'expo-updates';
-import Server, { ERROR_LOG_FILE, STATES } from '@dr.pogodin/react-native-static-server';
+import Server, { ERROR_LOG_FILE, STATES, getActiveServerId } from '@dr.pogodin/react-native-static-server';
 
 import { shellDescriptorScript } from './src/descriptor';
 import version from './assets/web-version.json';
@@ -195,6 +195,12 @@ function Shell() {
     const boot = async () => {
       await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
 
+      // Which bundle this is, first line of the diary: an over-the-air update or the one in the
+      // binary, and whether expo-updates fell back to an older one because the newer failed to
+      // launch. Without this a report of *it reverted to the previous version* cannot be told
+      // apart from *it never applied*.
+      note(`bundle ${Updates.isEmbeddedLaunch ? 'embedded' : `update ${Updates.updateId ?? '?'}`}${Updates.isEmergencyLaunch ? ` — EMERGENCY LAUNCH: ${Updates.emergencyLaunchReason ?? 'no reason given'}` : ''}`);
+
       // The archive first. Its hash is the identity of the game actually inside this binary, and
       // the only thing guaranteed to change when the game does.
       const [asset] = await Asset.loadAsync(require('./assets/web.zip'));
@@ -264,6 +270,28 @@ function Shell() {
         throw new Error(`no index.html in ${asPath(root.uri)} — the archive is wrong or empty`);
       }
       note(`unpacked ok: ${root.list().length} entries`);
+
+      /**
+       * **The server the previous bundle started is still running.**
+       *
+       * `Updates.reloadAsync()` replaces the JavaScript, not the native modules. The lighttpd the
+       * old bundle started stays bound to the port, its JS registry is gone with the old bundle,
+       * and the native side refuses a second server while one is alive — *Failed to launch server,
+       * another server instance is active*. So the first launch of every over-the-air update
+       * ended on the diagnostic: the version line offered the update, Reload went blank, and the
+       * shell reported a server it could not start. Ask the native side who is running, adopt
+       * the orphan under its own id, and stop it before starting ours.
+       */
+      const orphan = await getActiveServerId();
+      if (orphan !== null && orphan !== undefined) {
+        note(`stopping the previous bundle's server #${orphan}`);
+        const stale = new Server({ id: orphan, state: STATES.ACTIVE, fileDir: asPath(root.uri), port: PORT, stopInBackground: false });
+        try {
+          await stale.stop('replaced by a newer bundle');
+        } catch (error) {
+          note(`could not stop it: ${error instanceof Error ? error.message : String(error)}`);
+        }
+      }
 
       const instance = new Server({
         port: PORT,
@@ -413,6 +441,7 @@ function Shell() {
          */
         if (failed) {
           note('a newer build arrived — restarting into it');
+          try { await server.current?.stop('reloading into a newer bundle'); } catch { /* the next bundle adopts it */ }
           await Updates.reloadAsync();
           return;
         }
@@ -514,7 +543,12 @@ function Shell() {
             }
             // The player tapped Reload on the version line. Restart onto the bundle already down.
             if (event.nativeEvent.data === 'update:apply') {
-              void Updates.reloadAsync();
+              // Our own server goes first, so the bundle that comes next finds the port free even
+              // if the adoption above ever fails it.
+              void (async () => {
+                try { await server.current?.stop('reloading into a newer bundle'); } catch { /* the next bundle adopts it */ }
+                await Updates.reloadAsync();
+              })();
             }
           }}
           // A refused connection is the shell's fault, not the player's. Say so, rather than
