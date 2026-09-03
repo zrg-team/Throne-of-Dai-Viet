@@ -23,7 +23,8 @@ import {
 } from '../state/cabinet';
 import { getLegacy, spendLegacyPoints } from '../state/legacy';
 import { AMBITION_PER_POWER_CARD, PITY_HARD_CAP } from '../game/ascentConfig';
-import { motionMs } from '../game/lifeSettings';
+import { motionMs, reducedMotion } from '../game/lifeSettings';
+import { soundDirector } from '../ui/sound/SoundDirector';
 import { liftForInput, quietUntilNextFrame, swallowRestOfPress } from '../ui/inputGeneration';
 import { BACK_BAR_HEIGHT, InkUI, INK_UI, scrollGestureConsumedTap, type InkScrollArea } from '../ui/InkUI';
 import { CARD_FACE_H, CARD_FACE_W, cardFaceOverlay, stampCardFace } from '../ui/cardFace';
@@ -854,6 +855,21 @@ ${t('cabinet.grid.unfound')}`,
    * WebGL, the clip-rect-stencil finding) and no per-frame Graphics redraw: each strip is drawn
    * once and only ever tweened out.
    */
+  /**
+   * The scratch. *Make the scratch really good.*
+   *
+   * The first version was fourteen strips that vanished when the pointer crossed them: a print
+   * uncovered in bands, no grain under the thumb, and the card simply there at the end. This one
+   * is built the way a scratch card is played. The cover is a grid of ink cells and a brush clears
+   * whatever it passes over — along the whole stroke, not only at the sampled points — with flakes
+   * falling off each cell as it goes, a paper rustle and a short buzz under the thumb. A glow in
+   * the card's own rarity colour leaks out from behind the card as the cover thins, so a Gold is
+   * felt before it is read; past a third cleared, a Gold or Jade glow starts to pulse. At just
+   * over half cleared the rest falls away in a wave from the thumb outward, the card punches, the
+   * glow flares, a precious card throws sparks (Jade also shakes the page), and the outcome and
+   * the next-draw button rise in. Every duration goes through `motionMs`, so the reduced-motion
+   * setting gets the same reveal without the theatre.
+   */
   private renderRubbing(reveal: RubbingReveal): void {
     this.revealDone = false;
     const title = this.chrome(this.add.text(GAME_WIDTH / 2, 26, t('cabinet.rub.title'), {
@@ -868,82 +884,255 @@ ${t('cabinet.grid.unfound')}`,
     const cardH = Math.round(cardW * (CARD_FACE_H / CARD_FACE_W));
     const cardX = Math.round((GAME_WIDTH - cardW) / 2);
     const cardY = 92;
+    const centreX = cardX + cardW / 2;
+    const centreY = cardY + cardH / 2;
+    const rarity: AscentRarity = findPowerCard(reveal.cardId)?.rarity ?? 'bronze';
+    const tint = RARITY_COLOR[rarity];
+    const precious = rarity === 'gold' || rarity === 'jade';
+
+    // The tease: the rarity's colour behind the card, invisible until the cover starts to thin.
+    // Drawn about its own centre so the burst can scale it in place.
+    // Four rings at falling alpha: a soft light, not a coloured slab behind the card.
+    const glow = this.keep(this.add.graphics({ x: centreX, y: centreY }));
+    for (let ring = 0; ring < 4; ring += 1) {
+      const pad = 6 + ring * 7;
+      glow.fillStyle(tint, ring === 0 ? 0.5 : 0.22);
+      glow.fillRoundedRect(-cardW / 2 - pad, -cardH / 2 - pad, cardW + pad * 2, cardH + pad * 2, 12 + ring * 4);
+    }
+    glow.setAlpha(0);
+
     // The card is revealed at the level it now holds in the cabinet, so a copy that completed a
     // combine-ready set is seen wearing the state it just reached.
     const face = stampCardFace(this, reveal.cardId, { x: cardX, y: cardY, width: cardW, height: cardH }, reveal.level);
     if (face) this.keep(face);
 
-    // The ink cover: horizontal strips, each cleared once when the pointer crosses it.
-    const STRIPS = 14;
-    const stripH = Math.ceil(cardH / STRIPS);
+    // The cover: a fine grid of ink cells — *smaller dots, smoother* — each the woodblock's own
+    // hatch rather than flat paint, each drawn about its centre so it can shrink as it flakes
+    // off. The cover fits the card exactly: no overhang, and the cells that meet a corner are
+    // cut to the face's own radius, so the cover reads as ink ON the card, not a slab over it.
+    const COLS = 18;
+    const ROWS = 24;
+    const cellW = cardW / COLS;
+    const cellH = cardH / ROWS;
+    const corner = 10 * (cardW / CARD_FACE_W);
+    const L = cardX;
+    const T = cardY;
+    const R = cardX + cardW;
+    const B = cardY + cardH;
+    /** A point outside a corner's arc, moved onto it; every other point stays. */
+    const onCard = (x: number, y: number): { x: number; y: number } => {
+      let ax: number;
+      let ay: number;
+      if (x < L + corner && y < T + corner) { ax = L + corner; ay = T + corner; }
+      else if (x > R - corner && y < T + corner) { ax = R - corner; ay = T + corner; }
+      else if (x < L + corner && y > B - corner) { ax = L + corner; ay = B - corner; }
+      else if (x > R - corner && y > B - corner) { ax = R - corner; ay = B - corner; }
+      else return { x, y };
+      const dx = x - ax;
+      const dy = y - ay;
+      const d = Math.hypot(dx, dy);
+      return d <= corner ? { x, y } : { x: ax + (dx / d) * corner, y: ay + (dy / d) * corner };
+    };
+    type Cell = { g: Phaser.GameObjects.Graphics; cx: number; cy: number; cleared: boolean };
+    const cells: Cell[] = [];
     this.coverStrips = [];
-    this.stripsLeft = STRIPS;
-    for (let i = 0; i < STRIPS; i += 1) {
-      const strip = this.add.graphics();
-      // The woodblock's own hatch, not flat paint — the thing under the thumb is a print.
-      strip.fillStyle(0x4a3b28, 0.96);
-      strip.fillRect(cardX - 3, cardY + i * stripH, cardW + 6, Math.min(stripH, cardH - i * stripH) + 1);
-      strip.fillStyle(0x2a2118, 0.5);
-      for (let x = cardX - 3; x < cardX + cardW + 3; x += 9) {
-        strip.fillRect(x, cardY + i * stripH, 4, Math.min(stripH, cardH - i * stripH) + 1);
+    for (let r = 0; r < ROWS; r += 1) {
+      for (let c = 0; c < COLS; c += 1) {
+        const cx = cardX + (c + 0.5) * cellW;
+        const cy = cardY + (r + 0.5) * cellH;
+        // A hair of overlap between cells so no seam shows, clamped to the card's own edge.
+        const x0 = Math.max(L, cx - cellW / 2 - 0.6);
+        const x1 = Math.min(R, cx + cellW / 2 + 0.6);
+        const y0 = Math.max(T, cy - cellH / 2 - 0.6);
+        const y1 = Math.min(B, cy + cellH / 2 + 0.6);
+        const nearCorner = (x0 < L + corner || x1 > R - corner) && (y0 < T + corner || y1 > B - corner);
+        const g = this.add.graphics({ x: cx, y: cy });
+        g.fillStyle(0x4a3b28, 0.97);
+        if (nearCorner) {
+          // The cell's outline sampled and pressed onto the arc: a polygon that follows the corner.
+          const pts: Phaser.Types.Math.Vector2Like[] = [];
+          const STEPS = 6;
+          for (let i = 0; i < STEPS; i += 1) pts.push(onCard(x0 + ((x1 - x0) * i) / STEPS, y0));
+          for (let i = 0; i < STEPS; i += 1) pts.push(onCard(x1, y0 + ((y1 - y0) * i) / STEPS));
+          for (let i = 0; i < STEPS; i += 1) pts.push(onCard(x1 - ((x1 - x0) * i) / STEPS, y1));
+          for (let i = 0; i < STEPS; i += 1) pts.push(onCard(x0, y1 - ((y1 - y0) * i) / STEPS));
+          g.fillPoints(pts.map((p) => ({ x: p.x - cx, y: p.y - cy })), true);
+        } else {
+          g.fillRect(x0 - cx, y0 - cy, x1 - x0, y1 - y0);
+          g.lineStyle(1, 0x2a2118, 0.45);
+          g.lineBetween(x0 - cx, y1 - cy, x1 - cx, y0 - cy);
+        }
+        if (((r * 2654435761 + c * 40503) >>> 0) % 5 === 0 && !nearCorner) {
+          // Mottling: the ink took unevenly, the way a hand-inked block does.
+          g.fillStyle(0x8a6a44, 0.16);
+          g.fillRect(x0 - cx, y0 - cy, x1 - x0, y1 - y0);
+        }
+        this.keep(g);
+        this.coverStrips.push(g);
+        cells.push({ g, cx, cy, cleared: false });
       }
-      strip.setData('cleared', false);
-      this.keep(strip);
-      this.coverStrips.push(strip);
+    }
+    this.stripsLeft = cells.length;
+
+    // The invitation, on the cover itself, breathing until the first stroke.
+    const coverHint = this.keep(this.ui.label(centreX, centreY, t('cabinet.rub.coverHint'), 'label',
+      { fontSize: '12.5px', color: '#f3e6c4', align: 'center' }).setOrigin(0.5));
+    let hintShown = true;
+    if (motionMs(900) > 0) {
+      this.tweens.add({ targets: coverHint, alpha: { from: 1, to: 0.4 }, duration: motionMs(900), yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
     }
 
     const hint = this.keep(this.ui.label(GAME_WIDTH / 2, cardY + cardH + 10, t('cabinet.rub.hint'),
       'caption', { fontSize: '10px', align: 'center' }).setOrigin(0.5, 0));
 
-    // Pity, printed under the card the way the mock has it — the counter as it stood before
-    // this pull, which is the number that explains what just happened.
+    // Pity, printed under the card — the counter as it stood before this pull, which is the
+    // number that explains what just happened.
     this.keep(this.ui.label(GAME_WIDTH / 2, cardY + cardH + 28,
       reveal.pityUsed ? t('cabinet.rub.pityUsed') : getCabinet().rubbingPity >= PITY_HARD_CAP ? t('cabinet.rub.pityDue') : t('cabinet.rub.pity', { n: getCabinet().rubbingPity, cap: PITY_HARD_CAP }),
       'caption', { fontSize: '9.5px', align: 'center', color: '#8a5f1c' }).setOrigin(0.5, 0));
 
-    // The rub: pointer movement over the card clears the strip under it and its neighbours.
+    // A flake: the cleared cell's ink, falling off the card.
+    const flake = (cell: Cell): void => {
+      if (reducedMotion()) return;
+      const bit = this.add.graphics({ x: cell.cx, y: cell.cy });
+      bit.fillStyle(0x3a2d1e, 0.9);
+      bit.fillRect(-3, -2, 6, 4);
+      this.keep(bit);
+      this.tweens.add({
+        targets: bit,
+        x: cell.cx + (Math.random() - 0.5) * 44,
+        y: cell.cy + 26 + Math.random() * 34,
+        angle: (Math.random() - 0.5) * 180,
+        alpha: 0,
+        duration: motionMs(420),
+        ease: 'Quad.easeIn',
+        onComplete: () => bit.destroy(),
+      });
+    };
+
+    // The brush: every cell under it clears, shrinking as it goes.
+    const BRUSH = 22;
+    const clearAt = (x: number, y: number): number => {
+      let n = 0;
+      for (const cell of cells) {
+        if (cell.cleared) continue;
+        const dx = cell.cx - x;
+        const dy = cell.cy - y;
+        if (dx * dx + dy * dy > BRUSH * BRUSH) continue;
+        cell.cleared = true;
+        this.stripsLeft -= 1;
+        n += 1;
+        this.tweens.add({ targets: cell.g, alpha: 0, scaleX: 0.5, scaleY: 0.5, duration: motionMs(220), ease: 'Quad.easeOut' });
+        if (n <= 4 && (n + cell.cx) % 2 < 1) flake(cell);
+      }
+      return n;
+    };
+
+    let last: { x: number; y: number } | undefined;
+    let lastRustle = 0;
+    let lastBuzz = 0;
+    let pulsing = false;
     const onMove = (pointer: Phaser.Input.Pointer): void => {
       if (this.revealDone || !pointer.isDown) return;
       const at = designPointer(pointer);
-      if (at.x < cardX - 8 || at.x > cardX + cardW + 8) return;
-      const index = Math.floor((at.y - cardY) / stripH);
-      for (const i of [index - 1, index, index + 1]) {
-        if (i < 0 || i >= this.coverStrips.length) continue;
-        const strip = this.coverStrips[i];
-        if (strip.getData('cleared')) continue;
-        strip.setData('cleared', true);
-        this.stripsLeft -= 1;
-        this.tweens.add({ targets: strip, alpha: 0, duration: 260, ease: 'Quad.easeOut' });
+      if (at.x < cardX - 12 || at.x > cardX + cardW + 12 || at.y < cardY - 12 || at.y > cardY + cardH + 12) {
+        last = undefined;
+        return;
       }
-      if (this.stripsLeft <= Math.ceil(STRIPS * 0.25)) this.finishReveal(reveal, hint as Phaser.GameObjects.Text, cardY + cardH);
+      // Along the whole stroke, not only at the sampled points: a fast thumb leaves gaps otherwise.
+      let n = 0;
+      if (last) {
+        const steps = Math.max(1, Math.ceil(Phaser.Math.Distance.Between(last.x, last.y, at.x, at.y) / 8));
+        for (let i = 1; i <= steps; i += 1) {
+          n += clearAt(last.x + ((at.x - last.x) * i) / steps, last.y + ((at.y - last.y) * i) / steps);
+        }
+      } else {
+        n = clearAt(at.x, at.y);
+      }
+      last = at;
+      if (n === 0) return;
+      if (hintShown) {
+        hintShown = false;
+        this.tweens.killTweensOf(coverHint);
+        this.tweens.add({ targets: coverHint, alpha: 0, duration: motionMs(160), onComplete: () => coverHint.destroy() });
+      }
+      const done = 1 - this.stripsLeft / cells.length;
+      if (!pulsing) glow.setAlpha(Math.min(0.5, done * 0.75));
+      const now = this.time.now;
+      if (now - lastRustle > 110) {
+        lastRustle = now;
+        soundDirector.tap();
+      }
+      if (now - lastBuzz > 60 && typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+        lastBuzz = now;
+        navigator.vibrate(6);
+      }
+      if (precious && !pulsing && done > 0.3 && motionMs(500) > 0) {
+        // Felt before it is read: a Gold or Jade glow starts to beat.
+        pulsing = true;
+        this.tweens.add({ targets: glow, alpha: { from: glow.alpha, to: 0.6 }, duration: motionMs(500), yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+      }
+      if (done >= 0.55) {
+        this.finishReveal(reveal, hint as Phaser.GameObjects.Text, cardY + cardH,
+          { cells, glow, face, from: at, tint, precious, centreX, centreY });
+      }
     };
+    const onDown = (pointer: Phaser.Input.Pointer): void => {
+      last = undefined;
+      onMove(pointer);
+    };
+    const onUp = (): void => { last = undefined; };
     this.input.on('pointermove', onMove);
-    this.input.on('pointerdown', onMove);
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+    this.input.on('pointerdown', onDown);
+    this.input.on('pointerup', onUp);
+    const unhook = (): void => {
       this.input.off('pointermove', onMove);
-      this.input.off('pointerdown', onMove);
-    });
+      this.input.off('pointerdown', onDown);
+      this.input.off('pointerup', onUp);
+    };
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, unhook);
 
     const backY = GAME_HEIGHT - BACK_BAR_HEIGHT - 10;
     this.chrome(this.ui.backBar(backY, () => {
-      this.input.off('pointermove', onMove);
-      this.input.off('pointerdown', onMove);
+      unhook();
       this.mode = 'cabinet';
       this.reveal = undefined;
       this.render();
     }));
   }
 
-  /** The last quarter falls away on its own — nobody should have to scrub the corners. */
-  private finishReveal(reveal: RubbingReveal, hint: Phaser.GameObjects.Text, underY: number): void {
+  /**
+   * The last of the cover falls away on its own — nobody should have to scrub the corners — as a
+   * wave from the thumb outward; then the card punches, the glow flares, and the words arrive.
+   */
+  private finishReveal(
+    reveal: RubbingReveal,
+    hint: Phaser.GameObjects.Text,
+    underY: number,
+    fx: {
+      cells: Array<{ g: Phaser.GameObjects.Graphics; cx: number; cy: number; cleared: boolean }>;
+      glow: Phaser.GameObjects.Graphics;
+      face: Phaser.GameObjects.GameObject | undefined;
+      from: { x: number; y: number };
+      tint: number;
+      precious: boolean;
+      centreX: number;
+      centreY: number;
+    },
+  ): void {
     if (this.revealDone) return;
     this.revealDone = true;
-    for (const strip of this.coverStrips) {
-      if (!strip.getData('cleared')) {
-        this.tweens.add({ targets: strip, alpha: 0, duration: 420, ease: 'Quad.easeOut' });
-      }
-    }
     hint.setText('');
+
+    let lastDelay = 0;
+    for (const cell of fx.cells) {
+      if (cell.cleared) continue;
+      cell.cleared = true;
+      const delay = motionMs(Phaser.Math.Distance.Between(fx.from.x, fx.from.y, cell.cx, cell.cy) * 1.6);
+      lastDelay = Math.max(lastDelay, delay);
+      this.tweens.add({ targets: cell.g, alpha: 0, scaleX: 0.5, scaleY: 0.5, delay, duration: motionMs(240), ease: 'Quad.easeOut' });
+    }
+    this.stripsLeft = 0;
 
     const outcome = reveal.outcome === 'new'
       ? t('cabinet.rub.new')
@@ -952,27 +1141,60 @@ ${t('cabinet.grid.unfound')}`,
         : reveal.outcome === 'ready'
           ? t('cabinet.rub.ready', { n: reveal.copies })
           : t('cabinet.rub.copy', { n: reveal.copies, need: combineCost(reveal.level) });
-    const line = this.keep(this.ui.label(GAME_WIDTH / 2, underY + 10, outcome, 'label', {
-      fontSize: '13px', align: 'center', color: reveal.outcome === 'new' ? '#8a5f1c' : undefined,
-    }).setOrigin(0.5, 0));
-    line.setAlpha(0);
-    this.tweens.add({ targets: line, alpha: 1, duration: 300 });
 
-    const backY = GAME_HEIGHT - BACK_BAR_HEIGHT - 10;
-    if (reveal.remaining > 0) {
-      this.chrome(this.ui.button(
-        { x: PAD, y: backY - 54, width: GAME_WIDTH - PAD * 2, height: 44 },
-        t('cabinet.rub.again'),
-        () => {
-          this.reveal = revealRubbing();
-          if (!this.reveal) {
-            this.mode = 'cabinet';
-          }
-          this.render();
-        },
-        { variant: 'primary', fontSize: '13px' },
-      ));
-    }
+    const punch = (): void => {
+      this.tweens.killTweensOf(fx.glow);
+      // The flare: the glow leaps and spreads, then settles into a halo the card keeps.
+      fx.glow.setAlpha(0.75);
+      this.tweens.add({ targets: fx.glow, alpha: fx.precious ? 0.3 : 0.16, scaleX: 1.1, scaleY: 1.06, duration: motionMs(700), ease: 'Cubic.easeOut' });
+      const face = fx.face as (Phaser.GameObjects.GameObject & { scale?: number }) | undefined;
+      if (face && typeof face.scale === 'number' && motionMs(140) > 0) {
+        this.tweens.add({ targets: face, scale: face.scale * 1.07, duration: motionMs(140), yoyo: true, ease: 'Quad.easeOut' });
+      }
+      soundDirector.card();
+      if (fx.precious && !reducedMotion()) {
+        // Sparks: the card's own colour thrown outward, and a Jade shakes the page.
+        for (let i = 0; i < 18; i += 1) {
+          const spark = this.add.graphics({ x: fx.centreX, y: fx.centreY });
+          spark.fillStyle(fx.tint, 1);
+          spark.fillRect(-2.5, -2.5, 5, 5);
+          this.keep(spark);
+          const angle = (Math.PI * 2 * i) / 18 + (Math.random() - 0.5) * 0.4;
+          const reach = 90 + Math.random() * 70;
+          this.tweens.add({
+            targets: spark, x: fx.centreX + Math.cos(angle) * reach, y: fx.centreY + Math.sin(angle) * reach,
+            alpha: 0, angle: 180, duration: motionMs(650 + Math.random() * 250), ease: 'Cubic.easeOut', onComplete: () => spark.destroy(),
+          });
+        }
+        if (reveal.outcome === 'new' || fx.tint === RARITY_COLOR.jade) this.cameras.main.shake(motionMs(140), 0.004);
+      }
+
+      const line = this.keep(this.ui.label(GAME_WIDTH / 2, underY + 10, outcome, 'label', {
+        fontSize: '13px', align: 'center', color: reveal.outcome === 'new' ? '#8a5f1c' : undefined,
+      }).setOrigin(0.5, 0));
+      line.setAlpha(0).setY(underY + 22);
+      this.tweens.add({ targets: line, alpha: 1, y: underY + 10, duration: motionMs(300), ease: 'Cubic.easeOut' });
+
+      const backY = GAME_HEIGHT - BACK_BAR_HEIGHT - 10;
+      if (reveal.remaining > 0) {
+        const again = this.chrome(this.ui.button(
+          { x: PAD, y: backY - 54, width: GAME_WIDTH - PAD * 2, height: 44 },
+          t('cabinet.rub.again'),
+          () => {
+            this.reveal = revealRubbing();
+            if (!this.reveal) {
+              this.mode = 'cabinet';
+            }
+            this.render();
+          },
+          { variant: 'primary', fontSize: '13px' },
+        ));
+        again.setAlpha(0).setY(again.y + 14);
+        this.tweens.add({ targets: again, alpha: 1, y: again.y - 14, delay: motionMs(220), duration: motionMs(300), ease: 'Cubic.easeOut' });
+      }
+    };
+    const wait = lastDelay + motionMs(200);
+    if (wait > 0) this.time.delayedCall(wait, punch); else punch();
   }
 
   private dashedRect(g: Phaser.GameObjects.Graphics, x: number, y: number, w: number, h: number): void {
