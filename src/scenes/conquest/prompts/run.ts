@@ -76,12 +76,15 @@ ${t('ascent.codex.subtitle', codex)}`,
  * province the player takes will fly them, and this is still the cheapest place to teach a
  * colour the rest of the run depends on reading quickly.
  */
-function addThroneHall(self: ConquestUIScene, parent: Phaser.GameObjects.Container, width: number): number {
+function addThroneHall(self: ConquestUIScene, parent: Phaser.GameObjects.Container, width: number, maxHeight = Infinity): number {
   // On a short surface — `GAME_HEIGHT` clamps to 620 in a desktop browser — the court plus the
   // three advantages overruns the sheet by about a dozen pixels, and the whole screen starts
   // scrolling for no gain. The diorama is the part that can afford to give: it is a picture,
-  // not information.
-  const scale = GAME_HEIGHT < 700 ? 0.84 : 1;
+  // not information. `maxHeight` is the room the rest of the page has left it, measured by
+  // the caller, so the page never scrolls: the picture shrinks to fit, down to half size.
+  const CAPTION_ROOM = 16 + 14 + 10;
+  const fit = Number.isFinite(maxHeight) ? Math.max(0.5, Math.min(1, (maxHeight - CAPTION_ROOM) / THRONE_HALL_HEIGHT)) : 1;
+  const scale = Math.min(GAME_HEIGHT < 700 ? 0.84 : 1, fit);
   const drawn = Math.round(THRONE_HALL_HEIGHT * scale);
   const hall = throneHallDiorama(self, width, self.state.mapConfig.seed);
   hall.setScale(scale).setPosition((width * (1 - scale)) / 2, 0);
@@ -111,13 +114,12 @@ function addThroneHall(self: ConquestUIScene, parent: Phaser.GameObjects.Contain
  * heights, *then* the surfaces. Letting each card size itself independently gives a ragged row.
  */
 export function showMandate(self: ConquestUIScene, prompt: Extract<AscentPrompt, { kind: 'mandate' }>): void {
-  const { body, bodyWidth, finish } = self.promptScrollBody(
+  const { content, body, bodyWidth, finish } = self.promptScrollBody(
     t('ascent.mandate.title'),
     t('ascent.mandate.subtitle'),
     0,
   );
 
-  const top = addThroneHall(self, body, bodyWidth);
   const GAP = 8;
   const column = Math.floor((bodyWidth - GAP * 2) / 3);
 
@@ -136,6 +138,12 @@ export function showMandate(self: ConquestUIScene, prompt: Extract<AscentPrompt,
   });
   const headHeight = 44 + Math.max(...built.map((b) => b.title.height)) + 6;
   const height = headHeight + Math.max(...built.map((b) => b.desc.height)) + 12;
+
+  // The toàn thủ row, measured before the hall is drawn: the hall gets what the cards and the
+  // row leave, so this page never scrolls — reported the moment the row was added.
+  const note = self.ui.label(12, 0, t('ascent.mandate.hardcoreNote'), 'caption', { fontSize: '9px', wordWrap: { width: bodyWidth - 24 } });
+  const ROW_H = 26 + note.height + 8;
+  const top = addThroneHall(self, body, bodyWidth, content.height - (height + 14 + ROW_H + 16));
 
   // Pass two: surfaces behind the measured text, every column the same height.
   const cards = built.map(({ cardId, x, title, desc }) => {
@@ -172,9 +180,7 @@ export function showMandate(self: ConquestUIScene, prompt: Extract<AscentPrompt,
   // the foot of the first card of the reign, where the player decides how they will play it, and
   // again on the run menu, so it can be turned either way once the run is under way.
   const rowY = top + height + 14;
-  const note = self.ui.label(12, rowY + 26, t('ascent.mandate.hardcoreNote'), 'caption', { fontSize: '9px', wordWrap: { width: bodyWidth - 24 } });
-  // Sized to the note, which wraps to two lines in Vietnamese: a fixed forty printed it over the edge.
-  const ROW_H = 26 + note.height + 8;
+  note.setY(rowY + 26);
   body.add(self.ui.panel({ x: 0, y: rowY, width: bodyWidth, height: ROW_H }, { border: INK_UI.softBrush, fillAlpha: 0.5 }));
   const box = self.ui.label(12, rowY + 7, '', 'label', { fontSize: '11.5px' });
   const paint = (): void => {
