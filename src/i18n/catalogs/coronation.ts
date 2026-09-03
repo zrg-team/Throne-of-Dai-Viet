@@ -101,14 +101,14 @@ export const enCoronation = {
   'coronation.grows.rank': 'Now: {rank} · dynasty level {level}',
   'coronation.follows': 'What follows: the mandate card — your opening advantage — and then who rises with you.',
 
-  'coronation.temple': 'The Temple',
+  'coronation.temple': 'The King',
   'coronation.temple.note': 'Re-dress your king any time. Looks change freely; the reign’s record never does.',
   'coronation.temple.sub': 'Re-dress your king',
   'coronation.temple.save': 'Keep this dress',
   'coronation.temple.discard': 'Discard',
   'coronation.temple.uncrowned': 'No king has been crowned yet. The Coronation opens with your next Dragon Ascent run.',
 
-  'coronation.unlock.warHarness': 'Ten waves held — the war harness is open in the Temple.',
+  'coronation.unlock.warHarness': 'Ten waves held — the war harness is open on the King page.',
 
   // Wardrobe vocabulary. Vietnamese names for Vietnamese garments in both catalogs; the English
   // adds the gloss a reader who does not know the term needs, and no more.
@@ -247,14 +247,14 @@ export const viCoronation: Record<keyof typeof enCoronation, string> = {
   'coronation.grows.rank': 'Hiện thời: {rank} · cấp triều đại {level}',
   'coronation.follows': 'Tiếp theo: lá bài thiên mệnh — lợi thế mở triều — rồi tới người cùng ngươi dựng nghiệp.',
 
-  'coronation.temple': 'Thái Miếu',
-  'coronation.temple.note': 'Thay y phục cho đức vua bất cứ lúc nào. Dung mạo đổi được; sử sách thì không.',
-  'coronation.temple.sub': 'Thay y phục cho đức vua',
+  'coronation.temple': 'Đức Vua',
+  'coronation.temple.note': 'Thay trang phục cho vua bất cứ lúc nào. Dung mạo đổi được; sử sách thì không.',
+  'coronation.temple.sub': 'Xem và thay trang phục cho vua',
   'coronation.temple.save': 'Giữ y phục này',
   'coronation.temple.discard': 'Bỏ thay đổi',
   'coronation.temple.uncrowned': 'Chưa có vua nào lên ngôi. Lễ Đăng Quang sẽ mở ở ván Rồng Thăng kế tiếp.',
 
-  'coronation.unlock.warHarness': 'Giữ vững mười đợt — giáp trụ đã mở ở Thái Miếu.',
+  'coronation.unlock.warHarness': 'Giữ vững mười đợt — giáp trụ đã mở ở trang Đức Vua.',
 
   'coronation.hat.phocdau': 'mũ phốc đầu',
   'coronation.hat.dinhtu': 'mũ đinh tự',

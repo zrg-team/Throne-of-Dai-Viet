@@ -920,7 +920,7 @@ console.log('\n=== DOSSIER GATES ===');
       check(`${label} — every held trait's effect is printed`,
         ['wide-draft', 'quartermaster', 'twin-doctrine', 'deep-shelf'].every(() => true)
           && dynasty.texts.some((text) => /five cards|5 lá/.test(text)) && dynasty.texts.some((text) => /season|mùa/.test(text)));
-      const doors = dynasty.buttons.filter((b) => /Cabinet|Deck|Tàng Ấn|Bộ bài|Legacy|Di Sản|Temple|Thái Miếu/.test(b.text));
+      const doors = dynasty.buttons.filter((b) => /Cabinet|Deck|Tàng Ấn|Bộ bài|Legacy|Di Sản|Temple|Thái Miếu|King|Đức Vua/.test(b.text));
       const respec = dynasty.buttons.find((b) => /Renounce|Bỏ hết/.test(b.text));
       check(`${label} — the respec is the overflow row, under every door`,
         Boolean(respec) && doors.length >= 2 && doors.every((d) => d.y < respec.y));
