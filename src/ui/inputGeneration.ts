@@ -272,6 +272,15 @@ export function sheetIsUp(): boolean {
   return Boolean(sheetProbe?.());
 }
 
+/**
+ * Whether an object lives inside the registered sheet. A list INSIDE the sheet is the sheet's own
+ * and must keep scrolling: in a run every lane page and prompt is drawn inside the registered
+ * layer, and locking lists whenever the probe answered true froze every list in the game.
+ */
+export function insideSheet(target: Phaser.GameObjects.GameObject): boolean {
+  return belongsToSheet(target);
+}
+
 /** Whether the live press began while a sheet was on screen. */
 export function pressBeganUnderSheet(): boolean {
   return pressUnderSheet;
