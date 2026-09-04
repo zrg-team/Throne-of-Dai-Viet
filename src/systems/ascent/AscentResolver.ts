@@ -80,6 +80,14 @@ export function resolveAscentPrompt(state: GameState, choiceId: string): boolean
       break;
     }
 
+    case 'inheritance': {
+      // Answered with anything, like the coronation and for the same reason: there is nothing on
+      // the screen to choose between. Everything it reports was applied before it was raised, so
+      // acknowledging it changes no state — it only lets the queue move on to the mandate.
+      handled = true;
+      break;
+    }
+
     case 'mandate': {
       // The same call `takePowerCard` makes. No `pendingLevelUps` to spend and no ambition to
       // charge: this one is the reign's dowry, not a reward the run had to earn.
