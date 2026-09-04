@@ -343,7 +343,12 @@ export function laneList(self: ConquestUIScene,
         const hit = self.add.rectangle(x, content.y, width, LANE_TABS_HEIGHT, INK_UI.brush, 0.001)
           .setOrigin(0, 0)
           .setInteractive({ useHandCursor: true });
-        hit.on('pointerup', () => { soundDirector.tap(); cfg.onSelect(index); });
+        hit.on('pointerup', (pointer: Phaser.Input.Pointer) => {
+          // A release at the end of a scroll is not a choice.
+          if (scrollGestureConsumedTap(pointer)) return;
+          soundDirector.tap();
+          cfg.onSelect(index);
+        });
         self.modalLayer.add(hit);
       }
     });
@@ -710,7 +715,11 @@ export function laneList(self: ConquestUIScene,
       // a checkbox on a phone that misses.
       const hit = self.add.rectangle(content.x, ty, content.width, LANE_TOGGLE_HEIGHT,
         INK_UI.brush, 0.001).setOrigin(0, 0).setInteractive({ useHandCursor: true });
-      hit.on('pointerup', () => { soundDirector.tap(); cfg.onToggle(); });
+      hit.on('pointerup', (pointer: Phaser.Input.Pointer) => {
+      if (scrollGestureConsumedTap(pointer)) return;
+      soundDirector.tap();
+      cfg.onToggle();
+    });
       sheetHost.add(hit);
 
       const box = self.add.graphics();

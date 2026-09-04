@@ -27,6 +27,7 @@ node test_scripts/verify/verify-ascent.mjs          # the Dragon Ascent loop end
 node test_scripts/verify/verify-dynasty.mjs         # the Tong Pha ledger: XP banks once, the ceremony walks, every trait is read; the dossier gates (page fit, lineage, live reign, the timed reign-end sequence, the chip's house share)
 node test_scripts/verify/verify-draft-depth.mjs     # the deck: upgrades >= 25% of offers, a deck slot once two cards are held, a held card's third copy in <= 8 rubbings (8 seeds)
 node test_scripts/verify/verify-legacy.mjs          # the Legacy vault: twenty perks on a ten-step ladder (old stores migrate), a loadout of three, only the loadout applies; hands-on rule silences the lane cards and the autopilot
+node test_scripts/verify/verify-list-press.mjs        # a button inside a list fires on the lift and a drag scrolls; chrome still fires on the press
 node test_scripts/verify/verify-scroll-under-sheet.mjs  # HOTFIX gate: lists inside a run's pages scroll; only a list under a sheet is locked
 node test_scripts/verify/verify-cabinet.mjs         # the Cabinet of Seals: rubbings honour pity, x3 combines, cabinet levels reach the draft, the bind step binds, the page takes taps
 node test_scripts/verify/verify-inheritance.mjs     # the next-reign chip: promises exactly what the ceremony pays (XP, level, Legacy, rubbings, bind), hides under prompts, opens/shuts, guards its taps

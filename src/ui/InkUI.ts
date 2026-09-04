@@ -252,6 +252,23 @@ export interface InkScrollAreaOptions {
  * still far short of a deliberate drag.
  */
 const SCROLL_TAP_SLOP = 20;
+/** The data key an `InkScrollArea` stamps on its content container. */
+const SCROLL_CONTENT_KEY = 'inkScrollContent';
+
+/**
+ * Whether an object is inside a scrolling list — any ancestor is a scroll area's content.
+ *
+ * Asked at press time rather than at creation: a button is built first and added to a list after,
+ * so the only moment it can know where it lives is when it is pressed.
+ */
+export function insideScrollList(target: Phaser.GameObjects.GameObject): boolean {
+  let node = (target as Phaser.GameObjects.GameObject & { parentContainer?: Phaser.GameObjects.Container | null }).parentContainer;
+  while (node) {
+    if (node.getData?.(SCROLL_CONTENT_KEY)) return true;
+    node = node.parentContainer;
+  }
+  return false;
+}
 
 /**
  * How a flick decays, per 60 Hz frame.
@@ -329,6 +346,9 @@ export class InkScrollArea {
     this.wheelStep = opts.wheelStep ?? 1;
     this.container = scene.add.container(bounds.x, bounds.y);
     this.content = scene.add.container(0, 0);
+    // Marked, so a control can tell it lives in a list and fire the way a list item does — on the
+    // release, and only if the finger did not travel. See `insideScrollList`.
+    this.content.setData(SCROLL_CONTENT_KEY, true);
 
     // The clip, bracketing the content in the container's child list. The rect is in container
     // space, and the container already sits at the area's origin, so it starts at 0,0.
@@ -826,15 +846,8 @@ export class InkUI {
      */
     let firedAt = 0;
     markControlBorn(hitArea);
-    hitArea.on('pointerdown', (
-      pointer: Phaser.Input.Pointer,
-      localX: number,
-      localY: number,
-      event: Phaser.Types.Input.EventData,
-    ) => {
-      stop(pointer, localX, localY, event);
-      if (disabled) return;
-      draw(true);
+    /** The guarded firing, shared by the press path and the release path. */
+    const fire = (pointer: Phaser.Input.Pointer): void => {
       if (scrollGestureConsumedTap(pointer)) return;
       // Two presses inside a frame or two of each other are one press the platform delivered twice
       // — a WebView sending both `pointerdown` and `mousedown`, most often. Cheaper and more
@@ -850,6 +863,56 @@ export class InkUI {
       // context on first touch — see SoundDirector.tap.
       soundDirector.tap();
       onClick();
+    };
+
+    /**
+     * **Inside a list, a button is a list item: it arms on the press and fires on the release,
+     * and a finger that travels disarms it.**
+     *
+     * The press-fire above was written for chrome and was right for chrome. But buttons are laid
+     * inside scrolling lists all over the game now — a card's Unlock in the vault, a row's action
+     * on a lane page, a trait on the dynasty page — and there a press-fire means the item fires the
+     * moment a scroll begins on it: *I click and drag, basic scroll behaviour, and it triggers
+     * immediately instead of behaving like a mobile app.* Every list on the phone does the other
+     * thing: the item darkens under the finger, a finger that moves past the slop un-darkens it
+     * and scrolls, and a finger that lifts where it landed fires it. So that is what a button does
+     * when it finds itself inside a list — decided at press time, because it is added to the list
+     * after it is built. Chrome keeps the press, and its speed.
+     */
+    let armed: { id: number; downTime: number; x: number; y: number } | undefined;
+    const onMove = (pointer: Phaser.Input.Pointer): void => {
+      if (!armed || pointer.id !== armed.id) return;
+      const travelled = designLength(Phaser.Math.Distance.Between(armed.x, armed.y, pointer.x, pointer.y));
+      if (travelled > SCROLL_TAP_SLOP) {
+        disarm();
+        draw(false);
+      }
+    };
+    const disarm = (): void => {
+      if (!armed) return;
+      armed = undefined;
+      this.scene.input.off('pointermove', onMove);
+    };
+    container.once('destroy', () => this.scene.input.off('pointermove', onMove));
+
+    hitArea.on('pointerdown', (
+      pointer: Phaser.Input.Pointer,
+      localX: number,
+      localY: number,
+      event: Phaser.Types.Input.EventData,
+    ) => {
+      if (disabled) { stop(pointer, localX, localY, event); return; }
+      draw(true);
+      if (insideScrollList(container)) {
+        // The press is NOT stopped here: the list scrolls off the scene's own pointer stream, and
+        // a stopped press never reached it — which is why a drag that began on a button could
+        // neither scroll nor be told from a tap. The list sees the press; this control arms.
+        armed = { id: pointer.id, downTime: pointer.downTime, x: pointer.x, y: pointer.y };
+        this.scene.input.on('pointermove', onMove);
+        return;
+      }
+      stop(pointer, localX, localY, event);
+      fire(pointer);
     });
     hitArea.on('pointerup', (
       pointer: Phaser.Input.Pointer,
@@ -857,9 +920,13 @@ export class InkUI {
       localY: number,
       event: Phaser.Types.Input.EventData,
     ) => {
-      stop(pointer, localX, localY, event);
-      // Nothing but the ink: the press already did the work.
-      if (!disabled) draw(false);
+      if (disabled) { stop(pointer, localX, localY, event); return; }
+      draw(false);
+      if (!armed || armed.id !== pointer.id || armed.downTime !== pointer.downTime) { stop(pointer, localX, localY, event); return; }
+      const travelled = designLength(Phaser.Math.Distance.Between(armed.x, armed.y, pointer.x, pointer.y));
+      disarm();
+      if (travelled > SCROLL_TAP_SLOP) return;
+      fire(pointer);
     });
     hitArea.on('pointerout', () => {
       if (!disabled) {
