@@ -28,6 +28,9 @@ window.__ptOptions = (forState) => {
     // Lễ Đăng Quang. Answered with anything — the sheet writes the founder into the dynasty
     // store itself, and the resolver rolls a complete king when a driver skips through.
     case 'coronation': return ['crowned'];
+    // Gia sản dòng họ. A summary with one button, so like the rite it takes any id — named
+    // here rather than left on the ['ok'] fallthrough so a driver's log says which card it read.
+    case 'inheritance': return ['acknowledged'];
     case 'founder': return p.options;
     case 'power-draft': return [...p.cards, 'skip'];
     case 'conquer-target': return [...p.targets.map((t) => t.landId), 'hold'];

@@ -1781,6 +1781,22 @@ export type AscentPrompt =
    */
   | { kind: 'coronation' }
   /**
+   * Gia sản dòng họ — what the house already owns, read out before the reign is handed anything.
+   *
+   * A summary, not a decision, and it sits here for a reason: every meta-progression the player
+   * has banked between runs — the house's level and traits, the seals slotted into the opening
+   * hand, the champions the founding will lay out — was applied *silently* inside
+   * `createAscentGameState`. Five stores paid out and the run simply started, so a player who had
+   * spent an hour filling the Dynasty Deck opened their next reign to exactly the screen a first-
+   * time player sees. The in-run inheritance chip says all of this at the *end* of a run; nothing
+   * said it at the beginning.
+   *
+   * It carries no payload. Every number on it is read live from the stores at draw time — the
+   * same rule `hasTrait` follows at each of its read sites — so the screen can never quote a
+   * figure the run is not actually holding.
+   */
+  | { kind: 'inheritance' }
+  /**
    * The first card of a run: which advantage the reign opens with.
    *
    * You are not choosing who you are — you are the king, and that was never in question. You are

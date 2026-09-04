@@ -44,6 +44,7 @@ import * as lanesWidgets from './conquest/lanes/widgets';
 import * as promptsConquest from './conquest/prompts/conquest';
 import * as promptsCourt from './conquest/prompts/court';
 import * as promptsCoronation from './conquest/prompts/coronation';
+import * as promptsInheritance from './conquest/prompts/inheritance';
 import * as promptsFrame from './conquest/prompts/frame';
 import * as promptsOptionCard from './conquest/prompts/optionCard';
 import * as promptsRealm from './conquest/prompts/realm';
@@ -978,6 +979,8 @@ export class ConquestUIScene extends Phaser.Scene {
   /* --------------------------------------------------------------- prompts run */
 
   showCoronation(): void { promptsCoronation.showCoronation(this); }
+
+  showInheritance(): void { promptsInheritance.showInheritance(this); }
 
   showFounder(prompt: Extract<AscentPrompt, { kind: 'founder' }>): void { promptsRun.showFounder(this, prompt); }
 

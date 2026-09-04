@@ -27,7 +27,9 @@ import { createMapRenderer, type MapRenderer } from '../ui/MapRenderer';
 import { renderHeroFaceInBox } from '../ui/FaceRenderer';
 import { applyPaperFX } from '../ui/ink/PaperFX';
 import { inkPath } from '../ui/ink/stroke';
-import { armyShape, drawArmy, figure, type FigureArm, type FigureTier } from '../ui/ink/devices';
+import { armyShape, clearPlate, type FigureArm, type FigureTier } from '../ui/ink/devices';
+import { bucketFor, figurePlaceScale, figureStamp, stampedArmy } from '../ui/ink/figureStamps';
+import { placeStamp } from '../ui/ink/stamp';
 import { PIGMENT } from '../ui/ink/palette';
 import type { ArmyComposition, ArmyWardrobe } from '../state/types';
 import { RULE_COLOUR } from '../ui/ink/eraRule';
@@ -62,6 +64,16 @@ const ARMY_DOCTRINES: readonly ArmyComposition[] = ['balanced', 'spears', 'arche
  * change the deployment and only the deployment changes. Forty-four marks, which is the size the
  * design document plates.
  */
+/**
+ * How far a 144x128 authored sheet may be blown up on the wardrobe plate.
+ *
+ * The plate is the biggest a soldier is ever drawn in this game — several times the size the
+ * battlefield asks for — so the fit is capped rather than left to fill the frame: past about a
+ * doubling the woodblock's edges go to porridge, and a crisp small soldier reads better than a
+ * large soft one.
+ */
+const MAX_PLATE_UPSCALE = 2.1;
+
 const ARMY_PLATE_MEN = 2420;
 
 const SIDE = 12;
@@ -1032,9 +1044,17 @@ export class HistoryScene extends Phaser.Scene {
    * The wardrobe, as something you turn rather than something you look at.
    *
    * The other three tabs are lists you read. This one is a plate you *change*: pick a dynasty, a
-   * rank and a weapon, and the soldier at the top is redrawn by `figure()` — the same call the
-   * battlefield makes, at the same six slots, so the page can never drift from the game the way a
+   * rank and a weapon, and the soldier at the top is redrawn through `figureStamp` — the same call
+   * the battlefield and the map markers make, so the page can never drift from the game the way a
    * hand-drawn illustration of it would.
+   *
+   * It drifted anyway, for one release. This plate called `figure()` directly, and that *was* the
+   * battlefield's call when the comment above was written; the battlefield then moved to the
+   * authored Đông Hồ sheets (195 of them, one per wardrobe × rank × weapon, preloaded in every
+   * scene) and left the page drawing the procedural understudy. Reported as "History page is still
+   * using old render army", which is exactly what it was. Nothing is drawn by hand here now: the
+   * plate asks for a stamp, and if the authored asset is missing `figureStamp` bakes `figure()`
+   * itself — so `?mapart=procedural` still rolls the whole page back in one switch.
    *
    * Đại Việt only. The northern powers and Chăm have wardrobes in the code and a rival wears one
    * every run, but this page is about the army the player raises; a page that also taught you to
@@ -1054,7 +1074,7 @@ export class HistoryScene extends Phaser.Scene {
     // under the soldier's feet, and the tallest thing the slot table can produce is a mounted man
     // at DRAWN 7.48. The mark sits *below* rather than beside the title because a raised sabre
     // reaches into the top right corner, and a caption a weapon is drawn through is not a caption.
-    const plateHeight = 176;
+    const plateHeight = 236;
     const plateFeet = plateHeight - 30;
     const plateScale = (plateFeet - 32) / 7.6;
     const plate = this.add.graphics();
@@ -1064,18 +1084,89 @@ export class HistoryScene extends Phaser.Scene {
     plate.strokeRoundedRect(0, y, width, plateHeight, 6);
     scroll.content.add(plate);
 
-    const figures = this.add.graphics();
-    // A man is drawn about his own spine; a horseman is not. The pony's head reaches 26 units
-    // forward against the tail's 20 back, so centring a mounted figure on its origin puts it
-    // visibly right of everything else on the page.
-    const centreX = width / 2 - (this.armyArm === 'mounted' ? 9 : 0);
-    figure(figures, centreX, y + plateFeet, plateScale, PIGMENT.muc, {
-      theme: this.armyTheme,
-      tier: this.armyTier,
-      arm: this.armyArm,
-      accent: PIGMENT.son,
-    });
-    scroll.content.add(figures);
+    // No mounted x-nudge any more. The procedural pony reached 26 units forward against 20 back,
+    // so a mounted man centred on his own origin sat visibly right of everything else and the page
+    // pulled him back by 9. The authored sheet carries its own anchor and is already centred in
+    // its frame, so the same correction applied twice is the error it used to fix, mirrored.
+    const kind = {
+        theme: this.armyTheme,
+        tier: this.armyTier,
+        arm: this.armyArm,
+        colour: PIGMENT.muc,
+        accent: PIGMENT.son,
+        // The plate is one figure, not a crowd: it always takes the first wobble stream, so
+        // pressing a chip and pressing it back shows the identical soldier.
+      variant: 0,
+      bucket: bucketFor(plateScale),
+    } as const;
+    // Every reviewed Vietnamese `royal` sheet now has eight transparent pixels above and below its
+    // visible ink. Keep the plate figure inside its room as well: source padding protects the
+    // silhouette, while this layout fit separately protects the title and caption at large scale.
+    const soldier = placeStamp(
+      this,
+      figureStamp(this, kind),
+      width / 2,
+      y + plateFeet,
+      figurePlaceScale(plateScale),
+    );
+    // Parented *before* it is measured. `getBounds` is world space, and an object that has not
+    // been added yet reports coordinates that were never in it — so the content-space conversion
+    // below subtracted an offset that had not been applied, and the soldier landed through his
+    // own caption. The formation below reads correctly only because it is added first.
+    scroll.content.add(soldier);
+    /**
+     * **He stands on a ground line; only his height is fitted.**
+     *
+     * Two earlier attempts, both wrong, both worth recording. Trusting `plateScale` — solved from
+     * the procedural figure's DRAWN budget of 7.6 units, which the authored sheets do not share —
+     * put the Lý swordsman's head through the dynasty's title. Centring the placed image inside
+     * the plate then fixed the clipping and introduced its own fault: an authored sheet is 144x128
+     * with the man nowhere near filling it, and its transparent margin is not symmetric, so
+     * centring the *frame* left the Nguyễn guardsman's hat crowding the title with a hand's width
+     * of empty paper under his feet. Reported twice, which is twice more than it deserved.
+     *
+     * The frame is not the man. What the stamp does tell us honestly is where his feet are:
+     * `placeStamp` anchors the image at the sheet's registration point and `originY` is that
+     * point's height within the texture, so `displayHeight * originY` is exactly how much of the
+     * image stands *above* his feet. Put the feet on a line — the plate's own ground, above the
+     * caption — and fit that measurement to the room between the line and the title. Scaling now
+     * moves his head and nothing else, which is what a man standing on a floor does.
+     */
+    // The ground line, and the ceiling the man must clear. The ceiling sits well under the
+    // dynasty's title rather than just below it: the ink scan finds the sabre's faintest pixel,
+    // and a figure fitted hard against that line reads as *touching* the title even when it is
+    // measurably clear of it. The margin is the fix for "still cut off" on a page where nothing
+    // was clipped.
+    const feetY = y + plateHeight - 44;
+    const ceiling = y + 52;
+    // Measured, not inferred. `originY` looked like the answer — it is the anchor's height within
+    // the texture — but the sheets register below the drawn feet, so standing the *anchor* on the
+    // line left the man hovering fifty units above the caption with his hat against the title.
+    // The drawn box is the only honest measure of where a soldier begins and ends, and the same
+    // world-to-content conversion the formation needs applies here.
+    const origin = scroll.content.getWorldTransformMatrix();
+    const ink = HistoryScene.inkBox(this, soldier.texture.key);
+    const seen = () => {
+      const b = soldier.getBounds();
+      return {
+        x: b.x - origin.tx + b.width * ink.x,
+        y: b.y - origin.ty + b.height * ink.y,
+        width: b.width * ink.w,
+        height: b.height * ink.h,
+      };
+    };
+    const before = seen();
+    // 0.88, deliberately: filling the box exactly is what makes a plate look crowded, and this is
+    // a reference plate, not a battle. The man is drawn a little inside his own room.
+    const fit = Math.min(
+      MAX_PLATE_UPSCALE,
+      (feetY - ceiling) / Math.max(1, before.height),
+      (width - 40) / Math.max(1, before.width),
+    ) * 0.86;
+    soldier.setScale(soldier.scale * fit);
+    const after = seen();
+    soldier.x += width / 2 - (after.x + after.width / 2);
+    soldier.y += feetY - (after.y + after.height);
 
     // The dynasty's name and the one mark that identifies it, printed on the plate itself rather
     // than under it — a caption that has to be looked up is a caption nobody reads.
@@ -1171,8 +1262,112 @@ ${historyText('army.formation.note')}`,
    * plate is fitted to whichever of width or height binds — a spear wall is wide and shallow, a
    * cavalry doctrine is neither, and a scale picked to suit one of them overflows on another.
    */
+  /**
+   * How tall a stamped soldier stands at scale 1, in design units.
+   *
+   * The mounted sheet is the tallest of the five and the one the budget has to clear, so it is the
+   * one measured. Read off the stamp rather than the drawing: `figure()`'s 7.6 was right for the
+   * procedural man and is simply a different number for the authored art.
+   */
+  /**
+   * Where the ink actually is inside a sheet, as fractions of its frame.
+   *
+   * `getBounds()` on an Image measures the *frame*, and an authored figure does not fill its own:
+   * the sheets are a uniform 144x128 with the man drawn wherever his weapon and stance need him,
+   * so the frame's floor sits well below his feet and its ceiling well above his hat. Positioning
+   * against the frame is what left the guardsman hanging with a hand's width of paper beneath him
+   * on a plate that had been reported twice already.
+   *
+   * The source PNG is same-origin and 18k pixels, so it is scanned once and remembered: every
+   * later dynasty chip on the same sheet is a map lookup. A texture that cannot be read — a
+   * procedural bake rather than an authored image — returns the whole frame, which is exactly the
+   * behaviour this page had before and is correct for a drawing that does fill its box.
+   */
+  private static readonly inkCache = new Map<string, { x: number; y: number; w: number; h: number }>();
+
+  private static inkBox(
+    scene: Phaser.Scene,
+    key: string,
+  ): { x: number; y: number; w: number; h: number } {
+    const cached = HistoryScene.inkCache.get(key);
+    if (cached) return cached;
+    const whole = { x: 0, y: 0, w: 1, h: 1 };
+    try {
+      const source = scene.textures.get(key)?.getSourceImage() as CanvasImageSource | undefined;
+      const width = Number((source as HTMLImageElement)?.width ?? 0);
+      const height = Number((source as HTMLImageElement)?.height ?? 0);
+      if (!source || !width || !height) return whole;
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      if (!ctx) return whole;
+      ctx.drawImage(source, 0, 0);
+      const { data } = ctx.getImageData(0, 0, width, height);
+      let minX = width;
+      let minY = height;
+      let maxX = -1;
+      let maxY = -1;
+      for (let py = 0; py < height; py += 1) {
+        for (let px = 0; px < width; px += 1) {
+          // 24 of 255: a woodblock edge fades out, and counting its faintest dust as ink puts the
+          // box back where the frame was.
+          if (data[(py * width + px) * 4 + 3] <= 24) continue;
+          if (px < minX) minX = px;
+          if (px > maxX) maxX = px;
+          if (py < minY) minY = py;
+          if (py > maxY) maxY = py;
+        }
+      }
+      if (maxX < 0) return whole;
+      const box = {
+        x: minX / width, y: minY / height,
+        w: (maxX + 1 - minX) / width, h: (maxY + 1 - minY) / height,
+      };
+      HistoryScene.inkCache.set(key, box);
+      return box;
+    } catch {
+      // A tainted or unreadable source is not worth taking the page down for.
+      return whole;
+    }
+  }
+
+  /**
+   * The box the *men* occupy, which is not the box the container reports.
+   *
+   * `stampedArmy` builds one layer per rank index and pushes an empty one for any rank its plan
+   * skips. An empty container still sits at the host's origin, and Phaser folds that origin into
+   * `getBounds()` as a degenerate point — so the container measured a hundred units taller than
+   * anything drawn in it, and a fit computed from that shrank a block that did not need shrinking
+   * and then centred it against a corner nobody can see. Only leaves with a size are counted.
+   */
+  private static drawnBoundsOf(root: Phaser.GameObjects.Container): Phaser.Geom.Rectangle {
+    let box: Phaser.Geom.Rectangle | undefined;
+    const walk = (obj: Phaser.GameObjects.GameObject): void => {
+      const child = obj as Phaser.GameObjects.Container & { getBounds?: () => Phaser.Geom.Rectangle };
+      if (Array.isArray(child.list) && child.list.length > 0) {
+        child.list.forEach(walk);
+        return;
+      }
+      if (typeof child.getBounds !== 'function') return;
+      const b = child.getBounds();
+      if (b.width <= 0 || b.height <= 0) return;
+      box = box ? Phaser.Geom.Rectangle.Union(box, b) : b;
+    };
+    walk(root);
+    return box ?? new Phaser.Geom.Rectangle(root.x, root.y, 0, 0);
+  }
+
+  private figureUnitHeight(): number {
+    const st = figureStamp(this, {
+      theme: this.armyTheme, tier: this.armyTier, arm: 'mounted',
+      colour: PIGMENT.muc, accent: PIGMENT.son, variant: 0, bucket: bucketFor(1),
+    });
+    return st.height * st.scale * figurePlaceScale(1);
+  }
+
   private armyFormation(scroll: InkScrollArea, y: number, width: number): number {
-    const plateHeight = 168;
+    const plateHeight = 214;
     const plate = this.add.graphics();
     plate.fillStyle(INK_UI.parchmentShade, 1);
     plate.fillRoundedRect(0, y, width, plateHeight, 6);
@@ -1181,38 +1376,82 @@ ${historyText('army.formation.note')}`,
     scroll.content.add(plate);
 
     const probe = armyShape(ARMY_PLATE_MEN, this.armyDoctrine, 1);
-    // 7.6 is the tallest a figure gets — a mounted man — and it stands *above* the block's own
-    // depth, so the vertical budget is the deployment plus one soldier. The 60 reserved is the
-    // doctrine's name at the top and the block labels at the foot; at 44 the front rank was drawn
-    // through its own heading.
-    const scale = Math.min((width - 30) / probe.width, (plateHeight - 60) / (probe.height + 7.6));
+    // A figure stands *above* the block's own depth, so the vertical budget is the deployment plus
+    // one soldier — and how tall that soldier is comes from the stamp rather than from a number.
+    // It used to be the literal 7.6, the procedural figure's DRAWN budget.
+    const unitMan = this.figureUnitHeight();
+    const scale = Math.min((width - 30) / probe.width, (plateHeight - 60) / (probe.height + unitMan));
     const shape = armyShape(ARMY_PLATE_MEN, this.armyDoctrine, scale);
-    const figures = this.add.graphics();
     // `armyShape.left` is the leftmost file and `top` the frontmost rank, both relative to the
     // line's own centre, so this places the whole deployment rather than one of its blocks.
     const originX = -shape.left + (width - shape.width) / 2;
     const originY = y + plateHeight - 22 - shape.height;
-    drawArmy(figures, originX, originY, ARMY_PLATE_MEN, 41, PIGMENT.muc, scale, {
+    // `stampedArmy` walks the same `planArmy` placements `drawArmy` did — the probe above still
+    // measures the block correctly — but draws each man as his authored stamp. Left un-articulated
+    // on purpose: this is a deployment diagram, and a plate whose men march on the spot reads as a
+    // battle rather than as the shape of one.
+    const host = stampedArmy(this, originX, originY, ARMY_PLATE_MEN, 41, PIGMENT.muc, scale, {
       theme: this.armyTheme, tier: this.armyTier, accent: PIGMENT.son, composition: this.armyDoctrine,
     });
-    scroll.content.add(figures);
+    scroll.content.add(host.container);
 
-    // Each block says what it is and how many marks it stands. Without this the picture reads as
-    // one crowd with gaps in it rather than as four blocks doing four jobs.
-    for (const block of shape.blocks) {
+    /**
+     * **`armyShape` measures the plan, not the picture.**
+     *
+     * Its width is where the *files* stand — the pitch between men — and that was the whole story
+     * while each man was a few ink strokes about his own spine. An authored sheet is not: a
+     * levelled spear reaches most of a man's width past the file it belongs to, so a block solved
+     * to `shape.width` is drawn wider than the plate that was fitted to it, and Thế Tường Giáo —
+     * the widest deployment the page can show — ran its right-hand rank off the edge. Reported.
+     *
+     * The same fault as the wardrobe plate above and the same answer: measure what was drawn.
+     * The container holds men at absolute plan coordinates, so scaling it about its own origin
+     * maps every position by the same factor, and the labels are mapped through by hand rather
+     * than parented — a label inside the container would shrink with it, and 8-point type has
+     * nothing to give.
+     */
+    const box = { x: 10, y: y + 26, width: width - 20, height: plateHeight - 26 - 26 };
+    // **`getBounds` is world space; `box` is the scroll content's.** They differ by wherever the
+    // list has been scrolled to and by the area's own origin, so comparing them directly placed
+    // the deployment seventy-eight units above its own plate, on top of the doctrine chips. The
+    // content's transform is the conversion, and it is taken once for both measurements.
+    const origin = scroll.content.getWorldTransformMatrix();
+    const local = (rect: Phaser.Geom.Rectangle) => ({
+      x: rect.x - origin.tx, y: rect.y - origin.ty, width: rect.width, height: rect.height,
+    });
+    const drawn = local(HistoryScene.drawnBoundsOf(host.container));
+    const k = Math.min(1, box.width / drawn.width, box.height / drawn.height);
+    host.container.setScale(k);
+    const scaled = local(HistoryScene.drawnBoundsOf(host.container));
+    const dx = box.x + box.width / 2 - (scaled.x + scaled.width / 2);
+    const dy = box.y + box.height / 2 - (scaled.y + scaled.height / 2);
+    host.container.x += dx;
+    host.container.y += dy;
+    /** A plan point, through the fit the container just took. */
+    const mapped = (px: number, py: number) => ({ x: host.container.x + px * k, y: host.container.y + py * k });
+
+    // The block labels, each on a scrap of paper.
+    //
+    // A 3-point stroke was the knockout before, and it was enough against the procedural men —
+    // a few thin ink lines. The authored figures are solid, so "Đao thủ 21" printed straight
+    // through a rank of horsemen and the caption a diagram needs most became the least readable
+    // thing on it. `clearPlate` is what the rest of the game puts under type that has to stand on
+    // a drawing; the labels are built first, measured, and their plates laid under all of them so
+    // no plate can cover a neighbour's words.
+    const plates = this.add.graphics();
+    scroll.content.add(plates);
+    const labels = shape.blocks.map((block) => {
       const label = `${historyText(`army.arm.${block.arm}.title`).split(' · ')[0]} ${block.marks}`;
-      scroll.content.add(this.add.text(
-        originX + block.x + ((block.cols - 1) * block.pitch) / 2,
-        originY + block.feet + 4,
-        label,
-        {
-          color: '#6b5230', fontFamily: UI_FONT, fontSize: '8px', align: 'center',
-          // Knocked out of the paper. The blocks are deliberately close together, so a label
-          // printed plainly lands on the men of whichever block stands behind it.
-          stroke: '#e9dfc2', strokeThickness: 3,
-        },
-      ).setOrigin(0.5, 0));
+      const at = mapped(originX + block.x + ((block.cols - 1) * block.pitch) / 2, originY + block.feet + 4);
+      return this.add.text(at.x, at.y, label, {
+        color: '#4a3a22', fontFamily: UI_FONT, fontSize: '8px', align: 'center',
+      }).setOrigin(0.5, 0);
+    });
+    for (const text of labels) {
+      const b = text.getBounds();
+      clearPlate(plates, b.x - 3, b.y - 1, b.width + 6, b.height + 2, Math.round(b.x + b.y));
     }
+    for (const text of labels) scroll.content.add(text);
 
     scroll.content.add(this.add.text(width / 2, y + 8, historyText(`army.doctrine.${this.armyDoctrine}.title`), {
       color: '#2a2118', fontFamily: TITLE_FONT, fontSize: '12px', fontStyle: '700', align: 'center',

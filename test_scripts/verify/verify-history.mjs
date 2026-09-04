@@ -86,13 +86,28 @@ for (const [lang, height] of [['en', 844], ['vi', 844], ['vi', 620]]) {
     await page.mouse.click(tabX[index], 84);
     await page.waitForTimeout(450);
     if (!ACCORDION.includes(tab)) {
-      // The wardrobe: pressing a dynasty chip has to redraw the plate. The chips sit under the
-      // plate at a known offset from the list top, and the second one is never the one already on.
+      // The wardrobe: pressing a dynasty chip has to redraw the plate. The chip is **found**, not
+      // measured off the list top: it used to be the hardcoded point (146, 319), and the day the
+      // wardrobe plate grew to give its soldier room the click landed on empty paper and the page
+      // was reported as broken when only the test was. Same rule as the tab arithmetic above.
       const before = await page.evaluate(() => {
         const scene = window.__phaserGame.scene.getScene('HistoryScene');
         return `${scene.armyTheme}/${scene.armyTier}/${scene.armyArm}`;
       });
-      await page.mouse.click(146, 319);
+      const chip = await page.evaluate(() => {
+        const scene = window.__phaserGame.scene.getScene('HistoryScene');
+        let found = null;
+        const walk = (obj) => {
+          if (obj.type === 'Text' && obj.text === 'Trần') {
+            const b = obj.getBounds();
+            found = { x: b.x + b.width / 2, y: b.y + b.height / 2 };
+          }
+          if (obj.list) obj.list.forEach(walk);
+        };
+        scene.children.list.forEach(walk);
+        return found;
+      });
+      if (chip) await page.mouse.click(chip.x, chip.y);
       await page.waitForTimeout(350);
       const after = await page.evaluate(() => {
         const scene = window.__phaserGame.scene.getScene('HistoryScene');

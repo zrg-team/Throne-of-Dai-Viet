@@ -41,6 +41,18 @@ export function bucketFor(callerScale: number): FigureBucket {
   return callerScale >= 1.4 ? 'f' : 'm';
 }
 
+/**
+ * The `placeStamp` scale that draws a figure at the size `figure()` would have drawn it.
+ *
+ * A stamp is rasterised at its bucket's scale, so placing one at the size the caller wanted means
+ * dividing by that bucket — algebra every caller was retyping, and retyping *wrong* the moment its
+ * own scale fell in the other bucket: `BattleArenaScene` divides by `BATTLE_HOST_SCALE` literally,
+ * which is only right because its preview happens to sit above the 1.4 line.
+ */
+export function figurePlaceScale(wanted: number): number {
+  return wanted / BUCKET_SCALE[bucketFor(wanted)];
+}
+
 export const FIGURE_VARIANTS = 3;
 /** Arbitrary primes: three distinct wobble streams per kind, stable across runs. */
 const VARIANT_SEEDS = [101, 211, 307];
@@ -72,7 +84,11 @@ export function figureKindKey(kind: FigureKind): string {
 }
 
 /** Bakes (or returns) the stamp for one kind of soldier. */
-export function figureStamp(scene: Phaser.Scene, kind: FigureKind): Stamp {
+export function figureStamp(
+  scene: Phaser.Scene,
+  kind: FigureKind,
+  opts: { procedural?: boolean } = {},
+): Stamp {
   const s = BUCKET_SCALE[kind.bucket];
   // The document's units map onto design units through the same algebra `figure()` uses:
   // u = unitScale('figure', s) / DOC_UNIT.
@@ -83,7 +99,10 @@ export function figureStamp(scene: Phaser.Scene, kind: FigureKind): Stamp {
     top: reach.top * u, bottom: reach.bottom * u,
   };
   const tier = ['levy', 'trained', 'royal'][kind.tier];
-  const generated = conquestArtStamp(
+  // `procedural` remains available when a caller has found an authored sheet unusable. The
+  // Vietnamese royal sheets themselves are exported with transparent headroom, so callers can use
+  // the reviewed art at both marker scale and the History page's much larger reference-plate scale.
+  const generated = opts.procedural ? undefined : conquestArtStamp(
     scene,
     `figure.${kind.theme}.${tier}.${kind.arm ?? 'spear'}`,
     box,

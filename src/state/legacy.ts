@@ -83,9 +83,38 @@ export const PERK_MAX_LEVEL = 10;
 const THREE_STEP_MIGRATION: Record<number, number> = { 1: 3, 2: 7, 3: 10 };
 const LADDER_VERSION = 10;
 
-/** Ten prices, climbing gently: half the old base for the first, about 2.4 bases for the ten. */
+/**
+ * Each rung costs **a third more than the one below it**.
+ *
+ * The ladder used to climb *linearly* — `base × 0.5 × (1 + 0.15i)` — which put the tenth level at
+ * only 2.35 times the first and the whole ten-rung ladder at 8.4 bases. Two things followed, and
+ * both were reported:
+ *
+ *   - **Upgrading did not feel like it cost more.** At the commonest base (80) a rung rose by six
+ *     points. Six points on a purchase of forty is not a price the player can see moving, so the
+ *     shop read as a flat list rather than a ladder.
+ *   - **The vault emptied in one good run.** The first rung of all twenty perks came to 812 points
+ *     together, and a run scoring 9,000 banks 900 (`bankLegacy`, score ÷ 10) — so a single strong
+ *     reign bought the opening level of *every perk in the game*, and about three more maxed the
+ *     three a loadout can even carry. A meta-progression that is finished before the player has
+ *     learned the mode is not progression, it is a menu.
+ *
+ * Geometric fixes both without touching the entry price: the first rung is still half the base, so
+ * the first purchase lands as early as it always did, and the tenth is ~13× that, so every upgrade
+ * is visibly dearer than the last. Ten rungs together now cost ~50 × the first (~3× the old
+ * ladder), and the three-perk loadout a player actually fields runs to roughly 8,800 points —
+ * about ten strong reigns rather than three.
+ *
+ * Rounded to fives because these are shop prices and a ladder reading 40 · 53 · 71 · 95 is noise
+ * where 40 · 55 · 70 · 95 is a price list. Rounding never flattens a rung: the smallest base (55)
+ * still steps 30 · 35 · 50 · …, and `verify-legacy` holds the whole table to strictly rising.
+ */
+const LADDER_GROWTH = 4 / 3;
 const ladder = (base: number): number[] =>
-  Array.from({ length: PERK_MAX_LEVEL }, (_, i) => Math.round(base * 0.5 * (1 + 0.15 * i)));
+  Array.from(
+    { length: PERK_MAX_LEVEL },
+    (_, i) => Math.round((base * 0.5 * LADDER_GROWTH ** i) / 5) * 5,
+  );
 /** Percent, one decimal — a 0.3% guard perk printed as 0% is a perk that does nothing. */
 const pct = (value: number | undefined): number => Math.round(Math.abs(value ?? 0) * 1000) / 10;
 /** Ten levels from a rule of the level. */

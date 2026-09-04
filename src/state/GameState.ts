@@ -692,6 +692,15 @@ export function createAscentGameState(config: CampaignConfig): GameState {
   // those come back on an HMR reload and a coronation that re-raises itself is the opposite of
   // the thing it exists to be.
   if (!isCrowned()) enqueueAscentPrompt(state, { kind: 'coronation' });
+  // What the house already owns, said out loud before the throne is handed anything new.
+  //
+  // Raised *after* the two calls above have run, not before: `seedAscentOpening` has already spent
+  // Old Roads and `applyOpeningHand` has already dealt the seals and charged their ambition, so
+  // the screen reports a state the run is actually in rather than one it is about to enter. It is
+  // deliberately raised on the first reign too, when it has almost nothing to report — the empty
+  // slot and the "none yet" trait row are the only place the mode ever explains what the runs
+  // ahead will fill, and the same argument the next-reign card was built on.
+  enqueueAscentPrompt(state, { kind: 'inheritance' });
   offerMandateChoice(state);
   offerFounderChoice(state);
 

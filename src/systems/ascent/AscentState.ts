@@ -159,6 +159,9 @@ const PROMPT_PRIORITY: Record<AscentPromptKind, number> = {
   'dynasty-level': 0.1,
   'bind-card': 0.15,
   'next-reign': 0.2,
+  // Between the rite and the dowry, in the order the reign is actually assembled: the king is
+  // made, the house says what it already owns, and only then is the throne handed something new.
+  inheritance: 0.45,
   mandate: 0.5,
   founder: 1,
   'wave-result': 2,
@@ -235,6 +238,9 @@ const SUPERSEDED: ReadonlySet<AscentPromptKind> = new Set<AscentPromptKind>([
   // There is only ever one coronation, and a second raise of it is the same rite, not a second
   // one. Superseding rather than stacking is what keeps a reload mid-rite from queueing two.
   'coronation',
+  // Same argument, and the same reload: the inheritance reads the stores live at draw time, so
+  // two of them are one screen and the second is only ever the truer one.
+  'inheritance',
 ]);
 
 /**

@@ -287,6 +287,9 @@ function describeAscentPromptOptions(state: GameState, prompt: NonNullable<GameS
     // resolver takes any id and rolls a king when nothing was made. Listed anyway, because a
     // kind missing from an option map is how a driver wedges on the first screen of the game.
     case 'coronation': return ['crowned'];
+    // Same shape, same reason: one button, any id accepted, and named here so a blind driver
+    // logs the card it answered rather than the ['ok'] fallthrough.
+    case 'inheritance': return ['acknowledged'];
     case 'founder': return prompt.options;
     case 'power-draft': return [...prompt.cards, 'skip'];
     case 'conquer-target': return [...prompt.targets.map((target) => target.landId), 'hold'];

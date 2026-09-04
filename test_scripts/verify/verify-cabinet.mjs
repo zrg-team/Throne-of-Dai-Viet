@@ -107,6 +107,27 @@ const result = await page.evaluate(async () => {
     && melted.meltedLegacy > 0
     && legacy.getLegacy().points === legacyBefore + melted.meltedLegacy;
 
+  // ── The Legacy pack: a budget, not pocket change ─────────────────────────
+  //
+  // The pack was the one meta price with no coverage at all, and it was the one that decayed:
+  // a flat +40 a pack meant the tenth cost 5.5× the first while the reign paying for it had
+  // grown far more, so a deep player bought draws out of surplus. It is geometric now — each
+  // pack 35% dearer than the last — and the row prints the percentage from the constant rather
+  // than a retyped 40.
+  const packStore = JSON.parse(localStorage.getItem('mandate:cabinet:v1') ?? '{}');
+  const packPrices = [];
+  for (let bought = 0; bought < 10; bought += 1) {
+    localStorage.setItem('mandate:cabinet:v1', JSON.stringify({ ...packStore, packsBought: bought }));
+    packPrices.push(cab.rubbingPackPrice());
+  }
+  // A store hand-edited to the parser's 999 ceiling must not price a pack at Infinity, which
+  // renders as a number nobody can pay and a Buy button that silently never appears.
+  localStorage.setItem('mandate:cabinet:v1', JSON.stringify({ ...packStore, packsBought: 999 }));
+  out.packAtCeiling = cab.rubbingPackPrice();
+  localStorage.setItem('mandate:cabinet:v1', JSON.stringify(packStore));
+  out.packPrices = packPrices;
+  out.packGrowthPct = cab.PACK_GROWTH_PCT;
+
   // ── The levelled card drafts heavier (×1.6 at Lv3) ───────────────────────
   // Counted BEFORE the take below: a taken stack earns the focus bonus (×2.2), which would
   // lift the offer rate on its own and make this check pass with the cabinet weight broken.
@@ -204,6 +225,19 @@ check('a copy past Lv3 melts to Legacy', result.meltPastTop);
 console.log('=== THE RUN READS THE CABINET ===');
 check('card applies at its cabinet level', result.appliedAtLevel);
 check('draft weight steps 1.3 / 1.6', result.weightMult);
+
+// ── The pack price ──────────────────────────────────────────────────────────
+check('the first pack is still 80 points', result.packPrices[0] === 80, `${result.packPrices[0]}`);
+check('every pack costs more than the one before', result.packPrices.every((p, i) => i === 0 || p > result.packPrices[i - 1]),
+  result.packPrices.join(', '));
+check('the climb is geometric, not a flat step: the tenth is 10x+ the first',
+  result.packPrices[9] / result.packPrices[0] >= 10, `${result.packPrices[0]} -> ${result.packPrices[9]}`);
+check('ten packs cost more than four 9,000-score reigns bank',
+  result.packPrices.reduce((sum, p) => sum + p, 0) >= 3600,
+  `${result.packPrices.reduce((sum, p) => sum + p, 0)} pts`);
+check('the row prints the climb the code charges', result.packGrowthPct === 35, `${result.packGrowthPct}%`);
+check('a store at the parser ceiling still prices a finite pack',
+  Number.isFinite(result.packAtCeiling), `${result.packAtCeiling}`);
 check('levelled card drafts heavier', result.draftsHeavier, result.draftsHeavierDetail);
 check('opening hand applies one stack', result.handStacks);
 check('opening hand charges +2 ambition', result.handAmbition);

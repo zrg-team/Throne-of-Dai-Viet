@@ -302,3 +302,11 @@ Original prompt: Please implement the proposed Vạn Thắng documentation and P
 - Request: review portraits where the head does not connect correctly to the neck; supplied women-only sheet shows the issue across several jaw shapes.
 - Diagnosis: all 16 heads share a randomly chosen 15px or 18px rectangular neck beginning at y=25, but head bottoms range from y=23.5 to y=31 because `tall` changes the chin as well as the crown. Short `head-round` can leave a visible paper gap, while narrow/heart/tapered jaws can expose an unrelated wide neck beside the chin. Neck width and head anatomy are currently independent random rolls.
 - Next: raise and taper the shared neck geometry so it overlaps the shortest jaw, add a broad variant, couple neck width to the selected head family without perturbing the remaining portrait seed, then audit all head families visually and numerically.
+
+## 2026-09-05 — Vietnamese royal-soldier crop and transparency repair
+
+- Request: fix the non-transparent Đinh royal skirmisher and the severed/cropped heads across the Vietnamese royal-soldier sets, without inventing a shared ahistorical wardrobe.
+- Repaired the four infantry roles for Đinh, Lý, Trần, Later Lê, Trịnh, Nguyễn lords, Tây Sơn, and Nguyễn; also cleaned the Đinh mounted cutout. The seven already-safe mounted files were retained. Each era keeps the wardrobe and headgear documented by the existing dynasty art direction rather than being homogenized.
+- All 33 repaired files were fitted into the existing 144×128 contract with eight pixels of top and bottom headroom. A full 40-file audit confirms Format32bppArgb, real transparent pixels, and zero opaque edge pixels. The reviewed contact sheet was `royal-sprites-audit.candidate.png` before temporary-file cleanup.
+- Verification: `verify-army-plate.mjs` passes 9/9 across 105 wardrobe/weapon/rank plates and 35 formations with no title/caption overlap or console errors. The required gameplay client passed and its menu capture/state were inspected under `output/web-game/royal-sprite-final-client/`; History army screenshots were regenerated and inspected in Vietnamese and English.
+- No remaining royal-soldier crop or transparency TODOs.

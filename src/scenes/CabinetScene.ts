@@ -14,6 +14,7 @@ import {
   getCabinet,
   openingHand,
   openingHandSlots,
+  PACK_GROWTH_PCT,
   recordRubbingPack,
   revealRubbing,
   rubbingPackPrice,
@@ -296,7 +297,7 @@ export class CabinetScene extends Phaser.Scene {
       scroll.content.add(this.ui.label(PAD + 12, y + 7, t('cabinet.pack', { cost: packCost }), 'label',
         { fontSize: '12px' }));
       scroll.content.add(this.ui.label(PAD + 12, y + 26,
-        legacy.points >= packCost ? t('cabinet.pack.note', { step: 40 }) : t('cabinet.pack.poor', { have: legacy.points }),
+        legacy.points >= packCost ? t('cabinet.pack.note', { pct: PACK_GROWTH_PCT }) : t('cabinet.pack.poor', { have: legacy.points }),
         'caption', { fontSize: '9px' }));
       if (legacy.points >= packCost) {
         scroll.content.add(this.ui.button(
