@@ -3673,7 +3673,7 @@ export class MenuScene extends Phaser.Scene {
     if (table.length > 0) {
       const tableHead = this.ui.label(PAD, y,
         `${t('dynasty.page.tableRow', { n: table.length })} · ${t(table.length >= 2 ? 'dynasty.page.tableNext' : 'dynasty.page.tableLast')}`,
-        'caption', { fontSize: '9.5px', color: '#8a7a60', wordWrap: { width: W } });
+        'caption', { fontSize: '9.5px', color: '#8a7a60', wordWrap: { width: W }, backgroundColor: 'rgba(243,230,196,0.82)', padding: { x: 4, y: 1 } });
       body.add(tableHead);
       y += tableHead.height + 4;
       for (const id of table) {
