@@ -37,6 +37,25 @@ const vault = await page.evaluate(async () => {
   const worth = (lv) => Object.values(lv).reduce((sum, v) => sum + (typeof v === 'number' ? Math.abs(v) : Object.values(v).reduce((s2, m) => s2 + Math.abs(m), 0)), 0);
   out.monotone = L.LEGACY_PERKS.every((p) => p.levels.every((lv, i) => i === 0 || worth(lv) >= worth(p.levels[i - 1])));
   out.smallSteps = L.LEGACY_PERKS.every((p) => worth(p.levels[0]) <= worth(p.levels[9]) / 3 + 1e-9);
+
+  // The ladder is *geometric*: each rung a third dearer than the one below, so the tenth is about
+  // thirteen times the first. It used to climb linearly (+15% of the half-base a step), which put
+  // the tenth at 2.35x the first — a rise the player could not see, on a vault a single 9,000
+  // run emptied. Bounds rather than an exact table, so rounding to fives is free.
+  out.topOverFirst = L.LEGACY_PERKS.map((p) => p.cost[9] / p.cost[0]);
+  out.geometric = out.topOverFirst.every((ratio) => ratio >= 11 && ratio <= 15);
+  // The entry price is the thing the steepening must NOT move: a first purchase has to land
+  // inside a beginner's first reign or the vault is shut to the player who needs it most.
+  out.firstRungTotal = L.LEGACY_PERKS.reduce((sum, p) => sum + p.cost[0], 0);
+  out.cheapestFirst = Math.min(...L.LEGACY_PERKS.map((p) => p.cost[0]));
+  // What the three-slot loadout a player actually fields costs to max, priced on the dearest
+  // three. `bankLegacy` pays score / 10, so 900 points is the reported 9,000-score reign.
+  out.dearestThree = L.LEGACY_PERKS
+    .map((p) => p.cost.reduce((sum, c) => sum + c, 0))
+    .sort((a, b) => b - a)
+    .slice(0, L.LOADOUT_MAX)
+    .reduce((sum, n) => sum + n, 0);
+  out.vaultTotal = L.LEGACY_PERKS.reduce((sum, p) => sum + p.cost.reduce((s, c) => s + c, 0), 0);
   // A three-step store migrates onto the tenths.
   localStorage.setItem('mandate:legacy:v1', JSON.stringify({ points: 0, bestScore: 0, ascensions: 0, perks: ['salt-charter', 'masons-guild', 'settlers'], perkLevels: { 'salt-charter': 1, 'masons-guild': 2, settlers: 3 }, loadout: ['salt-charter'], codes: [] }));
   const migrated = L.getLegacy();
@@ -78,6 +97,18 @@ const vault = await page.evaluate(async () => {
 });
 check('twenty perks, each on a ten-step ladder with rising prices', vault.count === 20 && vault.everyLadder, `${vault.count}`);
 check('every level is worth at least the one below, and the first step is at most a third of the top', vault.monotone && vault.smallSteps);
+check('each rung costs about a third more than the last, so the tenth is ~13x the first',
+  vault.geometric, `ratios ${Math.min(...vault.topOverFirst).toFixed(1)}–${Math.max(...vault.topOverFirst).toFixed(1)}`);
+check('the entry price is untouched: a first level still lands inside one weak reign',
+  vault.cheapestFirst <= 35 && vault.firstRungTotal <= 900, `cheapest ${vault.cheapestFirst}, all first levels ${vault.firstRungTotal}`);
+// The complaint this priced against: one 9,000-score reign banks 900 points and used to max the
+// three-perk loadout in about three reigns. Held to a range, not a number, so tuning the bases
+// stays free while the shape stays a long sink.
+check('maxing the three-slot loadout is a long haul, not three reigns',
+  vault.dearestThree / 900 >= 7 && vault.dearestThree / 900 <= 16,
+  `${vault.dearestThree} pts = ${(vault.dearestThree / 900).toFixed(1)} reigns at 9,000 score`);
+check('the whole vault outlasts forty reigns at that score',
+  vault.vaultTotal / 900 >= 35, `${vault.vaultTotal} pts = ${(vault.vaultTotal / 900).toFixed(1)} reigns`);
 check('a three-step store migrates Lv1/2/3 onto 3/7/10 and is stamped', vault.migrated['salt-charter'] === 3 && vault.migrated['masons-guild'] === 7 && vault.migrated.settlers === 10 && vault.migrated.ladder === 10, JSON.stringify(vault.migrated));
 check('a one-time-buy store reads its bought perks as Lv3 of 10 and carries them', vault.compat.levels['founders-purse'] === 3 && vault.compat.loadout.length === 2, JSON.stringify(vault.compat));
 check('buying a held perk raises it a level at the ladder\'s price', vault.bought && vault.levelAfter === vault.levelBefore + 1 && vault.spent === vault.expectedSpent, `Lv${vault.levelBefore} -> ${vault.levelAfter}, spent ${vault.spent} of ${vault.expectedSpent}`);

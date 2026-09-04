@@ -76,9 +76,25 @@ export function meltValue(rarity: AscentRarity): number {
   return MELT_LEGACY[rarity];
 }
 
-/** First pack price, and the climb per pack already bought — the dead Legacy surplus's job. */
+/**
+ * First pack price, and the climb per pack already bought — the dead Legacy surplus's job.
+ *
+ * The climb used to be a flat +40 a pack, which is a *shrinking* price: the tenth pack cost 5.5×
+ * the first while the run banking the points had grown far more than that, so a player deep enough
+ * to have bought ten was buying draws out of pocket change. Geometric keeps the pack a budget at
+ * every stage of the ladder — the first is still 80, and each one after costs 35% more than the
+ * last, so ten come to about 4,400 points where they used to come to 2,600.
+ *
+ * Rounded to tens because the row prints the number; the exponent is clamped because `packsBought`
+ * is read off localStorage with a 999 ceiling, and 1.35^999 is `Infinity` — which renders as a
+ * price no one can pay and a Buy button that silently never appears. Thirty packs is already
+ * ~650,000 points, past any reachable total, so the clamp costs nothing real.
+ */
 const PACK_BASE_COST = 80;
-const PACK_COST_STEP = 40;
+const PACK_GROWTH = 1.35;
+/** The climb, as the percentage the row prints. Read from the constant, never retyped. */
+export const PACK_GROWTH_PCT = Math.round((PACK_GROWTH - 1) * 100);
+const PACK_GROWTH_CAP = 30;
 
 /** Copies one combine consumes: three to reach Lv2, five to reach Lv3. */
 export function combineCost(level: 1 | 2 | 3): number {
@@ -234,7 +250,8 @@ export function deedDone(deed: CabinetDeed): boolean {
 
 /** What the next Legacy rubbing pack costs — climbs so the surplus is a budget, not a faucet. */
 export function rubbingPackPrice(): number {
-  return PACK_BASE_COST + getCabinet().packsBought * PACK_COST_STEP;
+  const bought = Math.min(PACK_GROWTH_CAP, Math.max(0, getCabinet().packsBought));
+  return Math.round((PACK_BASE_COST * PACK_GROWTH ** bought) / 10) * 10;
 }
 
 /** Marks a pack bought and banks the rubbing. The Legacy spend happens at the call site. */
