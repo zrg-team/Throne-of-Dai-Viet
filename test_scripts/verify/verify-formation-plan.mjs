@@ -123,8 +123,12 @@ check(wrong.length === 0,
 // the line, and the bows it is there to protect are banked behind it. Worth pinning, because a
 // plan that put the bows at the seam would look like a volley and play like a massacre.
 const depends = await page.evaluate(async () => {
-  const F = await import('/src/data/ascent/formations.ts');
-  return F.BLOCK_OF;
+  // `BLOCK_OF` was renamed `CLASSIC_BLOCK_OF` and moved into `formationsClassic.ts` when the
+  // classic shapes were archived. This still read the old name off the old module, got
+  // `undefined`, and took the whole script down on the next line — so every check below it,
+  // including the one that guards the History plate, had stopped running.
+  const F = await import('/src/data/ascent/formationsClassic.ts');
+  return F.CLASSIC_BLOCK_OF;
 });
 check(depends.no === 'bows' && foremost('no') === 'line',
   'Thế Nỏ shoots from behind its own fence, not in front of it',

@@ -30,7 +30,9 @@ node test_scripts/verify/verify-legacy.mjs          # the Legacy vault: twenty p
 node test_scripts/verify/verify-list-press.mjs        # a button inside a list fires on the lift and a drag scrolls; chrome still fires on the press
 node test_scripts/verify/verify-scroll-under-sheet.mjs  # HOTFIX gate: lists inside a run's pages scroll; only a list under a sheet is locked
 node test_scripts/verify/verify-cabinet.mjs         # the Cabinet of Seals: rubbings honour pity, x3 combines, cabinet levels reach the draft, the bind step binds, the page takes taps
+node test_scripts/verify/verify-army-plate.mjs      # the History army plates across all 7 wardrobes x 5 weapons x 3 ranks and all 5 doctrines: nothing reaches into the title, the caption or another caption
 node test_scripts/verify/verify-inheritance.mjs     # the next-reign chip: promises exactly what the ceremony pays (XP, level, Legacy, rubbings, bind), hides under prompts, opens/shuts, guards its taps
+node test_scripts/verify/verify-inheritance-screen.mjs  # the run-start Gia sản dòng họ card: queued after the rite and before the mandate, reads the live stores, both languages, both ends of the height clamp
 node test_scripts/verify/verify-coronation.mjs      # Le Dang Quang: the rite raises once ever, a skip writes a whole king, era law holds, the badge steps with the house
 node test_scripts/verify/verify-invasion-lifecycle.mjs  # every invasion announces its start and its end
 node test_scripts/verify/verify-invasion-reach.mjs      # a wave that is sent can walk to the realm, and does
@@ -129,3 +131,5 @@ empire economy was food-negative when in fact the harness had never constructed 
   restored one repaints the faces, and the away pause sets and clears.
 - `diag/diag-army-hash.mjs` (`--save` baseline) — command-stream identity for `drawArmy`;
   `diag/diag-figure-reach.mjs` — no soldier's ink clipped by his stamp box.
+
+node test_scripts/diag/diag-meta-costs.mjs             # what the Legacy vault and the rubbing packs cost, priced in 9,000-score reigns
