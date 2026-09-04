@@ -8,6 +8,7 @@ import {
   AMBITION_PER_PROVINCE,
   AMBITION_PRESSURE_PER_POINT,
   AMBITION_SPOILS_SEASONS,
+  ASCENT_TUNING,
 } from '../../game/ascentConfig';
 import { applyResourceDelta } from '../ResourceSystem';
 import { pushToast } from '../empire/notifications';
@@ -83,7 +84,9 @@ export function chargeAmbition(state: GameState, reason: AmbitionReason, times =
     marchSouth(state) ? NAM_TIEN_AMBITION_MULT : 1,
     hasCapstone(state, 'phat') ? 0.6 : 1,
   ];
-  const cost = AMBITION_COSTS[reason] * times * Math.min(...discounts);
+  // `ambitionCardMult` is a tooling override (see `ASCENT_TUNING`); it is 1 in the shipped game.
+  const tuning = reason === 'card' ? ASCENT_TUNING.ambitionCardMult : 1;
+  const cost = AMBITION_COSTS[reason] * times * Math.min(...discounts) * tuning;
   ascent.ambition = ambitionOf(state) + cost;
   ascent.ambitionSpent = (ascent.ambitionSpent ?? 0) + cost;
   // What the player spent *this* cycle, so the Court phase can show the dial climbing as they

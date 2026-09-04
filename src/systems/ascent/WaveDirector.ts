@@ -44,8 +44,7 @@ import {
   WAVE_SHADOW_MAX,
   WAVE_SHADOW_RAMP,
   XP_PER_WAVE_SURVIVED,
- waveMatchFactor,
-} from '../../game/ascentConfig';
+ waveMatchFactor, ASCENT_TUNING } from '../../game/ascentConfig';
 import {
   EMERGENCY_LEVY_CAP, MIN_ARMY_SOLDIERS, recruitSoldiers, SUPPLY_TICKS_HELD,
   REINFORCE_SHARE, waveShapeFor, type WaveShape,
@@ -65,8 +64,7 @@ import {
 } from './AmbitionSystem';
 import { waveDelayTicks, warPurchaseDiscount } from './DoctrineSystem';
 import {
-  addAscentXp, computeFieldDefencePower, contestedDefencePower, ownedLandCount, waveFacingDefencePower,
-} from './PowerSystem';
+  addAscentXp, computeFieldDefencePower, contestedDefencePower, ownedLandCount, waveFacingDefencePower, sizingDefencePower } from './PowerSystem';
 import { heroName, t } from '../../i18n';
 import type {
   AscentPrompt,
@@ -196,7 +194,7 @@ export function isBossWave(wave: number): boolean {
  */
 export function laggedDefencePower(state: GameState): number {
   const ascent = state.ascent;
-  const live = contestedDefencePower(state);
+  const live = sizingDefencePower(state);
   if (!ascent) return live * WAVE_OPENING_SHARE;
 
   const samples = ascent.defenceSamples ?? [];
@@ -286,7 +284,8 @@ export function waveTargetPower(
   // calendar — measured, defence at 17,800 against waves of a few hundred men — so the wave is
   // also floored at a growing, sub-mirror share of what the realm could field WAVE_LAG waves
   // ago. Under the share the fight is always real; over it, the player's edge is their own.
-  const rampShare = Math.min(WAVE_SHADOW_MAX, WAVE_SHADOW_BASE + WAVE_SHADOW_RAMP * Math.max(0, wave - 1));
+  const rampShare = Math.min(WAVE_SHADOW_MAX, WAVE_SHADOW_BASE + WAVE_SHADOW_RAMP * Math.max(0, wave - 1))
+    * ASCENT_TUNING.shadowShareMult;
   const heatedShare = Math.min(WAVE_SHADOW_CEIL, rampShare * (1 + (heat - 1) * WAVE_SHADOW_HEAT_SHARE));
   const shadow = laggedDefencePower(state) * heatedShare * (boss ? BOSS_PRESSURE_MULT : 1);
 
@@ -428,7 +427,10 @@ export function sampleDefencePower(state: GameState): void {
   const ascent = state.ascent;
   if (!ascent) return;
   ascent.defenceSamples ??= [];
-  ascent.defenceSamples.push(contestedDefencePower(state));
+  // The sizing figure, not the odds figure: the shadow may not mirror the tenure dividend
+  // (`TENURE_MILITIA_SIZING_SHARE`). Raids and companies read these samples too, and are sized a
+  // little under the whole watch for the same reason.
+  ascent.defenceSamples.push(sizingDefencePower(state));
   // Only the recent tail is ever read; keeping the whole run would bloat every save.
   if (ascent.defenceSamples.length > 12) ascent.defenceSamples.shift();
 }

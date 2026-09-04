@@ -149,7 +149,11 @@ const hold = await normal.page.evaluate(async () => {
   return { movedWhileWinning, answeredAfter };
 });
 check(hold.movedWhileWinning === 0, 'the invader holds his shape while he is winning', `${hold.movedWhileWinning} moves in 20 beats`);
-check(hold.answeredAfter > 0 && hold.answeredAfter <= 6, 'and answers within a few beats once he is losing', `answered after ${hold.answeredAfter} beats`);
+// Ten, not six, since the 2026-09-04 retune: the invader's hesitation went 2/3/4 → 4/5/6 (see
+// `BATTLE_TEMPER`), because at the old cadence he answered inside the player's own regen window
+// and the ring measured as noise — best play won 21% of the lab's contested fights and read him
+// 0-1 points better than never reading at all. A measured commander now answers after ~8 beats.
+check(hold.answeredAfter > 0 && hold.answeredAfter <= 10, 'and answers within a few beats once he is losing', `answered after ${hold.answeredAfter} beats`);
 
 // ── 2 & 3. the three bots ────────────────────────────────────────────────────
 const runs = {};
@@ -160,14 +164,19 @@ for (const policy of ['manager', 'chaser', 'turtle']) {
   console.log(`  ${policy.padEnd(8)} ${JSON.stringify(runs[policy])}`);
 }
 const m = runs.manager, c = runs.chaser, tu = runs.turtle;
-// Four to five on a typical boot; the seeded opening shape moves it by one either way. The claim
-// is "a few times, and briefly" — spells of one or two beats, never a long grey wall.
-check(m.stuck >= 1 && m.stuck <= 6 && m.stuckBeats <= 12,
-  'in ordinary play the player is STUCK — no pip, countered — a few times a fight, briefly',
+// Was "stuck 1-6 times" and "the chaser is refused twice". Both described the docs/20 cadence,
+// where the invader out-rotated the two pips and the meter bit a careful player four or five
+// times a fight. The 2026-09-04 retune slowed his answer (hesitation 4/5/6) and brought a pip
+// back in six beats, and the meter stopped biting the manager at all — deliberately: the lab
+// measured that the bite was the reason reading the enemy beat never reading him by nothing.
+// What the meter still has to do is bound: a player is never stuck for long, and a chaser who
+// changes at every rotation gains nothing over one who waits (the rationing check below).
+check(m.stuck <= 6 && m.stuckBeats <= 12,
+  'in ordinary play the player is never stuck for long — no pip, countered — at most briefly',
   `manager stuck ${m.stuck}x for ${m.stuckBeats} beats over ${m.beats}; ${m.changes} changes, ${m.rotations} enemy answers`);
-check(c.refused >= 2,
-  'a player who chases every rotation is refused — the penalty for changing too fast is real',
-  `chaser refused ${c.refused}x, emptied ${c.empties}x`);
+check(c.changes >= m.changes,
+  'a player who chases every rotation changes at least as often as one who rations',
+  `chaser ${c.changes} changes, refused ${c.refused}x · manager ${m.changes} changes`);
 const score = (r) => (r.outcome === 'they-rout' ? 1 : 0) * 10000 + r.ourNow - r.theirNow;
 // The chaser is a manager who never waits; with the ring this strong the two finish within a
 // few percent of each other and the order flips on noise. The claim that holds: rationing is

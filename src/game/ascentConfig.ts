@@ -331,6 +331,55 @@ export const EARLY_WAVE_GRACE = 2;
  */
 export const EARLY_WAVE_FIELD_SHARE = [0.62, 0.85, 1.15, 1.5, 1.9];
 
+// ── Tooling overrides: sweep a knob without editing this file ───────────────
+/**
+ * Multipliers a harness may set at runtime, read at the single site each knob lands on. ESM
+ * `export const` bindings cannot be reassigned from a page, but an exported object's fields can,
+ * so `playtest-play.mjs --tuning '{"shadowShareMult":0.5}'` writes here after boot and every run
+ * on that page sees it. **Nothing in the game writes these**: the shipped values are the 1s below,
+ * and a save never carries them. They exist so the ceiling question ("does the shadow flatten
+ * every strategy?") can be answered by an A/B against the same seeds rather than by argument.
+ */
+export const ASCENT_TUNING = {
+  /** Scales the shadow's share of lagged defence (`WAVE_SHADOW_BASE`/`RAMP`/`MAX` all at once). */
+  shadowShareMult: 1,
+  /** Scales what a Power Draft card charges in ambition. */
+  ambitionCardMult: 1,
+  /** Overrides `TENURE_MILITIA_SIZING_SHARE` when not 1 (a harness sweep of the dividend). */
+  tenureMilitiaSizingShare: 1,
+  // Seeded from `window.__ascentTuning` at module load, set by a harness's `addInitScript`
+  // BEFORE navigation. Assigning into the object after boot is not enough: under the dev server
+  // the page's bundle and a harness's `import('/src/...')` can be two instances of this module
+  // (the dual-instance trap), and the first A/B run wrote the override into the one the engine
+  // never reads — four arms came out identical to the decimal. A hook read at load time reaches
+  // every instance.
+  ...((globalThis as { __ascentTuning?: Partial<Record<'shadowShareMult' | 'ambitionCardMult' | 'tenureMilitiaSizingShare', number>> }).__ascentTuning ?? {}),
+};
+
+/**
+ * **The tenure dividend — the one lever that raises defence without raising the wave.**
+ *
+ * Every other term the wave is sized against reads the realm's strength back into the threat:
+ * ambition heat on the baseline, the shadow on lagged defence, `waveMatchFactor` on the field.
+ * Measured across four engaged strategies at 8 seeds each (2026-09-04) they landed within 2.3
+ * waves of one another — 15.6, 15.1, 13.3, 9.6 — because whatever a realm built, the wave read.
+ *
+ * Provincial militia is the strength that comes from *holding* ground: it grows a step a season
+ * toward the province's people (`growProvincialMilitia`), so a district kept for a year stands
+ * with three or four times the watch of one taken last season. The wave's sizing readers
+ * (`sampleDefencePower`, `waveFacingDefencePower`) count that militia at this share; the odds
+ * card, the HUD and the levy still count all of it. The difference is the player's own, and it
+ * is earned by patience rather than by purchase, so the shadow cannot mirror it.
+ *
+ * **Shipped at 1 — built, measured, not adopted.** Paired over the same 12 seeds at 0.5 against
+ * 1.0 (2026-09-04, `playtest-play --tuning`): the expander went 15.4 vs 12.9 waves, the settler
+ * 15.8 vs 17.0, and single seeds swung 8 ↔ 31 on the same plan. That is noise, not a lever; a
+ * mechanic that cannot be told from nothing at twelve seeds does not get to claim a balance
+ * effect. The reader split stays because it is the right place for the next sweep, and
+ * `ASCENT_TUNING.tenureMilitiaSizingShare` sweeps it without an edit.
+ */
+export const TENURE_MILITIA_SIZING_SHARE = 1;
+
 // ── The realm's shadow: the wave never falls far behind what it attacks ──────
 //
 // The baseline curve alone lost to arithmetic: an economy that compounds at ~9% a wave laps a
@@ -1793,15 +1842,20 @@ export const BATTLE_WITHDRAW_BEATS = 3;
 /**
  * Which way the exchange leans when one shape answers another.
  *
- * Deliberately modest. At 0.28 the counter is worth roughly two and a half beats of exchange, so a
- * one-beat walk plus a three-beat wind makes changing shape *marginally* correct — which is the
- * knife-edge the whole fight is balanced on. Move this and `BATTLE_FORMATION_WIND` together or
- * not at all.
+ * Was 0.28 — "deliberately modest", worth roughly two and a half beats of exchange. Measured in
+ * `battle-lab` at 160 fights a policy (2026-09-04), that was too modest to be a decision at all:
+ * one stance (Thế Nỏ, standing off) won all five doctrine cells, reading the enemy's shape beat
+ * the best fixed stance by 1.2 points against a 12-point target, and a martial-60 commander played
+ * the fight 1.9 points *better* than a human — the ring was noise against mass and morale. At 0.40
+ * a strong counter moves the exchange by ±40%, which is about what a 10% edge in numbers is worth:
+ * the shape is now the same order of magnitude as the muster, and can overturn it. Moved with
+ * `BATTLE_FORMATION_TILT_SHARP` and `BATTLE_COMMIT_AMPLIFY` so the stamina gate's tuning bound
+ * (sharp × wager × press < 1) still holds.
  */
-export const BATTLE_FORMATION_TILT = 0.28;
+export const BATTLE_FORMATION_TILT = 0.40;
 
 /** What a Moment's `sharpen` raises the tilt to, whichever way it is already pointing. */
-export const BATTLE_FORMATION_TILT_SHARP = 0.42;
+export const BATTLE_FORMATION_TILT_SHARP = 0.48;
 
 /**
  * The soft counter's share of the full tilt.
@@ -1828,12 +1882,16 @@ export const BATTLE_STAMINA_MAX = 2;
 
 /**
  * How much dồn sức (a second pip wagered on the held shape) multiplies the formation tilt —
- * in BOTH directions. 1.6 turns the standard ±0.21 tilt into ±0.34: enough that cashing a
+ * in BOTH directions. 1.45 turns the standard ±0.40 tilt into ±0.58: enough that cashing a
  * confident read visibly accelerates the fight, and enough that doubling into a counter is a
  * mistake the player feels. Applied inside `formationTilt`, so the fight, the telegraph and
  * the dock's price line all read the same amplified number.
+ *
+ * Down from 1.6 when the base tilt rose 0.28 → 0.40: the tuning bound held by
+ * `verify-battle-stamina` is sharp × wager × press = 0.48 × 1.45 × 1.35 = 0.94, and at 1.6 it
+ * would be 1.04 — a hard-countered charge healing the winner.
  */
-export const BATTLE_COMMIT_AMPLIFY = 1.6;
+export const BATTLE_COMMIT_AMPLIFY = 1.45;
 
 // ── Escalation: the run answers a strong player ──────────────────────────────
 
@@ -1889,7 +1947,12 @@ export function waveMatchFactor(playerPower: number, targetPower: number): numbe
  * who answers every answer is stuck about four times, briefly; one who chases every rotation is
  * refused seven times. The harness (`verify-battle-stamina`) holds the stuck count at one to four.
  */
-export const BATTLE_STAMINA_REGEN_BEATS = 7;
+// Seven → six with the invader's hesitation at 4/5/6. At seven the player who answered every
+// answer sat stuck through half the enemy's re-forms and reading him beat a fixed stance by ten
+// points; at five they answered everything and the doctrines stopped mattering (win rates 60-80%,
+// doctrines within 12 points). Six is the edge that keeps both: reading beats fixed by 20,
+// doctrines 47/65/52, best play at 50% of contested fights (2026-09-04, lite lab, 80 fights).
+export const BATTLE_STAMINA_REGEN_BEATS = 6;
 
 /** The commander tempers, keyed from `KingdomPersonality` (+ the `isGreat` flag → cunning). */
 export type CommanderTemper = 'hasty' | 'measured' | 'stubborn' | 'cunning';
@@ -1918,11 +1981,18 @@ export const BATTLE_TEMPER: Record<CommanderTemper, {
   // lands, which is six seconds of the player holding the advantage. Measured at 0/1/2 the
   // duel ping-ponged every four beats — faster than any pip could return, so even a careful
   // player was stuck after every exchange and a human was re-reading the field every 3.5 s.
-  hasty: { hesitation: 2, presses: true },
-  measured: { hesitation: 3, presses: true },
-  stubborn: { hesitation: 4, presses: false },
+  //
+  // Then 4/5/6 (2026-09-04). With the tilt at 0.40 the invader's answer to a counter was worth
+  // as much as the counter, and at 2/3/4 he answered inside the player's own regen window, so
+  // the ring was a wash: best play won 21% of the lab's contested fights and read the enemy
+  // 0-1 points better than never reading him at all. Two more beats of standing countered is
+  // the window the design depends on — measured across seven lab sweeps it alone moved best play
+  // to 44%, separated the three doctrines (45/45/33) and made martial 30 → 90 read 0% → 65%.
+  hasty: { hesitation: 4, presses: true },
+  measured: { hesitation: 5, presses: true },
+  stubborn: { hesitation: 6, presses: false },
   // The graduation exam, reserved for great waves: the quickest answer there is.
-  cunning: { hesitation: 1, presses: true },
+  cunning: { hesitation: 2, presses: true },
 };
 
 /**
@@ -1974,8 +2044,14 @@ export const BATTLE_REFORM_BEATS = {
  * countered — `(|tier| / 2) × this`, so a soft counter drips half — and Cố thủ halves whatever
  * lands. Flat 0.7 was closing close fights before the ring had time to be interesting; the cut
  * plus the scaling is what lets a losing side dig in and actually ride a bad window out.
+ *
+ * Then 0.3 with the 60-second fight (787132f), and back up to 0.7 with the tilt at 0.40: at 0.3
+ * a side standing countered for ten beats lost three heart, which is why the lab's fixed stances
+ * never noticed they were countered. A wrong shape now costs heart the player can see on the rail.
+ * 0.45 and 0.9 were both swept: 0.45 left a delegated commander within three points of hand play,
+ * 0.9 pushed contested wins past 70%; 0.7 sits in the lab's band on both.
  */
-export const BATTLE_COUNTER_MORALE = 0.3;
+export const BATTLE_COUNTER_MORALE = 0.7;
 /**
  * How many economy ticks a Moment holds the fight open for.
  *

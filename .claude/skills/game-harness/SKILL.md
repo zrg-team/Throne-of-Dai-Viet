@@ -100,7 +100,13 @@ await page.waitForFunction(() => window.__phaserGame.scene.isActive('ConquestSce
 await page.waitForTimeout(800);
 ```
 
-`'ascent'` lands in `ConquestScene`; `'rival' | 'campaign' | 'empire'` land in `MapScene`.
+`'ascent'` lands in `ConquestScene`, `'arena'` in `BattleArenaScene`; `'rival' | 'campaign' | 'empire'` land in `MapScene`.
+
+**Only `ascent` and `arena` are modes a player can reach.** `MenuScene.renderClassic` offers one
+card, the Skirmish — Throne of Empires, the Campaign and the Rival start are still built and still
+pinned by `verify-modes-regression`, but nothing on any page starts them. Booting one of the three
+tests *shared* code (MapScene, the economy, the conquest UI) through a door the shipped game does
+not have, so never report a green run in one as evidence about the game as played.
 
 Determinism is a copy-pasted mulberry32 that seeds `Math.random`:
 

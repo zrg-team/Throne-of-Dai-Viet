@@ -262,10 +262,16 @@ const out = await page.evaluate(async (fights) => {
     const rows = [];
     for (let i = 0; i < 90; i += 1) {
       // A controlled experiment, deliberately unlike the contested scenarios above: equal
-      // numbers, and a passive standing order. Measuring this under `adaptive` hid the effect
-      // entirely, because charging when out-shot is exactly how a good player *counters* enemy
-      // archers — the policy was cancelling the very thing being measured.
-      rows.push(run({ ours: 1200, theirs: 1200, ourArch, theirArch, ourHeavy: 0.15, theirHeavy: 0.15 }, 'always-hold'));
+      // numbers, and no tempo orders. Measuring this under `adaptive` hid the effect entirely,
+      // because charging when out-shot is exactly how a good player *counters* enemy archers —
+      // the policy was cancelling the very thing being measured.
+      //
+      // `counter-ring`, not `always-hold`, since the 2026-09-04 retune: with the tilt at 0.40 and
+      // the counter drip at 0.7 a host that never re-forms is answered inside the invader's
+      // hesitation and breaks in ~19 beats whatever it is made of (measured: 5.5% vs 7.9%
+      // survivors, the arms invisible). Keeping the shapes answered holds the ring even, so what
+      // is left to decide the exchange is the composition — the thing this asks about.
+      rows.push(run({ ours: 1200, theirs: 1200, ourArch, theirArch, ourHeavy: 0.15, theirHeavy: 0.15 }, 'counter-ring'));
     }
     // Survivor share, not win rate. Win rate is binary and the window where a 1200-strong host
     // sometimes-but-not-always beats a 1500-strong one is too narrow to read anything from:
@@ -397,8 +403,13 @@ line(Object.values(stanceWins).every((n) => n > 0), 'every stance is the best an
   `brace wins ${stanceWins['always-hold']} cells / loose ${stanceWins['always-loose']} / charge ${stanceWins['always-charge']}`);
 line(R['counter-ring'].winRate - bestFixed >= 0.12, 'reading them beats any fixed stance by 12pts+',
   `${((R['counter-ring'].winRate - bestFixed) * 100).toFixed(1)} pts over best fixed`);
-line(R.adaptive.routRate >= 0.25 && R.adaptive.routRate <= 0.5, 'routs in 25-50% of fights', pct(R.adaptive.routRate));
-line(seconds >= 18 && seconds <= 32, 'a fight lasts 18-32s', `${seconds.toFixed(1)}s`);
+// Both retired targets described the fight before 787132f. A fight ends only when a line breaks
+// now — the `spent` outcome was the failure that pass removed, so 100% routs is the design and
+// not a defect — and the same pass set the fight at about a minute on the user's own words
+// ("15-20 s is no game feeling at all"). What is still worth holding: that the decision goes
+// the player's way often enough, which the win-rate band below already asks, and that the
+// minute the user asked for is still a minute.
+line(seconds >= 45 && seconds <= 80, 'a fight lasts about a minute (45-80s, per 787132f)', `${seconds.toFixed(1)}s`);
 // Retired: two proxies that describe the world before the beat buffer existed.
 //
 // `gapToday` was the literal constant `ASCENT_TICK_MS`, so "longest gap under 700ms" could never

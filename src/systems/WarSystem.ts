@@ -277,9 +277,19 @@ export function wallManning(state: GameState, land: Land): number {
  * so a province the watched fight had just spent rolled its full masonry a tick later.
  */
 export function garrisonPower(state: GameState, land: Land): number {
+  return garrisonPowerCountingMilitia(state, land, 1);
+}
+
+/**
+ * The same formula with the militia counted at a share. The wave's *sizing* readers count it at
+ * `TENURE_MILITIA_SIZING_SHARE` (see `PowerSystem.sizingGarrisonPower`), so ground held long
+ * enough to raise a watch is stronger than the wave is told. Everything that decides or shows a
+ * fight still calls `garrisonPower` and counts all of it.
+ */
+export function garrisonPowerCountingMilitia(state: GameState, land: Land, militiaShare: number): number {
   return (land.defense * masonryPowerPerDefense(state) * wallManning(state, land)
     * (1 - (land.garrisonExhaustion ?? 0))
-    + land.localSoldiers * militiaPowerPerMan(state))
+    + land.localSoldiers * militiaPowerPerMan(state) * militiaShare)
     * terrainDefenseMultiplier(land)
     * getFocusDefenseMult(state, land);
 }
