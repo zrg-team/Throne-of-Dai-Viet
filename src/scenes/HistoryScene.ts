@@ -1099,13 +1099,9 @@ export class HistoryScene extends Phaser.Scene {
       variant: 0,
       bucket: bucketFor(plateScale),
     } as const;
-    // NOTE: every `royal` sheet carries ink in row 0 of its 144x128 canvas — measured 17 to 24
-    // opaque pixels across the top row for ly/tran/trinh/nguyen, against exactly 0 for the levy and
-    // trained sheets beside them. The helmet's plume was cropped when the pack was exported, so
-    // those pixels do not exist and no fitting brings them back; the sheets need re-exporting with
-    // a margin. Drawing the plate figure well inside its room keeps the trim from reading as a
-    // sawn-off head in the meantime. Swapping to the procedural bake was tried and is worse: it is
-    // the understudy this page was reported for using in the first place.
+    // Every reviewed Vietnamese `royal` sheet now has eight transparent pixels above and below its
+    // visible ink. Keep the plate figure inside its room as well: source padding protects the
+    // silhouette, while this layout fit separately protects the title and caption at large scale.
     const soldier = placeStamp(
       this,
       figureStamp(this, kind),
@@ -1166,7 +1162,7 @@ export class HistoryScene extends Phaser.Scene {
       MAX_PLATE_UPSCALE,
       (feetY - ceiling) / Math.max(1, before.height),
       (width - 40) / Math.max(1, before.width),
-    ) * 0.72;
+    ) * 0.86;
     soldier.setScale(soldier.scale * fit);
     const after = seen();
     soldier.x += width / 2 - (after.x + after.width / 2);

@@ -99,11 +99,9 @@ export function figureStamp(
     top: reach.top * u, bottom: reach.bottom * u,
   };
   const tier = ['levy', 'trained', 'royal'][kind.tier];
-  // `procedural` is for a caller that has looked at the sheet and found it unusable — the History
-  // plate draws a soldier several times battlefield size, where a sprite trimmed flush against its
-  // own frame shows a severed helmet. Every royal sheet is trimmed that way, which is why the
-  // report said "only Cấm quân". At marker size the same trim is invisible, so this is a decision
-  // the caller makes about its own scale rather than a rule for the whole game.
+  // `procedural` remains available when a caller has found an authored sheet unusable. The
+  // Vietnamese royal sheets themselves are exported with transparent headroom, so callers can use
+  // the reviewed art at both marker scale and the History page's much larger reference-plate scale.
   const generated = opts.procedural ? undefined : conquestArtStamp(
     scene,
     `figure.${kind.theme}.${tier}.${kind.arm ?? 'spear'}`,
