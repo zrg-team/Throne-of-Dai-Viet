@@ -52,7 +52,8 @@ import { pushToast } from './notifications';
 import { grantDeed } from '../../state/cabinet';
 import { noteRubbing } from '../ascent/Inheritance';
 import type {
-  Army, AscentBattleRecord, Difficulty, EraId, GameState, InvasionRecord, Kingdom, Land, PendingBattle,
+  Army, AscentBattleRecord, Difficulty, EraId, GameState, InvasionRecord, Kingdom, KingdomPersonality, Land,
+  PendingBattle,
 } from '../../state/types';
 import { t } from '../../i18n';
 
@@ -134,6 +135,38 @@ function defensibleStrength(state: GameState): number {
 function expectedDefensibleStrength(turn: number): number {
   return 520 * (1 + Math.min(3.0, turn * 0.028));
 }
+
+/**
+ * What a doctrine musters — its signature on the field, readable from the arms it brings.
+ *
+ * Every invader used to march at 60/28/12 whatever crown sent it, so an aggressive power and a
+ * counting-house power were the same host with a different name: measured in `battle-lab`
+ * (2026-09-04), the three doctrines produced 17%, 20% and 20% win rates under identical play.
+ * The mix is the half of a doctrine the composition matchup can read (spears rout heavy, heavy
+ * crush archers, archers shred spears — `compositionMatchup`); the other half is the shape it
+ * opens in (`doctrineOpening`, BattleSystem). Each is *power-normalised* at the spawn, so the
+ * doctrine changes what the host is made of and never how much of it there is.
+ */
+function doctrineHostMix(personality: KingdomPersonality | undefined): { spearmen: number; archers: number; heavy: number } {
+  switch (personality) {
+    // Comes on hard: a heavy core to break a line by weight.
+    case 'aggressive': return { spearmen: 0.50, archers: 0.15, heavy: 0.35 };
+    // Stands and shoots: bows behind a spear hedge, and little that charges.
+    case 'defensive': return { spearmen: 0.45, archers: 0.42, heavy: 0.13 };
+    // Spends other people's soldiers reluctantly: light, cheap, and mostly at range.
+    case 'economic':
+    case 'diplomatic': return { spearmen: 0.58, archers: 0.34, heavy: 0.08 };
+    // Takes ground with numbers: the reference profile, spears forward.
+    default: return { spearmen: 0.60, archers: 0.28, heavy: 0.12 };
+  }
+}
+
+/** Battle power per soldier of a mix, before morale, supply and level — see `armyPower`. */
+function mixPower(mix: { spearmen: number; archers: number; heavy: number }): number {
+  return mix.spearmen * 1 + mix.archers * 1.25 + mix.heavy * 1.8;
+}
+/** The 60/28/12 profile `INVADER_POWER_PER_SOLDIER` was derived from. */
+const REFERENCE_MIX_POWER = mixPower({ spearmen: 0.60, archers: 0.28, heavy: 0.12 });
 
 function personalityWeight(kingdom: Kingdom): number {
   if (kingdom.personality === 'aggressive') return 1.15;
@@ -463,7 +496,12 @@ export function launchOffMapInvasion(state: GameState, kingdomId: string | undef
   state.invasions ??= [];
   for (let i = 0; i < armyCount; i += 1) {
     const stage = staging[i % staging.length];
-    const size = Math.max(100, Math.round(rawSizes[i] * clampFactor));
+    const mix = doctrineHostMix(kingdom.personality);
+    // The budget is a *power* budget (`INVADER_POWER_PER_SOLDIER` is derived from the 60/28/12
+    // profile), so a doctrine that brings heavier men brings fewer of them: the size is scaled by
+    // the reference mix's power over this one's, and every doctrine lands the same battle power
+    // for the same soldier budget. `verify-ascent`'s "waves track the realm" band is unmoved.
+    const size = Math.max(100, Math.round(rawSizes[i] * clampFactor * REFERENCE_MIX_POWER / mixPower(mix)));
     const army: Army = {
       id: `invasion-${kingdomId}-${state.turn}-${i}`,
       kingdomId,
@@ -472,9 +510,9 @@ export function launchOffMapInvasion(state: GameState, kingdomId: string | undef
         : `${kingdom.name} ${intent === 'conquest' ? 'War Host' : 'Raiders'}`,
       landId: stage.id,
       units: {
-        spearmen: Math.floor(size * 0.6),
-        archers: Math.floor(size * 0.28),
-        heavyInfantry: Math.floor(size * 0.12),
+        spearmen: Math.floor(size * mix.spearmen),
+        archers: Math.floor(size * mix.archers),
+        heavyInfantry: Math.floor(size * mix.heavy),
       },
       morale: 85,
       supply: 90,

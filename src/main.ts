@@ -43,7 +43,12 @@ declare global {
     __hudTapBounds?: Array<{ x: number; y: number; width: number; height: number }>;
     render_game_to_text?: () => string;
     advanceTime?: (ms: number) => void;
-    __startBenchGame?: (seed?: number, mode?: 'rival' | 'campaign' | 'empire' | 'ascent') => void;
+    /**
+     * Boots a mode straight from a harness. `ascent` and `arena` are what the menu offers;
+     * `empire`, `campaign` and `rival` are shelved and reachable only through this hook — see the
+     * note on the implementation before reading a green run in one of them as shipped surface.
+     */
+    __startBenchGame?: (seed?: number, mode?: 'rival' | 'campaign' | 'empire' | 'ascent' | 'arena') => void;
     /**
      * The two halves of the launch splash, both declared inline in `index.html` so they exist
      * before this bundle does. `__splashDone` takes the splash down — `MenuScene` calls it once
@@ -317,10 +322,33 @@ window.advanceTime = (ms: number) => {
   }
 };
 
-// Deterministic benchmark bootstrap (tooling only). Seeds Math.random so the
-// generated map/state is identical across before/after performance runs, builds
-// a fresh game state, and jumps straight into MapScene (which launches UIScene).
+/**
+ * Deterministic benchmark bootstrap (tooling only). Seeds Math.random so the generated map/state
+ * is identical across before/after performance runs, builds a fresh game state, and jumps straight
+ * into MapScene (which launches UIScene).
+ *
+ * **Three of these modes are shelved, and this hook is the only door left to them.**
+ * `MenuScene.renderClassic` offers one card, the Skirmish: Throne of Empires, the Campaign and the
+ * Rival start are still built and still held to their fingerprints by `verify-modes-regression`,
+ * but no player can reach them. A harness that boots `empire`, `campaign` or `rival` is therefore
+ * testing *shared* code — MapScene, the economy, the conquest UI — through a door the shipped game
+ * does not have, and its result says nothing about what a player meets. A 2026-09-04 playtest read
+ * a green four-mode smoke run as four live modes and graded three shelves; hence this note.
+ *
+ * What ships: `ascent` (Dragon Ascent, the game) and `arena` (the Skirmish). Restoring either long
+ * classic run is putting its entry back in `renderClassic`'s list, and this comment is then wrong.
+ */
 window.__startBenchGame = (seed = 1337, mode = 'rival') => {
+  // The Skirmish carries no GameState: it builds both hosts from its own dials and hands the fight
+  // to ConquestScene on "Take command". Routed here so a gate can reach the one classic mode a
+  // player is actually offered by the same call it uses for everything else.
+  if (mode === 'arena') {
+    for (const key of ['MenuScene', 'GuideScene', 'HistoryScene', 'CampaignScene', 'MapScene', 'UIScene', 'ConquestScene', 'ConquestUIScene']) {
+      if (game.scene.getScene(key)) game.scene.stop(key);
+    }
+    game.scene.start('BattleArenaScene');
+    return;
+  }
   const originalRandom = Math.random;
   let s = (seed >>> 0) || 1;
   Math.random = () => {

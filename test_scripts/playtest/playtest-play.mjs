@@ -71,6 +71,13 @@ if (!STRATEGY_PATH) {
 }
 const strategy = JSON.parse(readFileSync(STRATEGY_PATH, 'utf8'));
 const SEED_COUNT = Number(argOf('--seeds', 8));
+/**
+ * Runtime overrides for `ASCENT_TUNING` (ascentConfig), as JSON — e.g.
+ * `--tuning '{"shadowShareMult":0.5,"ambitionCardMult":0}'`. Applied in the page after boot, so
+ * every seed on this page sees them; the ledger records them beside the strategy so an A/B can
+ * be told apart from a retune afterwards.
+ */
+const TUNING = JSON.parse(argOf('--tuning', '{}'));
 const TICKS = Number(argOf('--ticks', 600));
 const SEEDS = Array.from({ length: SEED_COUNT }, (_, i) => 11 + i * 11);
 
@@ -78,6 +85,9 @@ const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
 const errors = [];
 page.on('pageerror', (e) => errors.push(`PAGEERROR ${e.message}`));
+// Before navigation, so every instance of ascentConfig the page loads is seeded — see the note on
+// `ASCENT_TUNING`; assigning after boot only reached the harness's own import.
+if (Object.keys(TUNING).length) await page.addInitScript((t) => { window.__ascentTuning = t; }, TUNING);
 await page.goto(`${BASE_URL}/?capture=1`, { waitUntil: 'domcontentloaded' });
 await page.waitForFunction(
   () => typeof window.__startBenchGame === 'function' && window.__phaserGame.scene.isActive('MenuScene'),
@@ -85,6 +95,12 @@ await page.waitForFunction(
 );
 await page.evaluate(READ_OPTIONS);
 await page.evaluate(ENGINE_BOOT);
+if (Object.keys(TUNING).length) {
+  await page.evaluate(async (tuning) => {
+    const { ASCENT_TUNING } = await import('/src/game/ascentConfig.ts');
+    Object.assign(ASCENT_TUNING, tuning);
+  }, TUNING);
+}
 
 const runs = await page.evaluate(async ({ seeds, ticks, rules }) => {
   const { advanceAscentTick } = await import('/src/systems/ascent/AscentTick.ts');

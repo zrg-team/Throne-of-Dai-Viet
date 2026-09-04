@@ -1,6 +1,6 @@
 ---
-description: 40-second gate — boots every mode in a real browser and fails on console errors or a blank frame
-argument-hint: "[--modes ascent,empire] [--shots] [--seed 1337]"
+description: 45-second gate — boots the shipped modes (Dragon Ascent, Skirmish) plus the three shelved ones in a real browser, and fails on console errors or a blank frame
+argument-hint: "[--modes ascent,arena] [--shots] [--seed 1337]"
 allowed-tools: Bash, Read
 ---
 

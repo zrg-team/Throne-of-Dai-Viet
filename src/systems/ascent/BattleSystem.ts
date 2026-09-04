@@ -579,7 +579,7 @@ function raiseDefenceField(
     totalRounds,
     // Frozen at muster: a king who dies mid-fight does not change the man on the field.
     commanderTemper: temperOf(state, draft),
-    theirFormation: openingShape(draft, theirsTotal),
+    theirFormation: doctrineOpening(state, draft) ?? openingShape(draft, theirsTotal),
     ourStartMorale: defender.morale,
     ourMorale: defender.morale,
     theirMorale: invader.morale,
@@ -703,7 +703,7 @@ function beginAssault(state: GameState, pending: PendingBattle): boolean {
     ...draft,
     totalRounds,
     commanderTemper: temperOf(state, draft),
-    theirFormation: openingShape(draft, theirsTotal),
+    theirFormation: doctrineOpening(state, draft) ?? openingShape(draft, theirsTotal),
     ourStartMorale: line.morale,
     ourMorale: line.morale,
     theirMorale: theirs[0].morale,
@@ -894,8 +894,15 @@ function enemyStance(state: GameState, battle: AscentBattle): FieldStance {
     // A player who has NEVER ordered a shape is the passive line at its most absolute — measured,
     // mirror openings against an untouched dock were a fuzz coin-flip the sleeping player won
     // often enough to matter, because the invader sat content at even shape all fight.
+    //
+    // "Never ordered" means NEITHER dial. This read the shape clock alone, so a player fighting
+    // the whole engagement on the tempo dial — bracing, pressing, never re-forming — was treated
+    // as asleep: pressed at 1.55/1.40 on every even beat, no hesitation, no window. Measured in
+    // `battle-lab` (2026-09-04) that is why the brace and charge cells of the ring grid scored
+    // 1-2% against every doctrine while the one stance that happens to order a shape scored the
+    // rest: the grid was grading "did you touch the dock", not the ring.
     if (battle.stance === 'defend' || battle.stance === 'withdraw'
-      || battle.beatsSinceOurShape === undefined) return 'press';
+      || (battle.beatsSinceOurShape === undefined && !battle.steeredStance)) return 'press';
     // Even shape against an active player buys nothing by spending faster. Aggressive powers still
     // press once they are ahead on heart, which is what keeps a personality learnable across a run.
     if (personality === 'aggressive' || personality === 'expansionist') {
@@ -1153,7 +1160,8 @@ function advanceEnemyFormation(state: GameState, battle: AscentBattle, theirs: A
   // opening against an idle dock ground out an auto win on the general's aura alone, because the
   // invader pressed but never re-formed. A player who has ordered even once keeps medium's
   // even-shape rest; the difficulty dial is untouched for anyone actually playing.
-  const idleDock = battle.beatsSinceOurShape === undefined;
+  // Neither dial, not just the shape dial — see the same rule in `enemyStance`.
+  const idleDock = battle.beatsSinceOurShape === undefined && !battle.steeredStance;
   if (tilt > 0 || (tilt === 0 && !battleAnswersEven() && !idleDock)) return;
 
   // Difficulty is how fast the enemy answers your shape, and nothing else — see `battleOptions`.
@@ -1432,6 +1440,30 @@ function pickMoment(pool: BattleMomentDef[], seed: number): BattleMomentDef {
  * `Math.random` here would shift the RNG order for every mode's regression fingerprint, and the
  * same fight must open the same way twice for the lab to measure anything.
  */
+/**
+ * The shape a doctrine walks onto the field in — its signature, readable before a beat is fought.
+ *
+ * Measured in `battle-lab` (2026-09-04): aggressive, defensive and economic invaders produced
+ * 17%, 20% and 20% win rates under the same play, because every one of them opened in a hashed
+ * shape and brought the same 60/28/12 host. A doctrine the player cannot tell from another is
+ * not a doctrine. Now the hasty come on in the wedge, the stubborn stand behind shields, the
+ * counting-house powers loose from range, and the expansionist spreads to take ground — each of
+ * which the ring has a named answer to. Diplomatic powers keep the draw: they have no field
+ * character, and one doctrine that must be read on the beat is what stops the table from being
+ * memorised outright. The ring is still a conversation after the opening: he re-forms whenever
+ * the matchup turns against him (`advanceEnemyFormation`), on his temper's clock.
+ */
+function doctrineOpening(state: GameState, draft: AscentBattle): BattleFormation | undefined {
+  const kingdom = state.kingdoms.find((candidate) => candidate.id === draft.kingdomId);
+  switch (kingdom?.personality) {
+    case 'aggressive': return 'xung';
+    case 'defensive': return 'quy';
+    case 'economic': return 'no';
+    case 'expansionist': return 'tan';
+    default: return undefined;
+  }
+}
+
 function openingShape(draft: AscentBattle, salt: number): BattleFormation {
   let hash = 2166136261;
   for (const ch of `${draft.key ?? draft.landId}:${draft.kingdomId}:${salt}`) {
@@ -2009,20 +2041,11 @@ function countersTo(theirs: BattleFormation): BattleFormation[] {
  * commander in the same fight also has to make the same decisions twice, or two runs of the lab at
  * one martial value measure noise.
  */
-function generalReadsBeat(battle: AscentBattle, martial: number): boolean {
-  const h = Math.imul(((battle.round + 1) * 2654435761) ^ Math.round(battle.ourStart), 2246822519) >>> 0;
+function generalReadsBeat(battle: AscentBattle, martial: number, salt = 0): boolean {
+  const h = Math.imul(((battle.round + 1 + salt * 7919) * 2654435761) ^ Math.round(battle.ourStart), 2246822519) >>> 0;
   return (h % 100) < martial;
 }
 
-/**
- * The commander's beat, when the player has handed over the field.
- *
- * A great commander reads the enemy's stance and answers it; a poor one holds what they have and
- * keeps their one-shots in hand, which is what makes a bad appointment lose slowly rather than
- * catastrophically. The one-shots are doctrine rather than a read — any commander commits the
- * reserve once the lines have met — so they are spent on the beats they get right *and* wrong,
- * only later when the read fails.
- */
 function generalPlaysBeat(state: GameState, battle: AscentBattle): void {
   const met = battle.ourAdvance + battle.theirAdvance >= 1;
   // The dials are the player's until they are handed over. The officer no longer covers an
@@ -2058,8 +2081,17 @@ function generalPlaysBeat(state: GameState, battle: AscentBattle): void {
   if (generalReadsBeat(battle, martial)) {
     const read = battleTelegraph(state);
     if (read) {
-      // The shape they are heading for, if they are heading anywhere — a commander who can read a
-      // beat reads the walk, not just the stand.
+      // The shape they are heading for, if they are heading anywhere — every commander reads the
+      // walk, not just the stand.
+      //
+      // Two handicaps for the fair commander were tried on 2026-09-04 to open the lab's "8-15
+      // points under hand play" premium: reading the enemy's stand below martial 80, and needing
+      // a second read to act. Both opened the gap in the lab (13 points) and both were paid for
+      // by every delegated fight in a run — the metrics harness, whose engaged policy delegates
+      // every fight, fell from 18.9 waves to 11.4-11.8 and the agency ratio from 2.48x to 1.9-2.1x.
+      // Reading the stand alone measured a 0.0-point lab gap and the full run-length cost. A
+      // realm that can defend itself while the player is elsewhere is worth more than a premium
+      // on attention, so the lab's 8-15 target stays red with this note beside it.
       const target = read.next ?? read.formation;
       const answer = countersTo(target).find((shape) => canFormFormation(state, shape));
       if (answer && answer !== battle.ourFormation && !reforming(battle.reformBeats)) {

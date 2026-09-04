@@ -22,7 +22,7 @@ A dev server must already be running — **no harness starts one** — and every
 **from the repository root**, because output paths are written relative to it.
 
 ```bash
-node test_scripts/gate/smoke.mjs                    # every mode boots, ticks, draws — ~40 s
+node test_scripts/gate/smoke.mjs                    # ascent + skirmish (and the 3 shelved modes) boot, tick, draw — ~45 s
 node test_scripts/verify/verify-ascent.mjs          # the Dragon Ascent loop end to end
 node test_scripts/verify/verify-dynasty.mjs         # the Tong Pha ledger: XP banks once, the ceremony walks, every trait is read; the dossier gates (page fit, lineage, live reign, the timed reign-end sequence, the chip's house share)
 node test_scripts/verify/verify-draft-depth.mjs     # the deck: upgrades >= 25% of offers, a deck slot once two cards are held, a held card's third copy in <= 8 rubbings (8 seeds)

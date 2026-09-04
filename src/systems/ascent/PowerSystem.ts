@@ -1,7 +1,7 @@
 import { vassalPowerTerm } from './VassalSystem';
 import { PLAYER_KINGDOM_ID } from '../../game/constants';
-import { REALM_DEFENCE_SHARE, XP_PER_OWNED_LAND, XP_PER_TICK_BASE, xpToNextLevel } from '../../game/ascentConfig';
-import { armyPower, garrisonPower } from '../WarSystem';
+import { REALM_DEFENCE_SHARE, XP_PER_OWNED_LAND, XP_PER_TICK_BASE, xpToNextLevel, ASCENT_TUNING, TENURE_MILITIA_SIZING_SHARE } from '../../game/ascentConfig';
+import { armyPower, garrisonPower, garrisonPowerCountingMilitia } from '../WarSystem';
 import { ambitionHeat } from './AmbitionSystem';
 import type { GameState, Land } from '../../state/types';
 
@@ -143,14 +143,61 @@ export function contestedDefencePower(state: GameState): number {
  * a dozen frontier villages.
  */
 export function waveFacingDefencePower(state: GameState): number {
-  const field = computeFieldDefencePower(state);
+  const field = sizingFieldDefencePower(state);
   const capitalId = state.ascent?.capitalLandId;
   const garrisons = state.lands
     .filter((land) => land.ownerId === PLAYER_KINGDOM_ID && land.id !== capitalId)
-    .map((land) => landGarrisonPower(state, land))
+    .map((land) => sizingGarrisonPower(state, land))
     .sort((a, b) => a - b);
   const median = garrisons.length > 0 ? garrisons[Math.floor(garrisons.length / 2)] : 0;
   return Math.round(field + median);
+}
+
+/** The militia share the wave's sizing readers count; the tooling override wins when it is set. */
+function militiaSizingShare(): number {
+  return ASCENT_TUNING.tenureMilitiaSizingShare !== 1
+    ? ASCENT_TUNING.tenureMilitiaSizingShare
+    : TENURE_MILITIA_SIZING_SHARE;
+}
+
+/**
+ * A province's garrison as the wave is allowed to see it: the walls in full, the militia at
+ * `TENURE_MILITIA_SIZING_SHARE`. The tenure dividend (see that constant) lives in the gap between
+ * this and `landGarrisonPower`, which the odds card, the HUD and the levy still read whole.
+ */
+export function sizingGarrisonPower(state: GameState, land: Land): number {
+  return garrisonPowerCountingMilitia(state, land, militiaSizingShare());
+}
+
+/** `computeFieldDefencePower` with the capital's militia at the sizing share. */
+function sizingFieldDefencePower(state: GameState): number {
+  let total = 0;
+  for (const army of state.armies) {
+    if (army.kingdomId === PLAYER_KINGDOM_ID) total += armyPower(state, army);
+  }
+  const capitalId = state.ascent?.capitalLandId;
+  const capital = state.lands.find(
+    (land) => land.id === capitalId && land.ownerId === PLAYER_KINGDOM_ID,
+  );
+  if (capital) total += sizingGarrisonPower(state, capital);
+  return Math.round(total);
+}
+
+/**
+ * `contestedDefencePower` as the wave's shadow samples it: every garrison's militia at the sizing
+ * share. The odds card keeps `contestedDefencePower` (a wave really does have to get through the
+ * whole watch), but the *next* wave is not sized against the part of it that patience raised.
+ */
+export function sizingDefencePower(state: GameState): number {
+  const field = sizingFieldDefencePower(state);
+  let total = 0;
+  for (const army of state.armies) {
+    if (army.kingdomId === PLAYER_KINGDOM_ID) total += armyPower(state, army);
+  }
+  for (const land of state.lands) {
+    if (land.ownerId === PLAYER_KINGDOM_ID) total += sizingGarrisonPower(state, land);
+  }
+  return Math.round(field + (Math.round(total) - field) * REALM_DEFENCE_SHARE);
 }
 
 /** Provinces the player currently holds. */
