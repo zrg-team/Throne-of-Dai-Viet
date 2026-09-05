@@ -64,6 +64,8 @@ import { pushToast } from '../empire/notifications';
 import { t } from '../../i18n';
 import { enqueueAscentPrompt, standingHostCount } from './AscentState';
 import { defaultMusterPlan, musterBlockedReason } from './MusterSystem';
+import { realmPriceScale } from './priceScale';
+import { autoSellWaste } from './GranarySystem';
 import { getMusterEstimate } from '../WarSystem';
 import type { GameState, Land, LandBuildingType } from '../../state/types';
 
@@ -813,7 +815,9 @@ export function tickAscentAutopilot(state: GameState): void {
   // time four seasons of the roster's and the hosts' pay. Measured before this, the autopilot
   // spent the treasury on mines while the royal host went unpaid and dissolved at turn twenty.
   const wageBill = heroPayroll(state) + ascentArmyUpkeep(state).gold + getTotalArmyGoldUpkeepAscent(state);
-  const buildReserve = Math.max(AUTOBUILD_GOLD_RESERVE, -state.resourceRates.gold * 8, wageBill * 4);
+  // The flat reserve is a minimum host at the founding's prices; it wears the realm's price
+  // scale so a rich realm's autopilot does not build down to a float that no longer buys one.
+  const buildReserve = Math.max(AUTOBUILD_GOLD_RESERVE * realmPriceScale(state), -state.resourceRates.gold * 8, wageBill * 4);
   /**
    * **Nothing is bought while a muster card is standing.**
    *
@@ -842,6 +846,9 @@ export function tickAscentAutopilot(state: GameState): void {
   }
 
   autoResupply(state);
+  // Grain and goods that would rot go to market. Only the stock above the waste line, so the
+  // player's own once-a-season sale is never spent on stores they meant to keep.
+  autoSellWaste(state);
 
   // The player's standing order first; free ground only when there is no front to press.
   if (autoMarch(state) || autoClaimWilderness(state)) {

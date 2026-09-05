@@ -40,6 +40,7 @@ import {
   WALL_DEFENCE_FLOOR,
 } from '../../game/ascentConfig';
 import { enqueueAscentPrompt } from './AscentState';
+import { scaledCost } from './priceScale';
 import {
   BUILDING_ECONOMY, applyResourceDelta, canSpend, refreshAllLandOutputs,
 } from '../ResourceSystem';
@@ -204,7 +205,8 @@ export function restoreBill(state: GameState, land: Land): Partial<ResourceBag> 
   for (const key of Object.keys(bill) as (keyof ResourceBag)[]) {
     if (!bill[key]) delete bill[key];
   }
-  return bill;
+  // The scaled purse: the damage is priced in the realm's own coin. See `priceScale.ts`.
+  return scaledCost(state, bill);
 }
 
 function scaled(bill: Partial<ResourceBag>, share: number): Partial<ResourceBag> {

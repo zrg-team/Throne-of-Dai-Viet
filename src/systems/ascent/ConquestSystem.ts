@@ -30,7 +30,7 @@ import { isAutoHost } from './armyOrders';
 import { hostOrderRefusal, setArmyOrders } from './StandingOrders';
 import { releaseHeroAssignment } from '../CourtSystem';
 import { pushToast } from '../empire/notifications';
-import { applyResourceDelta, militiaCapacity, refreshAllLandOutputs } from '../ResourceSystem';
+import { applyResourceDelta, getLandAptitude, militiaCapacity, refreshAllLandOutputs } from '../ResourceSystem';
 import { addAscentXp, landGarrisonPower } from './PowerSystem';
 import { heroName, t } from '../../i18n';
 import type {
@@ -200,6 +200,7 @@ export function buildConquestTarget(state: GameState, land: Land): ConquestTarge
     ownerName: state.kingdoms.find((kingdom) => kingdom.id === land.ownerId)?.name,
     garrison: Math.round(landGarrisonPower(state, land)),
     rewardTag: rewardTag(land),
+    suits: landSuits(land),
     bestChance: open.reduce((best, method) => Math.max(best, method.chance), 0),
     hasCertainMethod: open.some((method) => method.chance >= 100),
     methods,
@@ -325,7 +326,7 @@ function settleOption(state: GameState, land: Land): ConquestMethodOption {
   return {
     method: 'settle',
     cost: { humans: cost },
-    ticks: getSettleTicks(land),
+    ticks: getSettleTicks(state, land),
     loyalty: 65,
     chance: 100,
     blockedReason: state.resources.humans < cost
@@ -733,6 +734,21 @@ function bestBattle(state: GameState, land: Land): { chance: number; armyId?: st
     }
   }
   return { chance: best, armyId };
+}
+
+/**
+ * The economic focus this ground is best made for, and how well.
+ *
+ * What a claim is actually chosen *for*: the reward tag below reads today's outputs, which for a
+ * village nobody has built on is nothing, so it called nearly every province "open country". A
+ * player who reads the land — a delta for rice, a limestone shelf for iron, a crossroads for
+ * coin — has to be able to read it before paying for it, or the skill has nowhere to show.
+ */
+function landSuits(land: Land): ConquestTarget['suits'] {
+  const aptitude = getLandAptitude(land);
+  const focus = (['breadbasket', 'mining', 'trade'] as const)
+    .reduce((best, next) => (aptitude[next] > aptitude[best] ? next : best));
+  return { focus, pct: Math.round(aptitude[focus] * 100) };
 }
 
 /** The one-word reason to want this province, shown as the card's reward tag. */

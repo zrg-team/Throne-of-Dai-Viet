@@ -31,7 +31,9 @@ import {
   ASCENT_MILITIA_REGROW_DELAY, GARRISON_RECOVER_SEASONS, RETAKE_BONUS_WAVES, RETAKE_POWER_BONUS,
 } from '../../../game/ascentConfig';
 import { wallManning } from '../../../systems/WarSystem';
-import { buildFocusRows } from '../../../ui/focusPanel';
+import { STORE_KEYS, saleQuote, sellStores, storeWasteFrom } from '../../../systems/ascent/GranarySystem';
+import { STORE_WASTE_RATE } from '../../../game/ascentConfig';
+import { buildFocusRows, focusTitle } from '../../../ui/focusPanel';
 import { buildGovernorRows } from '../../../ui/governorPanel';
 import { buildHeroPickerRows } from '../../../ui/heroPickerRows';
 import { compactNumber } from '../../../utils/format';
@@ -225,7 +227,9 @@ export function showClaimTargets(self: ConquestUIScene): void {
     addRow(
       {
         title: target.landName,
-        subtitle: `${open.length > 0 ? t('ascent.conquer.ways', { n: open.length }) : target.busyReason ?? t('ascent.conquer.noWay')}  ·  ${t('ascent.march.garrison', { value: target.garrison })}${bestLine ? `\n${bestLine}` : ''}`,
+        subtitle: `${open.length > 0 ? t('ascent.conquer.ways', { n: open.length }) : target.busyReason ?? t('ascent.conquer.noWay')}  ·  ${t('ascent.march.garrison', { value: target.garrison })}${
+          target.suits ? `  ·  ${t('ascent.conquer.suits', { focus: focusTitle(state, target.suits.focus), pct: target.suits.pct })}` : ''
+        }${bestLine ? `\n${bestLine}` : ''}`,
         border: open.length > 0 ? INK_UI.jade : INK_UI.softBrush,
         muted: open.length === 0,
       },
@@ -627,6 +631,40 @@ export function showLedgerScreen(self: ConquestUIScene): void {
     flow('supplies', ledger.supplies),
     flow('gold', ledger.gold),
   ]));
+
+  // The stores: what would rot, sold through the markets. One row a store, the sale on the tap
+  // and the waste line under it, so a granary reading sixty thousand is a number with a verb next
+  // to it rather than a scoreboard. See `GranarySystem`.
+  addHeading(t('ascent.ledger.stores'));
+  for (const key of STORE_KEYS) {
+    const quote = saleQuote(state, key);
+    const name = resourceLabel(key);
+    const wasted = ledger.waste?.[key] ?? 0;
+    const body = `${t('ascent.ledger.sellBody', {
+      capacity: quote.capacity,
+      from: compactNumber(storeWasteFrom(state, key)),
+      rate: Math.round(STORE_WASTE_RATE * 100),
+    })}${wasted > 0 ? `\n${t('ascent.ledger.wasted', { n: wasted })}` : ''}`;
+    if (quote.blocked) {
+      const why = quote.blocked === 'no-market'
+        ? t('ascent.ledger.sellNoMarket', { resource: name })
+        : quote.blocked === 'sold'
+          ? t('ascent.ledger.sellDone', { resource: name })
+          : t('ascent.ledger.sellNothing', { resource: name });
+      addRow({ title: why, subtitle: body, border: wasted > 0 ? INK_UI.cinnabar : INK_UI.softBrush, muted: true });
+      continue;
+    }
+    addRow(
+      {
+        title: t(quote.thin ? 'ascent.ledger.sellThin' : 'ascent.ledger.sell', { units: quote.units, resource: name, gold: quote.gold }),
+        subtitle: body,
+        border: wasted > 0 ? INK_UI.cinnabar : INK_UI.jade,
+      },
+      () => {
+        if (sellStores(state, key)) self.replaceLanePage(() => showLedgerScreen(self));
+      },
+    );
+  }
 
   // Where the gold goes, by name. One figure for "out" told nobody why the treasury moved; the
   // categories say what is eating it and open the screen where it can be answered.

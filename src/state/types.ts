@@ -107,6 +107,8 @@ export interface Land {
   trust: Record<string, number>;
   /** Player-chosen economic focus for this province. Absent = 'balanced'. */
   specialization?: LandSpecialization;
+  /** Season the focus was last set (Dragon Ascent), so a fresh choice is given time to work. */
+  focusSetTurn?: number;
   /**
    * How far this province actually obeys the throne's standing law, 0–100 (empire/ascent only).
    *
@@ -1533,6 +1535,8 @@ export interface AscentLedger {
    * hosts, the provinces' wages, building upkeep, graft, and the tax an unpaid province keeps.
    */
   goldParts?: { payroll: number; hosts: number; wages: number; buildings: number; graft: number; softcap: number; withheld: number };
+  /** Grain rotted and goods spoiled this season, above the stores' waste line. See `GranarySystem`. */
+  waste?: { food: number; supplies: number };
 }
 
 /** An optional offer a story hangs on a subject the player already visits. Never an order. */
@@ -1578,6 +1582,8 @@ export interface AscentLaneStats {
   envoyActions: Record<string, number>;
   /** Demands answered — the counterpart to `envoyActions`, which the player initiates. */
   rivalAnswers?: number;
+  /** Units of grain and goods sold through the markets, over the run. */
+  storesSold?: number;
 }
 
 /** One stack level of a Power Draft card: what it applies, and the numbers printed on the card. */
@@ -1674,6 +1680,13 @@ export interface ConquestTarget {
   garrison: number;
   /** i18n key suffix for the province's draw (`gold` | `food` | `iron` | `shrine` | `plain`). */
   rewardTag: string;
+  /**
+   * The economic focus the ground is best made for, and how well (0-100). The reward tag reads
+   * today's outputs, which for an unbuilt village is nothing — so every village said "open
+   * country" and the one thing a claim is chosen for, what the land can *become*, was nowhere
+   * on the card.
+   */
+  suits?: { focus: LandSpecialization; pct: number };
   /** Best chance across every takeable method. Drives ordering, not the card's headline. */
   bestChance: number;
   /** True when at least one open method cannot fail — the province is takeable at no risk. */
@@ -1892,8 +1905,13 @@ export type AscentPrompt =
     kind: 'province-order';
     landId: string;
     landName: string;
-    /** What raised it: the resource the realm is bleeding, or ground left open. */
-    reason: 'food' | 'supplies' | 'gold' | 'undefended';
+    /**
+     * What raised it: the resource the realm is bleeding, ground left open, or — once, in the
+     * opening — a seat that has not yet been told what it is for.
+     */
+    reason: 'food' | 'supplies' | 'gold' | 'undefended' | 'setup';
+    /** The resource the proposed focus is chosen for; the shortage itself, or the setup's pick. */
+    resource?: 'food' | 'supplies' | 'gold';
     /** The realm's net rate for that resource, so the card can show what it is answering. */
     rate?: number;
     options: ProvinceOrderOption[];
@@ -2888,6 +2906,15 @@ export interface AscentState {
    * treasury can simply buy.
    */
   warPurchases: number;
+  /**
+   * The scaled purse's smoothed multiplier on routine prices (`priceScale.ts`). Optional so a
+   * save written before it existed loads at 1 and steps toward the live figure.
+   */
+  priceScale?: number;
+  /** The opening's "what is the seat for?" card has been offered; it is asked once. */
+  setupOrderOffered?: boolean;
+  /** Lots of each store sold through the markets this season (`SALE_LOTS_PER_SEASON`), by turn. */
+  storeSales?: Partial<Record<'food' | 'supplies', { turn: number; lots: number }>>;
   /** Wave in which Twice-Born last reformed a broken host, so it fires once per wave. */
   twiceBornWave: number;
 

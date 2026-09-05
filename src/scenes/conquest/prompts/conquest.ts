@@ -18,6 +18,7 @@ import { buildAllConquestTargets, methodActorLine, methodHasActor }
   from '../../../systems/ascent/ConquestSystem';
 import { buildHeroPickerRows, buildHostPickerRows } from '../../../ui/heroPickerRows';
 import { CardFan } from '../../../ui/ascent/CardFan';
+import { focusTitle } from '../../../ui/focusPanel';
 import { UI_FONT } from '../../../ui/fonts';
 import { INK_UI, type UIBounds } from '../../../ui/InkUI';
 import { iconForOption } from '../../../ui/CardIcons';
@@ -234,7 +235,20 @@ function provinceCard(self: ConquestUIScene,
 
   return self.optionCard(bounds, {
     title: target.landName,
-    body: `${t(`ascent.conquer.kind.${target.landKind}` as Parameters<typeof t>[0], { owner: target.ownerName ?? '' })}  ·  ${t(`ascent.march.reward.${target.rewardTag}` as Parameters<typeof t>[0])}`,
+    body: [
+      // What the ground is *for*, beside what it is. The reward tag reads today's outputs, and an
+      // unbuilt village has none — so nearly every village read "open country" and the thing a
+      // claim is chosen for, what the land can become, was nowhere on the card. The tag still
+      // speaks where it says something (a shrine, a district already paying); "open country" is
+      // the tag's way of saying nothing, and it is left off.
+      [
+        t(`ascent.conquer.kind.${target.landKind}` as Parameters<typeof t>[0], { owner: target.ownerName ?? '' }),
+        target.suits
+          ? t('ascent.conquer.suits', { focus: focusTitle(self.state, target.suits.focus), pct: target.suits.pct })
+          : '',
+      ].filter(Boolean).join('  ·  '),
+      target.rewardTag !== 'plain' ? t(`ascent.march.reward.${target.rewardTag}` as Parameters<typeof t>[0]) : '',
+    ].filter(Boolean).join('\n'),
     note: `${note}  ·  ${t('ascent.march.garrison', { value: target.garrison })}`,
     // Green means a road in that cannot fail; amber means every road is a gamble.
     accent: open.length === 0
@@ -258,16 +272,21 @@ export function showConquerTarget(self: ConquestUIScene, prompt: Extract<AscentP
 
   const rowHeight = 92;
   const cards: Phaser.GameObjects.Container[] = [];
-  prompt.targets.forEach((target, index) => {
-    cards.push(provinceCard(self, 
-      { x: 0, y: index * (rowHeight + 10), width: bodyWidth, height: rowHeight },
+  // Stride by each card's measured height, never by the constant: the suits line makes the body
+  // two lines, and a card that grows past the constant overlaps the one beneath it.
+  let used = 0;
+  prompt.targets.forEach((target) => {
+    const card = provinceCard(self,
+      { x: 0, y: used, width: bodyWidth, height: rowHeight },
       target,
       () => self.choose(target.landId),
       body,
-    ));
+    );
+    cards.push(card);
+    used += ((card.getData('cardHeight') as number) ?? rowHeight) + 10;
   });
   staggerIn(self, cards);
-  finish(prompt.targets.length * (rowHeight + 10));
+  finish(used);
 
   promptFoot(self, content, {
     close: { label: t('ascent.march.hold'), onTap: () => self.choose('hold') },

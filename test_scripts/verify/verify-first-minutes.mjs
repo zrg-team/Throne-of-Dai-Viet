@@ -52,6 +52,10 @@ window.__fmOptions = (p) => {
     case 'muster-proposal': return ['accept', 'adjust', 'decline'];
     case 'decree-offer': return [...p.projectIds, 'decline'];
     case 'empire-response': return p.options.map((o) => o.id);
+    // The province card (the opening's setup card is one): the focus row first, then the posting,
+    // then leave-it. It fell through to ['ok'], which the resolver refuses, and the card stood for
+    // the rest of the window — the setup card now lands at about season 7, ahead of the draft.
+    case 'province-order': return p.options.map((o) => o.id);
     case 'envoy': case 'famine': case 'rival-demand': case 'story-beat': case 'world-event':
       return (p.options ?? []).filter((o) => o.affordable !== false).map((o) => o.id);
     default: return ['ok'];
@@ -112,7 +116,9 @@ while (Date.now() - t0 < WINDOW_MS && marks['power draft'] === undefined) {
     // asking the systems to pick between things they know about. Counting its option map would
     // score a wardrobe as a confirmation dialog. What the check is about is the first card the
     // player is asked to *answer*, so the rite is stepped over and the mandate is measured.
-    if (firstCardPressable === 0 && now.kind !== 'coronation') firstCardPressable = now.pressable;
+    // The Inheritance card is a summary with one button, by design (see `createAscentGameState`);
+    // like the rite it is stepped over, and the mandate is the first card that is *asked*.
+    if (firstCardPressable === 0 && now.kind !== 'coronation' && now.kind !== 'inheritance') firstCardPressable = now.pressable;
     mark('first card');
     if (now.kind === 'power-draft') mark('power draft');
   }

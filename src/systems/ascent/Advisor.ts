@@ -3,13 +3,16 @@ import type { TranslationKey } from '../../i18n';
 import {
   AMBITION_DECAY_PER_WAVE,
   AMBITION_HEAT_MAX,
-  TREASURY_GRAFT_FROM,
   TREASURY_GRAFT_RATE,
+  STORE_WASTE_RATE,
   CAPITAL_GRACE_TICKS,
   WAVE_BASELINE_GROWTH,
   WAVE_GRACE_TICKS,
 } from '../../game/ascentConfig';
 import { formatNumber } from '../../utils/format';
+import { treasuryGraftFrom } from './priceScale';
+import { STORE_KEYS, marketCapacity, storeWasteFrom } from './GranarySystem';
+import { resourceLabel } from '../../i18n';
 import { PLAYER_KINGDOM_ID } from '../../game/constants';
 import { heatFor } from './AmbitionSystem';
 import { contestedFronts } from './battleReport';
@@ -339,7 +342,8 @@ export function adviseAscent(state: GameState): Advice[] {
   // ── The treasury ─────────────────────────────────────────────────────────
   // Gold above the graft line evaporates, and it does so quietly. A player watching a number climb
   // has no way to know it is also being skimmed.
-  if (state.resources.gold > TREASURY_GRAFT_FROM) {
+  const graftFrom = treasuryGraftFrom(state);
+  if (state.resources.gold > graftFrom) {
     add({
       id: 'gold-rot',
       tone: 'chance',
@@ -348,12 +352,37 @@ export function adviseAscent(state: GameState): Advice[] {
       body: 'advice.goldRot.body',
       params: {
         gold: formatNumber(state.resources.gold),
-        from: formatNumber(TREASURY_GRAFT_FROM),
+        from: formatNumber(graftFrom),
         rate: pct(TREASURY_GRAFT_RATE),
-        lost: formatNumber((state.resources.gold - TREASURY_GRAFT_FROM) * TREASURY_GRAFT_RATE),
+        lost: formatNumber((state.resources.gold - graftFrom) * TREASURY_GRAFT_RATE),
       },
       lane: 'affairs',
     });
+  }
+
+  // ── The stores ───────────────────────────────────────────────────────────
+  // Grain that rots is grain the player could have sold, fed to a host, or not grown at all. The
+  // waste figure is in the ledger; the strip says it once, for the store losing the most.
+  const waste = state.ascentLedger?.waste;
+  if (waste) {
+    const worst = [...STORE_KEYS].sort((a, b) => waste[b] - waste[a])[0];
+    if (waste[worst] > 0) {
+      add({
+        id: 'store-rot',
+        tone: 'chance',
+        priority: 66,
+        line: 'advice.storeRot.line',
+        body: marketCapacity(state) > 0 ? 'advice.storeRot.body' : 'advice.storeRot.bodyNoMarket',
+        params: {
+          resource: resourceLabel(worst),
+          held: formatNumber(state.resources[worst]),
+          from: formatNumber(storeWasteFrom(state, worst)),
+          rate: pct(STORE_WASTE_RATE),
+          lost: formatNumber(waste[worst]),
+        },
+        lane: 'build',
+      });
+    }
   }
 
   // ── Unspent authority ────────────────────────────────────────────────────

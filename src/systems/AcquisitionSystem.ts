@@ -3,6 +3,8 @@ import { getAcquisitionOrder, findLand, isLandVisibleToPlayer, refreshPlayerVisi
 import { applyResourceDelta, canSpend, refreshAllLandOutputs } from './ResourceSystem';
 import { getCourtBonuses } from './CourtSystem';
 import { extraClaimSlots } from './ascent/DoctrineSystem';
+import { realmPriceScale } from './ascent/priceScale';
+import { ASCENT_SETTLE_CAPACITY_DIVISOR, EARLY_WAVE_GRACE, OPENING_CLAIM_PARTIES } from '../game/ascentConfig';
 import type { AcquisitionMethod, AcquisitionOrder, Army, GameState, Hero, Land, ResourceBag } from '../state/types';
 import { formatResourceList, heroName, t } from '../i18n';
 
@@ -48,7 +50,10 @@ export function getClaimSlots(state: GameState): number {
   if (state.gameMode !== 'ascent') {
     return Number.POSITIVE_INFINITY;
   }
-  return 1 + extraClaimSlots(state) + getCourtBonuses(state).claimSlotBonus;
+  // One more party for the founding — see `OPENING_CLAIM_PARTIES`. A claim already in flight when
+  // the grace ends finishes; the slot simply does not reopen.
+  const founding = (state.ascent?.wave ?? Number.POSITIVE_INFINITY) <= EARLY_WAVE_GRACE ? OPENING_CLAIM_PARTIES : 0;
+  return 1 + extraClaimSlots(state) + getCourtBonuses(state).claimSlotBonus + founding;
 }
 
 /** Claims the player currently has in flight. Bot-owned orders are not the player's problem. */
@@ -152,7 +157,10 @@ export function getBribeSuccessChance(land: Land): number {
 
 export function getGoldBribeCost(state: GameState, land: Land): number {
   const bonuses = getCourtBonuses(state);
-  return Math.ceil((20 + land.defense * 0.5 + land.buildingCapacity * 2 + land.localSoldiers * 1.5) * bonuses.acquisitionCostMult);
+  // The scaled purse (Dragon Ascent; 1 elsewhere): the nobles of a village ask more of a rich
+  // crown, so buying ground stays a decision after the treasury has outgrown a flat price.
+  return Math.ceil((20 + land.defense * 0.5 + land.buildingCapacity * 2 + land.localSoldiers * 1.5)
+    * bonuses.acquisitionCostMult * realmPriceScale(state));
 }
 
 export function getDiplomacyThreshold(land: Land): number {
@@ -161,15 +169,20 @@ export function getDiplomacyThreshold(land: Land): number {
 
 export function getDiplomacySuppliesCost(state: GameState, land: Land): number {
   const bonuses = getCourtBonuses(state);
-  return Math.ceil((DIPLOMACY_SUPPLIES_BASE + getNoblePower(land) * 0.5) * bonuses.acquisitionCostMult);
+  return Math.ceil((DIPLOMACY_SUPPLIES_BASE + getNoblePower(land) * 0.5) * bonuses.acquisitionCostMult * realmPriceScale(state));
 }
 
 export function getSettleHumansCost(): number {
   return SETTLE_HUMANS_BASE;
 }
 
-export function getSettleTicks(land: Land): number {
-  return Math.max(3, SETTLE_TICKS_BASE + land.buildingCapacity);
+export function getSettleTicks(state: GameState, land: Land): number {
+  // Dragon Ascent settles empty ground at half the per-slot pace — see
+  // `ASCENT_SETTLE_CAPACITY_DIVISOR`. The classic formula is untouched.
+  const perSlot = state.gameMode === 'ascent'
+    ? Math.ceil(land.buildingCapacity / ASCENT_SETTLE_CAPACITY_DIVISOR)
+    : land.buildingCapacity;
+  return Math.max(3, SETTLE_TICKS_BASE + perSlot);
 }
 
 export function getDiplomacyAssignment(landId: string): string {
@@ -433,7 +446,7 @@ export function settleLand(state: GameState, landId: string): boolean {
     return false;
   }
 
-  const required = getSettleTicks(land);
+  const required = getSettleTicks(state, land);
   applyResourceDelta(state, { humans: -humansCost });
   state.acquisitionOrders.push({
     landId,

@@ -4,6 +4,7 @@ import {
   COALITION_COOLDOWN_TICKS,
   COALITION_DOMINANCE,
   COALITION_LEAD_TICKS,
+  EARLY_WAVE_GRACE,
   TRIBUTE_COOLDOWN_TICKS,
   TRIBUTE_INCOME_MULT,
   TRIBUTE_MEANS_FLOOR,
@@ -249,6 +250,7 @@ export function tickRivalCooldowns(state: GameState): void {
 export function offerRivalDemand(state: GameState): boolean {
   const ascent = state.ascent;
   if (!ascent) return false;
+  if (ascent.wave <= EARLY_WAVE_GRACE) return false;
 
   // Tried shortest-cadence first, which is the opposite of "most dramatic first" and is
   // deliberate. Tribute is the recurring drain (22-tick cooldown) where vassalage and
@@ -267,6 +269,18 @@ export function offerRivalDemand(state: GameState): boolean {
 export function rivalDemandReady(state: GameState): boolean {
   const ascent = state.ascent;
   if (!ascent) return false;
+  /**
+   * **A young realm is nobody's mark.**
+   *
+   * `tributeCooldown` opens at `TRIBUTE_COOLDOWN_TICKS`, so the first demand landed in the
+   * opening's first Court window — season 14 to 16 — against a treasury of about a hundred
+   * gold. Paying emptied the purse the setup phase exists to spend; refusing sent a punitive
+   * host (`launchPunitiveHost`, a full wave's budget) *during wave one*. Measured, it was the
+   * second host on the map at season 16 in four seeds of eight, and both answers on the card
+   * were the wrong one. The courts start shaking the realm down once the grace is over, when it
+   * has something worth demanding and a host to refuse with.
+   */
+  if (ascent.wave <= EARLY_WAVE_GRACE) return false;
   if (rivals(state).length === 0) return false;
   return (ascent.vassalCooldown ?? 0) <= 0
     || (ascent.coalitionCooldownTicks ?? 0) <= 0

@@ -16,6 +16,7 @@ import { enqueueAscentPrompt } from './AscentState';
 import { hasTrait, noteTraitUse } from '../../state/dynasty';
 import { cabinetLevel, cabinetWeightMult, grantDeed, learnRecipe, openingHand, recipeLearned } from '../../state/cabinet';
 import { noteRubbing } from './Inheritance';
+import { realmPriceScale } from './priceScale';
 import { t } from '../../i18n';
 import type { AscentState, CourtModifier, GameState, PowerCardDef } from '../../state/types';
 
@@ -30,9 +31,16 @@ export function cardLevelEntry(card: PowerCardDef): PowerCardDef['levels'][numbe
   return card.levels[Math.min(cabinetLevel(card.id) - 1, card.levels.length - 1)];
 }
 
-/** Opening reroll price for a draft at this level. Doubles again on each use within it. */
-export function rerollPriceFor(level: number): number {
-  return Math.round(REROLL_BASE_COST * (1 + Math.max(0, level - 1) * 0.35));
+/**
+ * Opening reroll price for a draft at this level. Doubles again on each use within it.
+ *
+ * `scale` is the realm's price scale (`realmPriceScale`): the level term tracks the run's
+ * progress, the scale tracks its wealth, and a late draft in a rich realm has to cost more than
+ * a late draft in a poor one or the reroll stops being a choice for exactly the player with
+ * the most gold to make it with.
+ */
+export function rerollPriceFor(level: number, scale = 1): number {
+  return Math.round(REROLL_BASE_COST * (1 + Math.max(0, level - 1) * 0.35) * scale);
 }
 
 /** How many times this card has been taken. */
@@ -203,7 +211,7 @@ export function offerPowerDraft(state: GameState): void {
   // there is no per-draft "free reroll used" flag to keep in step with supersede, reload and the
   // level-up that opens a second draft — the zero *is* the state, and `rerollPowerDraft` puts the
   // real price back the moment it is spent.
-  ascent.rerollCost = hasTrait('first-reroll-free') ? 0 : rerollPriceFor(ascent.level);
+  ascent.rerollCost = hasTrait('first-reroll-free') ? 0 : rerollPriceFor(ascent.level, realmPriceScale(state));
   enqueueAscentPrompt(state, {
     kind: 'power-draft',
     cards,
@@ -228,7 +236,7 @@ export function rerollPowerDraft(state: GameState): boolean {
   const steady = hasTrait('first-reroll-free-2');
   if (steady && ascent.rerollCost > 0) noteTraitUse('first-reroll-free-2');
   ascent.rerollCost = ascent.rerollCost <= 0 || steady
-    ? rerollPriceFor(ascent.level)
+    ? rerollPriceFor(ascent.level, realmPriceScale(state))
     : Math.round(ascent.rerollCost * REROLL_COST_MULT);
 
   const cards = rollPowerDraftCards(state);
@@ -294,7 +302,7 @@ export function takePowerCard(state: GameState, cardId: string): boolean {
   ascent.cardStacks[cardId] = stack + 1;
   if (card.rarity === 'jade' && grantDeed('first-jade')) noteRubbing(state);
   ascent.pendingLevelUps = Math.max(0, ascent.pendingLevelUps - 1);
-  ascent.rerollCost = rerollPriceFor(ascent.level);
+  ascent.rerollCost = rerollPriceFor(ascent.level, realmPriceScale(state));
   // Power draws attention. Skipping the draft is now a real option rather than a strictly
   // worse one — it refunds momentum *and* leaves the realm quieter for the next wave.
   chargeAmbition(state, 'card');
@@ -310,7 +318,7 @@ export function skipPowerDraft(state: GameState): number {
 
   const refund = Math.round(ascent.xpToNext * XP_SKIP_REFUND_SHARE);
   ascent.pendingLevelUps = Math.max(0, ascent.pendingLevelUps - 1);
-  ascent.rerollCost = rerollPriceFor(ascent.level);
+  ascent.rerollCost = rerollPriceFor(ascent.level, realmPriceScale(state));
   addAscentXp(state, refund);
   return refund;
 }

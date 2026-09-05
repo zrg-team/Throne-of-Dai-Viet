@@ -52,11 +52,19 @@ export const WAVE_INTERVAL_TICKS = 14;
  * districts and raising a first host — a run that is under attack from tick one never gets
  * the compounding started, and the power curve has nothing to compound from.
  *
- * Trimmed from 16: with the old grace plus an 18-tick interval, a player two minutes into a
- * run had faced one or two waves while their economy had compounded ten-fold. The opening
- * needs to be a breather, not a holiday.
+ * Trimmed from 16 to 10 once: with the old grace plus an 18-tick interval, a player two
+ * minutes into a run had faced one or two waves while their economy had compounded ten-fold.
+ *
+ * **Back to 16, with the interval now 14 and a different opening.** The opening is meant to be
+ * the run's *setup phase* — the seasons in which a player reads the ground, sets a focus, posts
+ * a governor and claims the district the realm needs — and at 10 it was a war: measured across
+ * eight seeds, the first sixty seasons put five to eleven hostile hosts on the map and the realm
+ * never held more than three provinces. Sixteen gives the first Court window ten seasons rather
+ * than four, which is the difference between being asked what the seat is for and being asked
+ * how to meet a column. The war still lands inside one sitting (`verify-ascent` holds the first
+ * battle to sixty seasons); it lands after the realm has been given something to defend.
  */
-export const WAVE_GRACE_TICKS = 10;
+export const WAVE_GRACE_TICKS = 16;
 /** Every Nth wave is a named Great Invasion (the "boss"). */
 export const BOSS_EVERY_N_WAVES = 4;
 /** Ticks before a boss wave lands that the telegraph banner appears. */
@@ -273,8 +281,14 @@ export const WAVE_BASELINE_GROWTH = 1.11;
  * sixteen engagements they produced only six were fought on the field — the other ten were
  * decided by a hidden roll the player never saw.
  *
- * Two waves, not more. The grace is there to teach the shape of a fight, not to make the opening
- * safe: by wave three every director is back on.
+ * **Three waves, up from two.** The grace was two while the opening was meant only to teach the
+ * shape of a fight. It is now meant to be the realm's setup phase as well, and three single-column
+ * waves — probe, probe, hunt — is exactly the *"fewer than three army attacks in the first rounds"*
+ * the design asks for: one fight a cycle, each one answerable by the one host the realm starts
+ * with. Everything the grace holds back (unscheduled marches, the raid clock, rival demands and the
+ * punitive hosts a refusal sends, the courts settling the map, the exposed-seat strike, a second
+ * crown joining) comes back on at wave four, when the realm has had three cycles to become
+ * something worth all of that.
  */
 /**
  * Share of a province's militia capacity that a newly-taken province arrives holding.
@@ -306,12 +320,22 @@ export const RIVAL_CLAIM_INTERVAL_TICKS = 5;
  * term down. See `rivalMapShare` for why a share beats a count here.
  */
 export const RIVAL_LAND_PRESSURE = 0.8;
+/**
+ * Waves over which that pressure phases in, counted from the end of the opening grace.
+ *
+ * The share is asymmetric by design, but at the moment the rivals start settling the map the
+ * player holds one to three provinces and the share reads 0.4-0.7 inside two waves — measured,
+ * wave five was quoted at 1.5-1.6x its own curve for a realm that had done nothing but survive the
+ * opening. A world that grows while the player sets up should be a *pressure that arrives*, not a
+ * surcharge that is simply there the season the setup ends.
+ */
+export const RIVAL_LAND_PRESSURE_RAMP_WAVES = 6;
 /** Rivals never take more of the map than this, so there is always ground left to contest and to stage on. */
 export const RIVAL_CLAIM_MAX_SHARE = 0.55;
 
 export const CONQUEST_GARRISON_SHARE = 0.45;
 
-export const EARLY_WAVE_GRACE = 2;
+export const EARLY_WAVE_GRACE = 3;
 /**
  * What an opening wave may weigh, as a share of the field army the player can actually march.
  *
@@ -329,7 +353,18 @@ export const EARLY_WAVE_GRACE = 2;
  * play. Each is a `min` against the real curve, so this only ever *reduces* — a realm that has
  * outgrown the ramp never notices it, and the ramp lapses entirely after the last entry.
  */
-export const EARLY_WAVE_FIELD_SHARE = [0.62, 0.85, 1.15, 1.5, 1.9];
+/**
+ * Six entries, up from five, and the middle of the ramp flattened. With the grace at three waves
+ * the first Great Invasion (wave four) is the first thing the opening does not protect, and at
+ * `1.5` it landed at one and a half times the field host *before* the hammer's own 1.3 — twice
+ * the army, one wave after the realm was last shown a single column. The ramp now hands back a
+ * step a wave over waves four to six and lapses at seven.
+ *
+ * The cap is measured against what the realm could *field*, not only what it fields — see
+ * `fieldablePower` in `WaveDirector` for why a realm that has just lost its host is not quoted
+ * the whole curve.
+ */
+export const EARLY_WAVE_FIELD_SHARE = [0.62, 0.85, 1.1, 1.3, 1.6, 1.9];
 
 // ── Tooling overrides: sweep a knob without editing this file ───────────────
 /**
@@ -716,6 +751,107 @@ export const GOLD_SOFTCAP_EXPONENT = 0.82;
  */
 export const TREASURY_GRAFT_FROM = 4000;
 export const TREASURY_GRAFT_RATE = 0.06;
+/**
+ * Seasons of gross income a treasury may hold before graft begins, once that is more than the
+ * flat floor above. Twenty-five, the same figure `GOLD_GLUT_SEASONS` calls a glut: the flat
+ * 4,000 was set against a realm grossing a few hundred a season, and a realm grossing more is
+ * saving toward things — a mercenary company is nine seasons of income, a fifth wall purchase
+ * runs to several thousand — that the old floor taxed it for holding. See `treasuryGraftFrom`.
+ */
+export const TREASURY_GRAFT_SEASONS = 25;
+
+// ── The scaled purse: routine prices grow with the realm ────────────────────
+/**
+ * Every price the war card quotes is pegged to income, so it keeps mattering. The economy's
+ * own prices — a building, a bribed village, a host, a reroll, a burnt district made good, a
+ * refit — were flat from the founding to the fall, and measured on a well-run realm (focus by
+ * aptitude, governors posted) gross gold ran 80 → 330 a season while a farm stayed 32 and a
+ * village 55: the treasury banked thousands with nothing left in it to decide. Reported as
+ * *"resources become useless in late game when already have a lot"*.
+ *
+ * `scale = clamp(1, (gross / BASE) ^ EXPONENT, MAX)`, on gross income rather than the treasury:
+ * a stock-based price is a treadmill nobody can save toward, and it rewards spending before the
+ * price moves. Sub-linear, so a realm earning five times the base pays about two and a half
+ * times the price — growth still buys more decisions a season, and no decision becomes a
+ * rounding error. See `priceScale.ts` for which prices wear it (and which, being income-pegged
+ * already, do not).
+ */
+/** Gross gold a season below which nothing is scaled: the opening realm, well run, grosses about this. */
+export const PRICE_SCALE_BASE_GROSS = 120;
+export const PRICE_SCALE_EXPONENT = 0.6;
+export const PRICE_SCALE_MAX = 6;
+/** Share of the gap to the live figure the smoothed scale closes each season (~2 seasons to halve). */
+export const PRICE_SCALE_SMOOTHING = 0.3;
+
+// ── The stores: grain rots, goods spoil, the markets sell ───────────────────
+/**
+ * Seasons of the realm's own use a store may hold before the excess wastes, and the share of that
+ * excess lost a season. See `GranarySystem`.
+ *
+ * Measured over eight steward runs: whichever resource the ground favoured piled up without limit
+ * — 66,050 food on one seed, 35,615 supplies on another — because nothing the mode sells consumes
+ * a stock that size. Twenty seasons of use is a granary that survives a bad year and a siege;
+ * five percent of the excess a season lands the equilibrium near a dozen seasons of surplus
+ * rather than a hundred, which is the same landing the treasury's graft was tuned to.
+ */
+export const STORE_WASTE_SEASONS = 20;
+export const STORE_WASTE_RATE = 0.05;
+/** The founding realm's granary, so a district's first harvests are never taxed for being full. */
+export const STORE_WASTE_FLOOR = 600;
+/**
+ * Units of grain or goods one level of a counting house (market, harbour, guild) can move a season,
+ * and what the home market pays a unit. Deliberately well under the charter exchange's 0.22-0.68
+ * a grain — that rate is a cordial court's privilege; this is the realm's own market clearing what
+ * the realm cannot eat. Bounded by what was built, so a glut drains over seasons and a market is
+ * worth a level for something other than its own output.
+ */
+export const SALE_UNITS_PER_MARKET_LEVEL = 40;
+export const SALE_GOLD_PER_FOOD = 0.1;
+export const SALE_GOLD_PER_SUPPLY = 0.2;
+/**
+ * Lots a store may sell in one season, and what the second fetches.
+ *
+ * One lot a season made the player's own sale a row that always read "sold this season" during a
+ * glut, because the steward sells the rotting lot first — the one time the verb was worth having,
+ * it was already spent. A second lot at a thin-market rate keeps the sale the player's: the
+ * steward never takes it, and the price says why the first lot was worth more.
+ */
+export const SALE_LOTS_PER_SEASON = 2;
+export const SALE_THIN_LOT_RATE = 0.6;
+
+// ── The founding's claim parties and settlers ───────────────────────────────
+/**
+ * Extra claim parties the realm has while the opening grace runs.
+ *
+ * The setup phase is the seasons in which the realm claims the ground it needs, and with one
+ * party a settle of empty ground (up to thirteen seasons, see `getSettleTicks`) was the whole
+ * grace: the Build lane read *Claims 1/1 — all claim parties are committed* from season 9 to the
+ * first wave. One more party for the founding, gone when the grace ends — a claim in flight is
+ * finished, not cancelled, so the slot simply does not reopen.
+ */
+export const OPENING_CLAIM_PARTIES = 1;
+/**
+ * Divisor on a wilderness settle's per-capacity seasons in Dragon Ascent. The classic formula,
+ * four seasons plus one per building slot, is a nine-slot district taking thirteen seasons —
+ * nearly a wave cycle for ground nobody is defending. Halved here, floored at three.
+ */
+export const ASCENT_SETTLE_CAPACITY_DIVISOR = 2;
+
+// ── A focus read from the ground pays back what it costs ────────────────────
+/**
+ * How much of a focus's penalty on the other two resources is paid, by aptitude: the whole of it
+ * and a tenth more on ground that fights the focus, half of it on ground made for it.
+ *
+ * The tilt was paid in full whatever the ground said — +60% of one resource against −15% and
+ * −20% on the other two, which on a district that makes equal amounts of each is about +8% in
+ * total at best and a reallocation the rest of the time. Measured at 16 seeds, a driver that set
+ * every province to the focus its ground suited best came out 18.7 waves against 19.8 for one
+ * that left them alone; a lever that reads the map and pays nothing for reading it right is not
+ * a lever. A mine on a flood plain still loses in full and a tenth more; a delta worked for rice
+ * keeps most of its coin. Ascent only — the classic modes keep the whole penalty.
+ */
+export const FOCUS_PENALTY_AT_WORST = 1.1;
+export const FOCUS_PENALTY_AT_BEST = 0.5;
 
 // ── Standing armies cost what they are worth ────────────────────────────────
 /**
@@ -1195,20 +1331,10 @@ export const ENEMY_PRESSURE_DIVISOR = 320;
  */
 export const ENEMY_LAUNCH_DRAW = 0.004;
 
-
-/**
- * Ticks without a hostile host reaching the player's ground before one is sent regardless.
- *
- * This is the floor under the randomised cadence, and it exists because the defect being fixed is
- * literally "ten minutes of play produced no battle at all".
- *
- * Down from 72, which was tuned in tick-time and failed in felt-time: 72 ticks is eighteen
- * played years, and a real session — where every prompt pauses the clock — reached Year 10
- * without the floor ever firing. The player's "ten minutes" is maybe forty ticks of world
- * time. Thirty guarantees first contact inside a single sitting, which is the only place a
- * guarantee is worth anything.
- */
-export const ENEMY_CONTACT_FLOOR_TICKS = 30;
+// `ENEMY_CONTACT_FLOOR_TICKS` used to live here — the flat contact guarantee, tuned to 30. Nothing
+// read it: the peace floor (`PEACE_FLOOR_EARLY` … `PEACE_FLOOR_JITTER`) replaced it and the
+// constant outlived its reader. Gone rather than left, for the reason given at the top of the
+// wave section — a difficulty dial wired to nothing is the first thing anyone reaches for.
 
 // ── The four courts: relations as the difficulty dial ────────────────────────
 //
