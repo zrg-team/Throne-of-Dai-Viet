@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AppState, Linking, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, AppState, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { WebView, type WebViewNavigation } from 'react-native-webview';
@@ -41,8 +41,13 @@ const PORT = 39217;
 const INK = '#201a12';
 const PAPER = '#e9dfc2';
 
-/** How long to hold the splash for a game that never reports in. */
-const WATCHDOG_MS = 20_000;
+/**
+ * How long the page gets to report a painted frame, counted from the moment it is asked for.
+ * A first miss asks for the page again; the second shows the diagnostic.
+ */
+const WATCHDOG_MS = 25_000;
+/** How long the shell's own steps get — the archive, the unpack, the server — before the page. */
+const SETUP_MS = 90_000;
 
 // Global scope, not inside a hook. By the time a component mounts the splash may already have
 // auto-hidden, and then there is nothing left to prevent.
@@ -138,6 +143,12 @@ function Shell() {
    */
   const [diary, setDiary] = useState<string[]>([]);
   const [failed, setFailed] = useState(false);
+  /** Bumped to run the boot again from the diagnostic's Try again. */
+  const [bootKey, setBootKey] = useState(0);
+  /** When this boot began, so every diary line carries how long the shell had been at it. */
+  const bootStart = useRef(Date.now());
+  /** First-paint misses this boot: one earns a remount, the second the diagnostic. */
+  const paintMisses = useRef(0);
 
   /**
    * The status bar and the gesture pill, kept off the game.
@@ -164,7 +175,10 @@ function Shell() {
   const pongAt = useRef(0);
 
   const note = useCallback((line: string) => {
-    setDiary((prior) => [...prior, line]);
+    // Stamped with the seconds since boot: a diary without a clock could not say whether the
+    // twenty seconds went on the download, the unpack or the page.
+    const at = ((Date.now() - bootStart.current) / 1000).toFixed(1);
+    setDiary((prior) => [...prior, `${at}s ${line}`]);
   }, []);
 
   const restart = useCallback((why: string) => {
@@ -193,6 +207,7 @@ function Shell() {
     let cancelled = false;
 
     const boot = async () => {
+      bootStart.current = Date.now();
       await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
 
       // Which bundle this is, first line of the diary: an over-the-air update or the one in the
@@ -234,6 +249,8 @@ function Shell() {
       if (source.size < 1024) {
         throw new Error(`archive is ${source.size} bytes at ${asPath(asset.localUri)}`);
       }
+      // Where the archive came from says whether the update carried it or it had to be fetched.
+      note(`archive ${(source.size / 1048576).toFixed(1)} MB at ${asPath(asset.localUri)}`);
 
       const stamp = asset.hash ?? `build-${version.build}`;
       const root = new Directory(Paths.document, `web-${stamp}`);
@@ -366,16 +383,36 @@ function Shell() {
       cancelled = true;
       void server.current?.stop();
     };
-  }, [giveUp, note]);
+  }, [bootKey, giveUp, note]);
 
+  /**
+   * The first-paint watchdog, counted from the moment the page is asked for — not from mount.
+   *
+   * Counted from mount it also timed an update's archive arriving and unpacking, and a reload
+   * into a fresh update ran out of clock before the game had drawn a frame: *tap Reload, a blank
+   * page, then the error screen; open it a few more times and it is fine* — fine because by
+   * then the archive was on disk and unpacked. The clock now starts when the page is asked for,
+   * and a first miss asks for it again (a stuck load, a dead process) before anything is shown.
+   */
   useEffect(() => {
+    if (!origin || ready || failed) return;
     const timer = setTimeout(() => {
-      if (!ready) {
-        giveUp('the game did not report a painted frame within 20s');
+      if (paintMisses.current === 0) {
+        paintMisses.current = 1;
+        restart(`no painted frame within ${WATCHDOG_MS / 1000}s — asking for the page again`);
+        return;
       }
+      giveUp(`the game did not report a painted frame within ${WATCHDOG_MS / 1000}s, twice`);
     }, WATCHDOG_MS);
     return () => clearTimeout(timer);
-  }, [giveUp, ready]);
+  }, [failed, giveUp, origin, ready, restart, webKey]);
+
+  // The shell's own steps get a longer, separate guard: an unpack that never ends must still end.
+  useEffect(() => {
+    if (origin || ready || failed) return;
+    const timer = setTimeout(() => giveUp(`the shell did not reach the page within ${SETUP_MS / 1000}s`), SETUP_MS);
+    return () => clearTimeout(timer);
+  }, [bootKey, failed, giveUp, origin, ready]);
 
   /**
    * Coming back to the foreground: ask the page whether it is still there.
@@ -492,6 +529,24 @@ function Shell() {
             </Text>
           ))}
           <Text style={styles.line}>· build {version.build}, port {PORT}</Text>
+          {/* A way out that is not force-quitting: the page again if there was one, the boot
+              again if there was not. */}
+          <Pressable
+            style={styles.retry}
+            onPress={() => {
+              paintMisses.current = 0;
+              setFailed(false);
+              setReady(false);
+              if (origin) {
+                restart('retry from the diagnostic');
+              } else {
+                setDiary([]);
+                setBootKey((key) => key + 1);
+              }
+            }}
+          >
+            <Text style={styles.retryText}>Thử lại · Try again</Text>
+          </Pressable>
         </ScrollView>
       </View>
     );
@@ -511,11 +566,22 @@ function Shell() {
     >
       {/* Dark glyphs: the bar is transparent and what shows through is paper now. */}
       <StatusBar style="dark" />
+      {/* What the shell is doing while the page is not yet painted — on a cold start the native
+          splash covers this; after a reload into an update there is no splash, and this is what
+          stands where a blank page did. */}
+      {!ready ? (
+        <View style={styles.progress} pointerEvents="none">
+          <ActivityIndicator color="#8a5f1c" />
+          <Text style={styles.progressTitle}>Đang chuẩn bị ván chơi…</Text>
+          <Text style={styles.progressSub}>Setting up the game</Text>
+          <Text style={styles.progressLine}>{diary[diary.length - 1] ?? ''}</Text>
+        </View>
+      ) : null}
     {origin ? (
         <WebView
           key={webKey}
           ref={web}
-          source={{ uri: origin }}
+          source={{ uri: `${origin}/?v=${version.build}.${webKey}` }}
           style={[styles.web, { opacity: ready ? 1 : 0 }]}
           originWhitelist={[`http://127.0.0.1:${PORT}*`, `http://localhost:${PORT}*`]}
           onShouldStartLoadWithRequest={handleRequest}
@@ -543,8 +609,10 @@ function Shell() {
             }
             // The player tapped Reload on the version line. Restart onto the bundle already down.
             if (event.nativeEvent.data === 'update:apply') {
-              // Our own server goes first, so the bundle that comes next finds the port free even
-              // if the adoption above ever fails it.
+              // The wait is shown from this tap on, and our own server goes first, so the bundle
+              // that comes next finds the port free even if the adoption above ever fails it.
+              setReady(false);
+              note('reloading into the newer bundle…');
               void (async () => {
                 try { await server.current?.stop('reloading into a newer bundle'); } catch { /* the next bundle adopts it */ }
                 await Updates.reloadAsync();
@@ -599,4 +667,15 @@ const styles = StyleSheet.create({
   heading: { color: PAPER, fontSize: 20, fontWeight: '700', marginBottom: 12 },
   body: { color: '#bcb29e', fontSize: 14, lineHeight: 21, marginBottom: 18 },
   line: { color: '#8fd2c1', fontSize: 12, lineHeight: 20, fontFamily: 'monospace' },
+  retry: {
+    marginTop: 24, alignSelf: 'flex-start', borderWidth: 1, borderColor: PAPER, borderRadius: 8,
+    paddingVertical: 10, paddingHorizontal: 18,
+  },
+  retryText: { color: PAPER, fontSize: 14, fontWeight: '700' },
+  // The wait, on the game's own paper: a dial, one line of Vietnamese, one of English, and the
+  // shell's latest step underneath in the diary's own type.
+  progress: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, alignItems: 'center', justifyContent: 'center', backgroundColor: PAPER, padding: 28 },
+  progressTitle: { color: '#2a2118', fontSize: 16, fontWeight: '700', marginTop: 14 },
+  progressSub: { color: '#8a7a60', fontSize: 12, marginTop: 2 },
+  progressLine: { color: '#8a5f1c', fontSize: 11, marginTop: 18, fontFamily: 'monospace', textAlign: 'center' },
 });
