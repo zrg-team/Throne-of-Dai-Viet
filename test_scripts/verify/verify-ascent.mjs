@@ -460,7 +460,13 @@ const command = await page.evaluate(async () => {
   const home = owned[0];
 
   // ── The claim cap actually caps ──
+  // Two through the opening grace (the founding's second party, `OPENING_CLAIM_PARTIES`), one
+  // once the grace is over: the fresh state is at wave 0, so `slots` reads the founding's figure.
   const slots = ACQ.getClaimSlots(st);
+  const waveBefore = st.ascent.wave;
+  st.ascent.wave = 99;
+  const slotsAfterGrace = ACQ.getClaimSlots(st);
+  st.ascent.wave = waveBefore;
   // Fill every slot with a synthetic order, then confirm a further claim is refused.
   const neighbours = st.lands.filter((l) => l.ownerId !== 'dai-viet').slice(0, slots + 1);
   for (let i = 0; i < slots; i += 1) {
@@ -525,6 +531,7 @@ const command = await page.evaluate(async () => {
 
   return {
     slots,
+    slotsAfterGrace,
     cappedOut,
     hasBlockedReason: Boolean(blockedReason),
     cancelled,
@@ -860,7 +867,7 @@ const checks = {
   'a muster carries its standing order to the host': orders.orderCarried && orders.hostHasOrder,
 
   // ── Land command: claims, focus, governors ──
-  'claims start capped at one': command.slots === 1,
+  'claims are capped at two for the founding and one after': command.slots === 2 && command.slotsAfterGrace === 1,
   'the claim cap actually caps': command.cappedOut && command.hasBlockedReason,
   'cancelling a claim releases its envoy unfatigued': command.cancelled && command.heroFreed && command.orderGone,
   'a focus moves output in the promised direction': command.foodFocused > command.baseFood,

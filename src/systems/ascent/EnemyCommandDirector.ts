@@ -166,6 +166,12 @@ function maybeLaunch(state: GameState): void {
   // because the same threshold decides whether the scheduled wave ignores the relations dial.
   const forced = peaceFloorBreached(state);
 
+  // The opening is the schedule's alone. A draw that fires inside the grace puts a second host
+  // on the map between two waves the realm has been promised are single columns — the peace
+  // floor still marches through it, because a guarantee of contact is the one thing the grace
+  // must not suspend.
+  if (!forced && ascent.wave <= EARLY_WAVE_GRACE) return;
+
   let chosen: Kingdom | undefined;
   if (forced) {
     // The floor fired: send the angriest, so a forced attack still reads as coming from the
@@ -238,6 +244,12 @@ export function launchPunitiveHost(
   const ascent = state.ascent;
   if (state.gameMode !== 'ascent' || !ascent) return false;
   if ((state.invasions?.length ?? 0) >= MAX_LIVE_INVADER_HOSTS) return false;
+  // Not through the opening grace. A rival collapsing, a story's blow, a court answering an
+  // encroachment — every consequence this sends is right at wave six and the wrong thing to put
+  // between the three single columns the opening promises. Measured on the setup-phase build:
+  // a collapsed empire's opportunist landed two extra hosts at wave three on three seeds of four.
+  // Callers already handle `false` (the toast is not raised, the wave clock is nudged instead).
+  if (ascent.wave <= EARLY_WAVE_GRACE) return false;
 
   const budget = Math.round(waveSoldierBudget(state, ascent.wave, false) * (opts.sizeMult ?? 1));
   launchOffMapInvasion(state, kingdomId, {
@@ -259,6 +271,12 @@ function storyStrikes(state: GameState): void {
   const ascent = state.ascent;
   if (!ascent) return;
   if ((state.invasions?.length ?? 0) >= MAX_LIVE_INVADER_HOSTS) return;
+  // The opening is the schedule's alone — see `launchPunitiveHost`. The rival count is still
+  // tracked below once the grace ends, so a collapse *during* the grace is not answered late.
+  if (ascent.wave <= EARLY_WAVE_GRACE) {
+    ascent.lastRivalCount = aggressors(state).length;
+    return;
+  }
 
   // A rival empire falling apart is an opportunity its neighbours take — including at the player's
   // expense. Tracked against the count so it fires on the transition, not every tick afterwards.

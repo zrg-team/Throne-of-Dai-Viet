@@ -31,7 +31,6 @@ import {
   POP_CAPACITY_PER_BUILDING_LEVEL,
   POP_CAPACITY_PER_LAND,
   POP_DECAY_ABOVE_CAP,
-  TREASURY_GRAFT_FROM,
   TREASURY_GRAFT_RATE,
   UNPAID_LOYALTY_FLOOR,
   UNPAID_LOYALTY_PER_TICK,
@@ -41,10 +40,13 @@ import {
   UNPAID_WRITEOFF_TICKS,
   WALL_REPAIR_SEASONS,
   demandDifficultyScale,
+  FOCUS_PENALTY_AT_BEST,
+  FOCUS_PENALTY_AT_WORST,
 } from '../game/ascentConfig';
 import { ARMY_PROVISION_USE_PER_150, ARMY_RATION_USE_PER_100 } from '../game/gameplayConfig';
 import { palisadeMilitiaBonus } from './ascent/DoctrineSystem';
 import { doctrineMilitiaMult } from './ascent/RealmDoctrineSystem';
+import { realmPriceScale, treasuryGraftFrom } from './ascent/priceScale';
 import { eraIndex, eraLabel, getBuildingLevelCap } from './empire/MandateSystem';
 import { pushToast } from './empire/notifications';
 import { getCourtBonuses, getLandGovernorOutputMult } from './CourtSystem';
@@ -820,9 +822,16 @@ export function getFocusOutputMult(state: GameState, land: Land): { food: number
   if (focus === 'balanced') {
     return base;
   }
-  // 0 aptitude -> 0.7 of the promised gain, 1 aptitude -> 1.15 of it. The penalties are untouched.
-  const scale = 0.7 + getLandAptitude(land)[focus] * 0.45;
-  const apply = (value: number): number => (value > 1 ? 1 + (value - 1) * scale : value);
+  // 0 aptitude -> 0.7 of the promised gain, 1 aptitude -> 1.15 of it.
+  const aptitude = getLandAptitude(land)[focus];
+  const scale = 0.7 + aptitude * 0.45;
+  // The penalties on the other two resources are paid in full in the classic modes. In Dragon
+  // Ascent they shrink with aptitude — see `FOCUS_PENALTY_AT_WORST` / `_AT_BEST`: ground made for
+  // the focus keeps most of what it gives up, ground that fights it pays a tenth more.
+  const penalty = state.gameMode === 'ascent'
+    ? FOCUS_PENALTY_AT_WORST + (FOCUS_PENALTY_AT_BEST - FOCUS_PENALTY_AT_WORST) * aptitude
+    : 1;
+  const apply = (value: number): number => (value > 1 ? 1 + (value - 1) * scale : 1 - (1 - value) * penalty);
   return { food: apply(base.food), supplies: apply(base.supplies), gold: apply(base.gold) };
 }
 
@@ -847,6 +856,9 @@ export function setLandSpecialization(state: GameState, landId: string, focus: L
     return false;
   }
   land.specialization = focus;
+  // Stamped so the province card leaves a freshly-set focus alone long enough to see it work
+  // (Dragon Ascent; see `ProvinceOrderSystem`). Nothing in the classic modes reads it.
+  if (state.gameMode === 'ascent') land.focusSetTurn = state.turn;
   refreshAllLandOutputs(state);
   return true;
 }
@@ -1588,9 +1600,12 @@ export function calculatePlayerResourceRates(state: GameState): ResourceBag {
   // a run actually ends with: a hundred seasons of it. Charged on the excess only, and folded into
   // the displayed rate rather than taken quietly, so the header tells the player their gold is
   // draining and gives them a reason to spend it. See `TREASURY_GRAFT_FROM`.
+  // The line moves with the realm: a flat 4,000 taxed a rich realm for holding what one
+  // mercenary company costs it. See `treasuryGraftFrom`.
   let graftGold = 0;
-  if (state.gameMode === 'ascent' && state.resources.gold > TREASURY_GRAFT_FROM) {
-    graftGold = Math.round((state.resources.gold - TREASURY_GRAFT_FROM) * TREASURY_GRAFT_RATE);
+  const graftFrom = treasuryGraftFrom(state);
+  if (state.gameMode === 'ascent' && state.resources.gold > graftFrom) {
+    graftGold = Math.round((state.resources.gold - graftFrom) * TREASURY_GRAFT_RATE);
     rates.gold -= graftGold;
   }
 
@@ -1617,6 +1632,11 @@ export function calculatePlayerResourceRates(state: GameState): ResourceBag {
       supplies: line('supplies'),
       gold: line('gold'),
       shortfalls: state.ascentLedger?.shortfalls ?? [],
+      // Written once a season by `tickStoreWaste`, after income lands; the books are rebuilt by
+      // every `refreshAllLandOutputs` in between (a focus set, a governor posted, a province
+      // taken), and a line that vanished on each of those read as "nothing wasted" for most of
+      // the season it was measured in.
+      waste: state.ascentLedger?.waste,
       // Named, so the books can say what eats the treasury rather than one figure for "out".
       goldParts: {
         payroll: heroUpkeep,
@@ -1855,7 +1875,9 @@ export function getBuildOptions(state: GameState, land: Land): BuildOption[] {
         required: activeOrder.required,
       })
       : undefined;
-    const cost = scaleResourceBag(spec.baseCost, getCourtBonuses(state).buildingCostMult);
+    // The scaled purse (Dragon Ascent; exactly 1 elsewhere): a farm that cost 32 gold to a realm
+    // grossing 40 a season is not a decision to one grossing 400. See `priceScale.ts`.
+    const cost = scaleResourceBag(spec.baseCost, getCourtBonuses(state).buildingCostMult * realmPriceScale(state));
     const costReason = !canSpend(state, cost) ? formatCostBlocker(cost) : undefined;
     const reason = eraReason ?? terrainReason ?? capacityReason ?? duplicateReason ?? activeOrderReason ?? costReason;
 
@@ -1889,7 +1911,10 @@ export function getUpgradeOptions(state: GameState, land: Land): UpgradeOption[]
         required: activeOrder.required,
       })
       : undefined;
-    const cost = scaleResourceBag(spec.baseCost, upgradeCostMultiplier(building.level) * getCourtBonuses(state).buildingCostMult);
+    const cost = scaleResourceBag(
+      spec.baseCost,
+      upgradeCostMultiplier(building.level) * getCourtBonuses(state).buildingCostMult * realmPriceScale(state),
+    );
     const costReason = !atMaxLevel && !canSpend(state, cost) ? formatCostBlocker(cost) : undefined;
     const reason = atMaxLevel ? t('reason.maxLevel') : (activeOrderReason ?? costReason);
     const nextLevel = Math.min(buildingCap, building.level + 1);

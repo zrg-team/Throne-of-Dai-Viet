@@ -43,6 +43,7 @@ import {
   refreshAllLandOutputs,
 } from './ResourceSystem';
 import { getCourtBonuses } from './CourtSystem';
+import { realmPriceScale } from './ascent/priceScale';
 import { hasTrait, noteTraitUse } from '../state/dynasty';
 import { eraIndex } from './empire/MandateSystem';
 import {
@@ -590,7 +591,10 @@ export interface ArmyUpgradeOption {
  */
 export function reinforcementLimit(state: GameState): number {
   const byPeople = Math.floor(state.resources.humans);
-  const byPurse = Math.floor(state.resources.gold / Math.max(0.01, ARMY_REINFORCE_GOLD_PER_SOLDIER));
+  // The bounty wears the realm's price scale (`getArmyUpgradeOptions` charges it scaled), so the
+  // slider's ceiling must read the same rate or it runs past what the treasury can pay and the
+  // order fails on the last tap.
+  const byPurse = Math.floor(state.resources.gold / Math.max(0.01, ARMY_REINFORCE_GOLD_PER_SOLDIER * realmPriceScale(state)));
   return Math.max(0, Math.min(ARMY_REINFORCE_MAX_SOLDIERS, byPeople, byPurse));
 }
 
@@ -632,20 +636,23 @@ export function getArmyUpgradeOptions(
   const refitting = Boolean(army.refit);
   const size = totalUnits(army);
   const tier = army.elite ?? 0;
+  // The scaled purse (Dragon Ascent; 1 elsewhere): the coin of every refit grows with the realm,
+  // the men and grain do not. See `priceScale.ts`.
+  const priced = realmPriceScale(state);
   const equipCost: Partial<ResourceBag> = {
-    gold: Math.round((ARMY_EQUIP_GOLD_BASE + size * ARMY_EQUIP_PER_SOLDIER) * ARMY_EQUIP_TIER_ESCALATION ** tier),
+    gold: Math.round((ARMY_EQUIP_GOLD_BASE + size * ARMY_EQUIP_PER_SOLDIER) * ARMY_EQUIP_TIER_ESCALATION ** tier * priced),
     supplies: Math.round((ARMY_EQUIP_SUPPLIES_BASE + size * ARMY_EQUIP_PER_SOLDIER) * ARMY_EQUIP_TIER_ESCALATION ** tier),
   };
 
   const recruits = reinforcementSize(state, reinforceMen);
   const reinforceCost: Partial<ResourceBag> = {
-    gold: Math.round(recruits * ARMY_REINFORCE_GOLD_PER_SOLDIER),
+    gold: Math.round(recruits * ARMY_REINFORCE_GOLD_PER_SOLDIER * priced),
     humans: recruits,
   };
 
   const levelCap = getArmyLevelCap(state);
   const drillCost: Partial<ResourceBag> = {
-    gold: Math.round(ARMY_DRILL_GOLD_BASE * ARMY_DRILL_LEVEL_ESCALATION ** Math.max(0, army.level - 1)),
+    gold: Math.round(ARMY_DRILL_GOLD_BASE * ARMY_DRILL_LEVEL_ESCALATION ** Math.max(0, army.level - 1) * priced),
     food: Math.round(ARMY_DRILL_FOOD_BASE * ARMY_DRILL_LEVEL_ESCALATION ** Math.max(0, army.level - 1)),
   };
 
@@ -982,7 +989,9 @@ export function musterCost(state: GameState, soldiers: number): { gold: number; 
   if (state.gameMode !== 'ascent' || n <= 0) return { gold: 0, food: 0, supplies: 0 };
   const scale = 1 + n / MUSTER_COST_SCALE;
   return {
-    gold: Math.ceil(n * MUSTER_GOLD_PER_SOLDIER * scale),
+    // Coin wears the realm's price scale (`priceScale.ts`); the grain and iron a host actually
+    // consumes do not — a soldier eats the same whatever the treasury holds.
+    gold: Math.ceil(n * MUSTER_GOLD_PER_SOLDIER * realmPriceScale(state) * scale),
     food: Math.ceil(n * MUSTER_FOOD_PER_SOLDIER * scale),
     // `MUSTER_SUPPLY_COST_MULT`: raising a host has to be the cheaper answer to "how do I
     // defend?" than another course of wall, which now buys half the power it used to.
@@ -1011,7 +1020,7 @@ export function musterLimit(state: GameState): number {
   return Math.max(0, Math.min(
     MAX_ARMY_SOLDIERS,
     people,
-    afford(state.resources.gold, MUSTER_GOLD_PER_SOLDIER),
+    afford(state.resources.gold, MUSTER_GOLD_PER_SOLDIER * realmPriceScale(state)),
     // Rations and provisions are charged on top of these, so the stores a muster may spend on
     // arming alone are only a share of what is in the granary.
     afford(state.resources.food * 0.6, MUSTER_FOOD_PER_SOLDIER),

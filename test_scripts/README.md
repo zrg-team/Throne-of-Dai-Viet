@@ -42,6 +42,7 @@ node test_scripts/verify/verify-reinforce.mjs           # a lane page turn tears
 node test_scripts/verify/verify-expansion-prompt.mjs    # the expansion card only asks when something on it can be pressed
 node test_scripts/verify/verify-land-consequences.mjs   # ground is the ceiling on people; losing it costs; a held wave leaves the walls down; the governor commands
 node test_scripts/verify/verify-land-restore.mjs        # the people hold the walls; a hidden-roll defence still costs the province; the restore card pays for haste
+node test_scripts/verify/verify-setup-phase.mjs        # the opening is three single columns and a setup card; a hostless realm is quoted what it could re-raise; the stores waste and sell; routine prices scale with the realm and stay 1 in the classic modes
 node test_scripts/verify/verify-crowding-and-price.mjs   # districts fill and then eat badly; a host is priced, not capped; lost ground ends its battle
 node test_scripts/verify/verify-land-tap.mjs             # the name plate is the province's tap target, and the ground answers only where no plate is drawn
 node test_scripts/verify/verify-button-press.mjs         # a button acts on the press, once — not on the release
@@ -133,3 +134,5 @@ empire economy was food-negative when in fact the harness had never constructed 
   `diag/diag-figure-reach.mjs` — no soldier's ink clipped by his stamp box.
 
 node test_scripts/diag/diag-meta-costs.mjs             # what the Legacy vault and the rubbing packs cost, priced in 9,000-score reigns
+node test_scripts/diag/diag-economy-probe.mjs          # the opening's hostile hosts, every price the mode quotes against income, and four drivers side by side (naive, land-reading, disciplined, focus-only) — 16 seeds before believing a difference
+node test_scripts/diag/diag-wave-parts.mjs             # every term of waveTargetPower at each wave start, and where each opening spawn came from

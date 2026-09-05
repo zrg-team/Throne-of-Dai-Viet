@@ -36,6 +36,8 @@ import { drainAscentPrompts } from './AscentState';
 import { tickAscentAutopilot } from './AutopilotSystem';
 import { tickStandingOrders } from './StandingOrders';
 import { tickArmyRefits } from './refit';
+import { tickPriceScale } from './priceScale';
+import { tickStoreWaste } from './GranarySystem';
 import { advanceBattle, beginBattle, delegateBattle } from './BattleSystem';
 import { hasRoomForAnotherFront, liveBattleCount } from './fronts';
 import { tickAscentProgress } from './PowerSystem';
@@ -192,6 +194,12 @@ export function advanceAscentTick(state: GameState): void {
 
   // ── Reused verbatim from the classic tick ────────────────────────────────
   collectPlayerIncome(state);
+  // Grain rots and goods spoil above the stores' line, taken from the stock once the harvest is
+  // in — never from the rate, which the famine card reads. See `GranarySystem`.
+  tickStoreWaste(state);
+  // The scaled purse follows the books, a step a season, so a price quoted on a card this
+  // season is the price charged when the card is answered next season. See `priceScale.ts`.
+  tickPriceScale(state);
   // Required, not optional: every peaceful claim — bribe, envoy, settle — and marching onto
   // unsettled ground all file acquisition orders rather than flipping the province on the
   // spot. Without this the Conquer lane's non-military methods never complete.

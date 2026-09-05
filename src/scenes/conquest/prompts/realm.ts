@@ -239,12 +239,17 @@ export function showProvinceOrder(
   self: ConquestUIScene,
   prompt: Extract<AscentPrompt, { kind: 'province-order' }>,
 ): void {
+  // The resource the focus is for — the shortage itself, or the setup's pick; the walls have none.
+  const resource = prompt.resource ?? (prompt.reason === 'undefended' || prompt.reason === 'setup' ? 'gold' : prompt.reason);
+  const proposedFocus = prompt.options.find((option) => option.role === 'focus')?.focus ?? 'balanced';
   const subtitle = prompt.reason === 'undefended'
     ? t('ascent.province.openBody')
-    : t('ascent.province.shortBody', {
-      resource: resourceLabel(prompt.reason),
-      rate: Math.abs(prompt.rate ?? 0),
-    });
+    : prompt.reason === 'setup'
+      ? t('ascent.province.setupBody', { focus: focusTitle(self.state, proposedFocus) })
+      : t('ascent.province.shortBody', {
+        resource: resourceLabel(resource),
+        rate: Math.abs(prompt.rate ?? 0),
+      });
   const { body, bodyWidth, finish } = self.promptScrollBody(
     t('ascent.province.title', { land: prompt.landName }),
     subtitle,
@@ -259,7 +264,7 @@ export function showProvinceOrder(
         ? t('ascent.province.focusWalls', { n: option.effect ?? 0 })
         : t('ascent.province.focusGain', {
           n: option.effect ?? 0,
-          resource: resourceLabel(prompt.reason),
+          resource: resourceLabel(resource),
         }))
       : option.role === 'governor'
         ? (prompt.reason === 'undefended'

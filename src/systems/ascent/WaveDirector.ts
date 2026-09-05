@@ -12,6 +12,7 @@ import {
   EARLY_WAVE_FIELD_SHARE,
   EARLY_WAVE_GRACE,
   RIVAL_LAND_PRESSURE,
+  RIVAL_LAND_PRESSURE_RAMP_WAVES,
   MAX_LIVE_INVADER_HOSTS,
   MIN_WAVE_SOLDIERS,
   PEACE_FLOOR_EARLY,
@@ -277,7 +278,7 @@ export function waveTargetPower(
      * every district they end up holding is a district the player did not take — so a realm that
      * sits still does not stay small, it faces a world that grew instead of it.
      */
-    * (1 + rivalMapShare(state) * RIVAL_LAND_PRESSURE);
+    * (1 + rivalMapShare(state) * RIVAL_LAND_PRESSURE * rivalPressureRamp(wave));
 
   // The realm's shadow (see the WAVE_SHADOW_* block in ascentConfig): the curve above still
   // owns the floor for a realm that has done nothing, but a compounding economy laps any
@@ -335,12 +336,49 @@ export function waveTargetPower(
         : sum
     ), 0);
     const share = EARLY_WAVE_FIELD_SHARE[Math.min(EARLY_WAVE_FIELD_SHARE.length - 1, wave - 1)];
-    if (marchable > 0) {
-      return Math.max(WAVE_BASELINE_POWER * 0.5, Math.min(sized, marchable * share));
-    }
+    /**
+     * **What the realm could field, not only what it fields.**
+     *
+     * This branch used to run only while `marchable > 0`, so a realm whose one host had just
+     * died was handed the whole uncapped curve — and losing the opening host is the *common*
+     * case, not the edge: measured across eight seeds, most realms were hostless by season 30.
+     * The cliff read as a wall: a hostless realm with 24 men was quoted 210, and the same realm
+     * a season later, with none, met 935 to 2,165 (the wave-four hammer, plus the punitive hosts
+     * that size themselves off the same figure). The comment that justified it — "losing the
+     * opening must not be the way to make the opening easier" — is kept by measuring against
+     * the host the realm's people and purse could raise *now* (`fieldablePower`): a realm that
+     * lost its army is sized as though it had re-mustered, never as though it had nothing.
+     */
+    return Math.max(WAVE_BASELINE_POWER * 0.5, Math.min(sized, fieldablePower(marchable) * share));
   }
 
   return sized;
+}
+
+/**
+ * The field power the opening cap reads: the hosts standing, floored at the smallest host the
+ * mode musters. A realm that lost its army is sized as though it had raised the minimum host
+ * again — never as though it had nothing, and never as though it had raised everything it could.
+ *
+ * The first cut read `max(MIN_ARMY_SOLDIERS, musterLimit(state))`, the host the realm *could*
+ * raise, and that scales with wealth: on a seed where the founding's second claim party had the
+ * realm at six provinces by wave three, the purse could raise a thousand men, the cap lifted to
+ * that potential, and a 932-man column marched on an actual host of 264. What the realm could
+ * afford is not what it fields; the cap reads the field, and the floor is the one host every
+ * realm can always put back.
+ */
+function fieldablePower(marchable: number): number {
+  return Math.max(marchable, MIN_ARMY_SOLDIERS * INVADER_POWER_PER_SOLDIER);
+}
+
+/**
+ * How much of `RIVAL_LAND_PRESSURE` applies at this wave: nothing through the opening grace, then
+ * phasing in over `RIVAL_LAND_PRESSURE_RAMP_WAVES`. The courts only begin settling the map after
+ * the grace (`tickRivalExpansion`), so this is the difference between a surcharge that is at full
+ * weight the season it appears and a world that is visibly, gradually, closing in.
+ */
+function rivalPressureRamp(wave: number): number {
+  return Math.min(1, Math.max(0, wave - EARLY_WAVE_GRACE) / RIVAL_LAND_PRESSURE_RAMP_WAVES);
 }
 
 /**
@@ -1191,8 +1229,11 @@ export function tickRaids(state: GameState): void {
   if ((state.invasions?.length ?? 0) > 0) return;
   if (ascent.ticksToWave <= RAID_WAVE_CLEARANCE) return;
   if (ownedLandCount(state) < RAID_MIN_LANDS) return;
-  // Raids begin only once the realm has met its first wave and knows what a threat looks like.
-  if (ascent.wave < 1) return;
+  // Raids begin only once the opening grace is over: the setup phase gets its three single-column
+  // waves and nothing between them. A realm that keeps its provinces crosses `RAID_MIN_LANDS`
+  // inside the first cycle, and the raid clock then put a second host on the map between waves
+  // one and two — measured, the first sixty seasons carried five to eleven hostile hosts.
+  if (ascent.wave <= EARLY_WAVE_GRACE) return;
 
   const raider = pickAggressor(state);
   if (!raider) return;

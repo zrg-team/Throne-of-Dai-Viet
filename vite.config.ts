@@ -104,6 +104,13 @@ export default defineConfig(({ command, isPreview, mode }) => {
     },
     server: {
       port: 5173,
+      // Every harness lives under test_scripts/ and writes to output/; a design note lands in
+      // docs/. None of them is imported by the game, and a full reload of every open page each
+      // time one is written killed four rendered harness runs in one session ("Execution
+      // context was destroyed"). The watcher ignores them; src/ and public/ still hot-reload.
+      watch: {
+        ignored: ['**/test_scripts/**', '**/docs/**', '**/output/**'],
+      },
     },
     preview: {
       port: 4173,
