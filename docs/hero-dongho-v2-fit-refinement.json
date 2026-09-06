@@ -1,0 +1,13 @@
+{
+  "name": "headwear-fit",
+  "ids": [
+    "hat-non-quaithao",
+    "hat-moqua-tied"
+  ],
+  "cols": 2,
+  "rows": 1,
+  "reference": "output/hero-dongho-v2/references/headwear-fit.png",
+  "master": "output/hero-dongho-v2/masters/headwear-fit.png",
+  "prompt": "Use case: historical-scene. Generate TWO separate front-facing Vietnamese headwear game components, two equal square cells side by side on pure solid saturated MAGENTA #ff00ff background, high resolution wide 2:1 sheet. ONLY headwear, no human head/face/skin/hair/mannequin. Style reference is ONLY Đông Hồ flat ochre/charcoal pigment, warm-black carved contour and restrained handworked texture. LEFT CELL: northern nón quai thao broad FLAT palm-and-bamboo disc hat with a low cylindrical raised rim, NOT a cone. Hat disc occupies only the TOP 18% of the component height and is full component width. Two soft charcoal cloth ribbons attach underneath at far left and right, drop almost vertically down the OUTER sides, then curve inward to a modest knot BELOW the empty chin position at the BOTTOM. The central face opening must remain EMPTY MAGENTA: at least 65% of total width, through the upper 70% of height. Do NOT draw the ribbons across the forehead, eyes or mouth. Complete hat plus long ribbons has an approximately square overall silhouette. RIGHT CELL: northern black khăn mỏ quạ kerchief with a small downward point centered over the forehead, closed folded crown and soft side wings; a SMALL cloth knot at OUTER RIGHT temple, short tapered tails beside the outside of the cheek. No horizontal strap across the face and NO chin strap. Large empty MAGENTA opening beneath the central forehead point between the side wings. Kerchief component overall 2:1 width:height, centered in the right cell. Beautiful cloth folds without gloss, extremely legible silhouette, no ornaments, crowns, jewellery, labels, borders, grid lines or paper. All empty regions and holes pure #ff00ff.",
+  "source": "C:\\Users\\zerg\\.codex\\generated_images\\01a07654-0aa8-7861-ad6c-e804c8bb5170\\exec-c4f7b6e5-cee3-41fb-a562-102279f1493b.png"
+}

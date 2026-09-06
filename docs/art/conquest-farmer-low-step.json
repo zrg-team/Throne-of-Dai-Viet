@@ -1,0 +1,32 @@
+{
+  "mode": "built-in image_gen edit",
+  "date": "2026-09-06",
+  "useCase": "precise-object-edit",
+  "request": "Improve only the remaining red-shirted rice-carrying farmer identified in the user's screenshot.",
+  "runtimeAsset": "public/art/conquest-dongho-v4/life/farmer-walk.png",
+  "selectedMaster": "output/farmer-low-step/reviewed-master.png",
+  "generatedMaster": "C:/Users/zerg/.codex/generated_images/01a0768c-73cf-7b73-9f4b-d2851be1a275/exec-55b40542-1040-42a3-9b9e-1810c6282eaf.png",
+  "prompt": "Use case: precise-object-edit. Image 1 is the edit target: the Vietnamese rice-carrying FARMER in a red shirt and cream cropped trousers. Keep that exact character, face, straw hat, rice sheaf, all upper bodies, pigment colors, outlines, texture and 2x2 sheet layout. Image 2 is a POSE REFERENCE ONLY. Repair this farmer's walking animation by editing only legs and feet: in the BOTTOM-RIGHT cell copy the low close-legged passing stance from the BOTTOM-RIGHT of image 2. The LEFTMOST foot in this cell is the weight-bearing PLANTED foot, flat on the ground below the hip. The OTHER foot is just to its RIGHT, passing close beside the planted ankle with its sole 12 pixels higher. Both toes face right. Both thighs point nearly vertically DOWN, knees side by side at their ordinary level, below the crotch, barely bent. NO high raised knee, horizontal thigh, tucked-up heel, hopping or marching. In the TOP-RIGHT passing cell keep the rightmost foot planted forward, but lower the trailing swinging foot so its toes also skim close to the ground (about 12 pixels clearance for a 550-pixel-tall person). Keep TOP-LEFT and BOTTOM-LEFT contact poses unchanged. Keep four DISTINCT phases with opposite leg overlap/support in the two passing poses, never duplicate one forward-legged pose across the sheet. Preserve total standing height, head level and foot baseline in every equal quadrant. Do not copy the hoe/pole or upper body from image 2: this farmer ONLY carries the green/gold rice sheaf already in image 1. Exactly four complete figures, right-facing, no extra limbs or new objects. Genuine transparent alpha background including gaps between the legs, no opaque paper or checkerboard, no shadows, text, grid or labels.",
+  "references": [
+    {
+      "role": "edit target",
+      "path": "public/art/conquest-dongho-v4/life/farmer-walk.png",
+      "originalBackup": "output/farmer-low-step/before/farmer-walk.png"
+    },
+    {
+      "role": "low-step pose reference only",
+      "path": "public/art/conquest-dongho-v4/life/traveler-walk.png"
+    }
+  ],
+  "packing": "Cleared the generated pale neutral checker matte, preserved warm cream cloth/skin and ink, then aligned faces and ground line with the existing traveller packer's canvas export. Single shared scale; 627px cells, 550px maximum ink height, x313.5 anchor and y590 baseline. Exported only the farmer walk sheet.",
+  "preserved": "Farmer still, original road traveller and all five added traveller styles remain byte-identical. Hash comparison: only farmer-walk.png changed among 25 living-map assets.",
+  "validation": {
+    "footClearanceBefore": 45,
+    "footClearanceAfter": 14,
+    "bodyHeight": 542,
+    "spriteChecks": "49/49",
+    "runtime": "30 actual settlement farmers; four distance-driven poses, stable scale/baseline, facing and pause; no browser errors.",
+    "travelerRegression": "62 roads and six looks; variety, refresh, motion/pause/culling/fallback checks pass.",
+    "build": "Pass; pre-existing font-path and bundle-size warnings."
+  }
+}

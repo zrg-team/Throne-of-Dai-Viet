@@ -205,7 +205,7 @@ const html = `
 
 <div class="plate">
   <div class="word">
-    <img class="seal" src="${url('public/favicon.svg')}">
+    <img class="seal" src="${url('public/app-emblem.png')}">
     <div class="name">VẠN THẮNG</div>
     <div class="rule"></div>
     <div class="gloss">TEN THOUSAND VICTORIES</div>

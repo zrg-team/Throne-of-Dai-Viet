@@ -8,6 +8,8 @@ const FILES=Object.fromEntries(['farmer','traveler','buffalo','ox-cart'].map(rol
   role==='ox-cart'?'cart':role,
   `public/${reviewed[`life.${role}-walk`]?.path??`art/conquest-dongho/life/${role}-walk.png`}`,
 ]));
+const variants=JSON.parse(await fs.readFile('src/ui/conquestTravelerVariants.json','utf8'));
+for (const [id, variant] of Object.entries(variants)) FILES[id.replace('life.', '')] = `public/${variant.path}`;
 
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage();
@@ -61,6 +63,36 @@ for (const [kind, path] of Object.entries(FILES)) {
         left, right, top, bottom, opaque, hash,
         width: right >= left ? right - left + 1 : 0,
         height: bottom >= top ? bottom - top + 1 : 0,
+        // Find the two exposed bare-foot patches below the garment. Bounding alpha alone
+        // cannot detect a knee lifted toward the waist: the other leg still reaches ground.
+        feet: (() => {
+          const seen = new Uint8Array(cellWidth * cellHeight);
+          const lower = Math.floor(top + (bottom - top) * .55);
+          const skin = (x, y) => {
+            const p = ((cellY + y) * canvas.width + cellX + x) * 4;
+            return pixels[p + 3] > 128 && pixels[p] > 155 && pixels[p + 1] > 105
+              && pixels[p] - pixels[p + 1] > 20 && pixels[p + 1] - pixels[p + 2] > 20;
+          };
+          const parts = [];
+          for (let y = lower; y <= bottom; y++) for (let x = left; x <= right; x++) {
+            const start = y * cellWidth + x;
+            if (seen[start] || !skin(x, y)) continue;
+            const queue = [start]; seen[start] = 1;
+            let l = x, r = x, t = y, b = y;
+            for (let q = 0; q < queue.length; q++) {
+              const at = queue[q], px = at % cellWidth, py = Math.floor(at / cellWidth);
+              l = Math.min(l, px); r = Math.max(r, px); t = Math.min(t, py); b = Math.max(b, py);
+              for (const [nx, ny] of [[px - 1, py], [px + 1, py], [px, py - 1], [px, py + 1]]) {
+                if (nx < left || nx > right || ny < lower || ny > bottom) continue;
+                const next = ny * cellWidth + nx;
+                if (!seen[next] && skin(nx, ny)) { seen[next] = 1; queue.push(next); }
+              }
+            }
+            // Excludes toe fragments and the pilgrim's long, narrow bamboo staff.
+            if (queue.length > 200 && r - l > 15 && b - t < (r - l) * 3) parts.push({ left: l, right: r, top: t, bottom: b });
+          }
+          return parts.sort((a, b) => b.bottom - a.bottom).slice(0, 2);
+        })(),
         // The bottom eight opaque rows identify the foot that is actually
         // carrying the ground contact in a passing pose. Distinct whole-frame
         // hashes did not catch the old traveler sheet: its arms changed, but
@@ -123,15 +155,33 @@ for (const [kind, result] of Object.entries(audit)) {
     `${result.uniqueHashes}/4 unique`);
 }
 
-const traveler = audit.traveler;
-const rearLiftContact = traveler.frames[1].groundContactX;
-const frontLiftContact = traveler.frames[3].groundContactX;
-check('traveler: passing poses plant opposite left/right feet',
-  Number.isFinite(rearLiftContact) && Number.isFinite(frontLiftContact)
-    && rearLiftContact - frontLiftContact >= 40,
-  `ground contacts x=${rearLiftContact?.toFixed(1)},${frontLiftContact?.toFixed(1)}`);
+for (const [kind, traveler] of Object.entries(audit).filter(([kind]) => kind === 'farmer' || kind.startsWith('traveler'))) {
+  const rearLiftContact = traveler.frames[1].groundContactX;
+  const frontLiftContact = traveler.frames[3].groundContactX;
+  const rearFeet = [...traveler.frames[1].feet].sort((a, b) => a.left - b.left);
+  const frontFeet = [...traveler.frames[3].feet].sort((a, b) => a.left - b.left);
+  // Narrow, ankle-height passing steps need not shift the support foot 40px horizontally.
+  // Check which foot reaches the ground inside each pose, independent of head registration.
+  const switchesSupport = rearFeet.length === 2 && frontFeet.length === 2
+    && rearFeet[1].bottom >= rearFeet[0].bottom - 2
+    && frontFeet[0].bottom >= frontFeet[1].bottom + 6;
+  check(`${kind}: passing poses plant opposite left/right feet`,
+    kind === 'traveler'
+      ? Number.isFinite(rearLiftContact) && Number.isFinite(frontLiftContact)
+        && rearLiftContact - frontLiftContact >= 40
+      : switchesSupport,
+    `ground contacts x=${rearLiftContact?.toFixed(1)},${frontLiftContact?.toFixed(1)}`);
+}
+
+for (const id of ['life.farmer', ...Object.keys(variants)]) {
+  const kind = id.replace('life.', '');
+  const pose = audit[kind].frames[3];
+  const clearance = pose.feet.length === 2 ? pose.feet[0].bottom - pose.feet[1].bottom : Infinity;
+  check(`${kind}: passing foot stays close to ground`, clearance <= pose.height * .05,
+    `${clearance} px / ${pose.height} px body height`);
+}
 
 console.log(JSON.stringify(audit, null, 2));
-const totalChecks = Object.keys(FILES).length * 4 + 1;
+const totalChecks = Object.keys(FILES).length * 4 + 3 + Object.keys(variants).length * 2;
 console.log(`\n${totalChecks - failures}/${totalChecks} walk-sheet checks passed`);
 process.exit(failures === 0 ? 0 : 1);

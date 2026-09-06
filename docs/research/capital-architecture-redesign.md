@@ -1,0 +1,25 @@
+# Capital architecture for the Đông Hồ map
+
+Research checked 6 September 2026. After the user's architecture correction, capital heights are ceilings (Đinh 50, all others 52 world units), with a shared 64-unit visible-width ceiling. Broad, low compounds may be shorter. These sprites represent a condensed royal precinct, not a whole city or an archaeological reconstruction at literal scale. See [v2 corrections and measurements](../art/capital-redesign-v2.md).
+
+## Evidence and design decisions
+
+| Period | Evidence to retain | Interpretation and exclusions |
+| --- | --- | --- |
+| Đinh / Hoa Lư, late tenth century | Brick, reddish-brown fired-clay tiles, timber and stone bases; lotus tile-end decoration. These materials support substantial architecture. [National Museum of History](https://baotanglichsu.vn/vi/Articles/3101/17603/vat-lieu-kien-truc-thoi-djinh-tien-le-o-khu-trung-tam-di-tich-co-djo-hoa-lu.html). | A compact group of tiled timber halls with low brick enclosure. Exact elevations, grouping and colors beyond the documented materials are artistic inference. Do not copy today's later memorial temples or attribute Early Lê palace descriptions to Đinh. |
+| Lý / Thăng Long, eleventh–twelfth century | Principal and flanking halls, rear royal buildings and covered galleries; green/yellow glazed tiles and dragon, phoenix and lotus roof decoration. [Thăng Long heritage centre](https://hoangthanhthanglong.vn/hoang-thanh-thoi-ly/). | A gold/ochre main roof with green side roofs and linked galleries. Their arrangement is compressed for a small icon; avoid later Lê and Nguyễn gates. |
+| Trần / Thăng Long, thirteenth–fourteenth century | Nine-bay Thiên An hall, east/west galleries; southern Dương Minh entrance with Triều Thiên upper pavilion and smaller side entrances. [Thăng Long heritage centre](https://hoangthanhthanglong.vn/hoang-thanh-thang-long-thoi-tran/). | Broad audience hall, side wings and a timber gate pavilion. Warm terracotta is a game palette choice, not a claim that all Trần palace roofs had that color. |
+| Lê / Đông Kinh, fifteenth-century reference | Kính Thiên's original timber building is lost. The dated stone terrace and dragon stairs are firmer evidence than a complete roof reconstruction. [Heritage centre](https://hoangthanhthanglong.vn/dien-kinh-thien/), [archaeological foundation study](https://vass.gov.vn/nghien-cuu-khoa-hoc/cau-truc-nen-mong-va-mat-bang-dien-kinh-thien-thoi-le-trung-hung-tai-khu-trung-tam-hoang-thanh-than-577456). | Layered royal hall on a modest plinth; three front approaches and four balustrades. Roof/elevation is an illustrative interpretation. Avoid treating nineteenth-century Long Thiên imagery as fifteenth-century evidence. |
+| Lê gateway | Đoan Môn's surviving main fabric is attributed chiefly to Lê, with Nguyễn repairs; a broad U-plan gate and five passages. [Heritage centre](https://hoangthanhthanglong.vn/doan-mon/), [site overview](https://hoangthanhthanglong.vn/khu-di-tich-trung-tam-hoang-thanh-thang-long/). | Five front arches, low masonry and a plain parapet. Exclude the Hanoi Flag Tower and avoid assigning the later upper pavilion a securely fifteenth-century date. |
+| Nguyễn / Huế, Minh Mạng after 1833 | Ngọ Môn has three central front passages and two side-return passages, a U-shaped platform, and the two-level Ngũ Phụng pavilion. Its central roof is yellow glazed tile; eight surrounding roof sections are green. [Huế Tourism Department](https://huetourism.gov.vn/chiem-nguong-bon-cua-vao-hoang-thanh-hue/?pid=MjMzNzJ8Y3NkbGRs0). | Keep the broad winged gate profile and color hierarchy. Do not flatten it into five identical front arches. No twentieth-century European-style Kiến Trung palace. |
+| Nguyễn audience hall | Thái Hòa lies on the ceremonial axis beyond Ngọ Môn; timber columns and royal decoration distinguish its role. [Huế Tourism Department](https://huetourism.gov.vn/Dien-Thai-Hoa.html/?pid=MjAzMDN8Y3NkbGRs0). | Low paired hall roof behind the gateway. Courtyard and intervening landscape are compressed; water, people and ground remain separate runtime layers. |
+
+The 2026 foundation-study page contains apparent transcription errors in some century/date labels; these are not used as design evidence. Surviving monuments also contain restoration layers. The early precincts must be described as source-informed game interpretations, not exact reconstructions.
+
+## Art acceptance
+
+- Capital status comes from a principal hall, related wings, galleries and a recognizable ceremonial entrance within the approved scale.
+- Warm-black Đông Hồ contours and broad pigment areas must remain legible on the actual map. Sparse details; no fantasy height, pagoda added as a generic royal symbol, or borrowed foreign palace silhouette.
+- No people, scenery, flags, text or filled ground rectangle in the asset. Real transparent courtyard and entrance gaps.
+- Gate counts and period-specific features need visual inspection; a generator following a historical prompt does not establish historical correctness.
+- Keep v4 originals for comparison. Save exact prompts and any corrective edits beside the provenance record.

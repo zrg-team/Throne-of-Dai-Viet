@@ -1,0 +1,10 @@
+{
+  "generator": "built-in ImageGen",
+  "edits": [
+    {
+      "era": "nguyen",
+      "reference": "output/capital-redesign-v2/masters/citadel-nguyen-draft.png",
+      "prompt": "Use case: precise-object-edit. Make exactly one architectural correction to the supplied Nguyễn/Huế capital sprite. Preserve all other roofs, buildings, colours, composition, scale, doors and low outline.\nCLOSE the two white arch openings at the FAR LEFT and FAR RIGHT of the foreground gate. These are the front ends of Ngọ Môn's projecting wings and must be SOLID BRICK-AND-STONE WALLS, matching the surrounding reddish brick and cream stone. Fill the entire far-left arch with masonry and fill the entire far-right arch with masonry. Eliminate their arch outlines, door frames and small steps too. The only THREE openings/doors remaining on the front are the existing central red / yellow / red doors. Do not add any other opening. The other two historical passageways are hidden around the side returns at this camera angle, so DO NOT depict them.\nDo not change the central three doors or the roofs. Preserve the transparent courtyard. Output true transparent alpha, with no drawn checkerboard. One corrected sprite only."
+    }
+  ]
+}

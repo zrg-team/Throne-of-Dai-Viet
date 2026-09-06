@@ -427,7 +427,8 @@
       "nativeFacing": null,
       "scaleContract": {
         "class": "rural-settlement",
-        "worldHeight": 38
+        "worldHeight": 32,
+        "maxWorldWidth": 56
       }
     },
     {
@@ -448,7 +449,8 @@
       "nativeFacing": null,
       "scaleContract": {
         "class": "village",
-        "worldHeight": 44
+        "worldHeight": 38,
+        "maxWorldWidth": 60
       }
     },
     {
@@ -469,7 +471,8 @@
       "nativeFacing": null,
       "scaleContract": {
         "class": "town",
-        "worldHeight": 48
+        "worldHeight": 40,
+        "maxWorldWidth": 62
       }
     },
     {
@@ -490,7 +493,8 @@
       "nativeFacing": null,
       "scaleContract": {
         "class": "town",
-        "worldHeight": 52
+        "worldHeight": 44,
+        "maxWorldWidth": 64
       }
     },
     {
@@ -511,7 +515,8 @@
       "nativeFacing": null,
       "scaleContract": {
         "class": "rural-settlement",
-        "worldHeight": 34
+        "worldHeight": 28,
+        "maxWorldWidth": 56
       }
     },
     {
@@ -532,7 +537,8 @@
       "nativeFacing": null,
       "scaleContract": {
         "class": "rural-settlement",
-        "worldHeight": 38
+        "worldHeight": 32,
+        "maxWorldWidth": 56
       }
     },
     {
@@ -553,7 +559,8 @@
       "nativeFacing": null,
       "scaleContract": {
         "class": "citadel",
-        "worldHeight": 76
+        "worldHeight": 50,
+        "maxWorldWidth": 64
       }
     },
     {
@@ -574,7 +581,8 @@
       "nativeFacing": null,
       "scaleContract": {
         "class": "citadel",
-        "worldHeight": 78
+        "worldHeight": 52,
+        "maxWorldWidth": 64
       }
     },
     {
@@ -595,7 +603,8 @@
       "nativeFacing": null,
       "scaleContract": {
         "class": "citadel",
-        "worldHeight": 78
+        "worldHeight": 52,
+        "maxWorldWidth": 64
       }
     },
     {
@@ -616,7 +625,8 @@
       "nativeFacing": null,
       "scaleContract": {
         "class": "citadel",
-        "worldHeight": 86
+        "worldHeight": 52,
+        "maxWorldWidth": 64
       }
     },
     {
@@ -637,8 +647,8 @@
       "nativeFacing": null,
       "scaleContract": {
         "class": "citadel",
-        "worldHeight": 82,
-        "maxWorldWidth": 116
+        "worldHeight": 52,
+        "maxWorldWidth": 64
       }
     },
     {

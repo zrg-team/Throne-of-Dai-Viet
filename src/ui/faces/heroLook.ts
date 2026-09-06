@@ -6,6 +6,8 @@ import { HAIRS, ROBES, SKINS, shade, type FacePalette } from './palette';
 import { dynastyRankRarity, getDynasty } from '../../state/dynasty';
 import type { Hero, HeroEra } from '../../state/types';
 import type { FaceTintSlot } from './parts.generated';
+import { ACTIVE_HERO_FACE_ART_PACK } from './artPack';
+import { applyHistoricalPortrait, historicalPortraitFor } from './historicalPortraits';
 
 /**
  * Turns a hero into a stack of portrait parts.
@@ -17,9 +19,9 @@ import type { FaceTintSlot } from './parts.generated';
  * Zen master had a full head of hair under a cap — it is also that a portrait becomes readable:
  * a glance at the roster tells you what each person does and roughly when they lived.
  *
- * Era matters as much as role. Đại Việt did not dress the same way for a thousand years, and
- * the roster already spans the dynasties by name; a Nguyễn official in the crossed lapel that
- * the 1744 reform replaced is simply the wrong century.
+ * Era matters as much as role. The roster spans many centuries, while each era pool is a
+ * simplified game interpretation. The 1744 Đàng Trong reform was regional, not an immediate
+ * replacement of every crossed-lapel garment throughout Vietnam.
  */
 
 export interface HeroLookPart {
@@ -212,13 +214,14 @@ export function resolveHeroLook(hero: Hero): HeroLook {
   // The throne's hero keeps the id `king` across every run, so seeding the portrait on the id
   // alone drew the same face for Ngô Quyền and for Minh Mạng. Anything whose id is fixed by
   // role rather than by person has to be seeded on the person.
-  const next = seededRandom(hashString(hero.id === 'king' ? `king:${hero.name}` : hero.id));
+  const historical = ACTIVE_HERO_FACE_ART_PACK.id === 'dongho-v2' ? historicalPortraitFor(hero) : undefined;
+  const next = seededRandom(hashString(historical ? `historical:${historical.identity}` : hero.id === 'king' ? `king:${hero.name}` : hero.id));
   const pick2 = <T,>(items: readonly T[]): T => pick(items, next);
-  const woman = inferSex(hero) === 'woman';
-  const monastic = hero.monastic === true;
+  const woman = (historical?.sex ?? inferSex(hero)) === 'woman';
+  const monastic = historical?.monastic ?? hero.monastic === true;
   const rank = RARITY_RANK[hero.rarity] ?? 0;
-  const era: HeroEra = hero.era ?? pick(COMMON_ERAS, next);
-  const age: HeroLook['age'] = monastic ? 'elder' : pick(['young', 'prime', 'prime', 'elder'] as const, next);
+  const era: HeroEra = historical?.era ?? hero.era ?? pick(COMMON_ERAS, next);
+  const age: HeroLook['age'] = historical?.age ?? (monastic ? 'elder' : pick(['young', 'prime', 'prime', 'elder'] as const, next));
 
   const skin = pick(SKINS, next);
   const hairBase = pick(HAIRS, next);
@@ -227,6 +230,22 @@ export function resolveHeroLook(hero: Hero): HeroLook {
   const robe = robeColour(hero.type, woman, monastic, era, rank);
 
   const parts: HeroLookPart[] = [{ key: PLATE[rank], tint: 'none' }];
+  if (historical) {
+    // A separate assembly path keeps the same person's anatomy stable when their
+    // title, gameplay role or rarity changes. Clothing never consumes this seed.
+    const heads = age === 'young' ? ['head-oval', 'head-soft', 'head-round'] : headPoolFor(woman, age);
+    const head = pick(heads, next);
+    parts.push({ key: neckForHead(head), tint: 'skinShadow' }, { key: head, tint: 'skin' },
+      { key: pick(woman ? BROWS_WOMAN : BROWS_MAN, next), tint: 'hair' },
+      { key: pick(age === 'elder' ? EYES_ELDER : EYES, next), tint: 'none' },
+      { key: pick(NOSES, next), tint: 'skinShadow' },
+      { key: pick(MOUTHS, next), tint: 'none' });
+    const seal = RANK_SEAL[rank];
+    if (seal) parts.push({ key: seal, tint: 'none' });
+    return applyHistoricalPortrait({ parts, sex: woman ? 'woman' : 'man', monastic, era, age, rank,
+      palette: { skin, skinShadow: shade(skin, -30), skinLight: shade(skin, 20), hair,
+        robe, robeDark: shade(robe, -34), robeLight: shade(robe, 30) } }, historical);
+  }
   parts.push(...garmentsFor(era, woman, monastic, hero.type, rank, pick2));
   // Preserve the old neck roll's random slot so correcting anatomy does not reshuffle every
   // downstream eye, mouth, hat and hairstyle in already-authored portraits.
@@ -331,7 +350,7 @@ export function resolveHeroLook(hero: Hero): HeroLook {
   const seal = RANK_SEAL[rank];
   if (seal) parts.push({ key: seal, tint: 'none' });
 
-  return {
+  const look: HeroLook = {
     parts,
     palette: {
       skin,
@@ -348,4 +367,5 @@ export function resolveHeroLook(hero: Hero): HeroLook {
     age,
     rank,
   };
+  return look;
 }

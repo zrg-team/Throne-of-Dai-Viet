@@ -279,116 +279,169 @@ export const FORMATION_PLAN: Record<BattleFormation, Partial<Record<FormationKey
  * Not a battle shape and deliberately not a member of `BattleFormation`: nothing resolves a fight
  * against it, it has no place on the counter ring, and adding a sixth member there would change
  * every matchup in the mode. It is a *drawing*, used only by the map marker while a host is
- * between provinces.
+ * between provinces — and every host between provinces uses it, whichever way it is walking.
  *
  * A host at rest stands in its doctrine's arrangement — a line, a screen thrown forward, the bows
  * banked behind, the horse off the flank — which is a wide, loose thing that reads as men holding
- * ground. A host on the march is the opposite: the blocks close up and fall in one behind another,
- * narrow at the front and long from front to back. Every `aspect` here is below one, which is what
- * makes each block deeper than it is wide, and the `dy` values file the blocks in marching order:
- * screen out ahead, then the line, the bows, and the horse bringing up the rear.
+ * ground. A host on the march is the opposite: **narrow at the front, long from front to back, and
+ * closed up**, because that is the only way a few thousand men get down one road.
  *
- * **The numbers here are the whole difference between a column and a smudge.** They used to read
- * `pitch: 0.5, aspect: 2.6`, which is the opposite of both sentences above: `aspect` above one
- * makes a block *wider* than it is deep (`fullRows = √(full / aspect)`), and halving the pitch
- * pulled the files in under half a figure's width. Together with `dy` steps of barely one rank
- * they collapsed the four blocks into each other. Measured on a 460-man host at map scale
- * (`_shapeprobe`): standing, its eight marks covered 80 × 37 px; marching, the same eight covered
- * 10 × 15 — less ground than ONE figure, which is drawn 9.3 × 8.3. That is the host that "looked
- * unreal and disappeared" on the road: it was eight men stacked on one spot.
- *
- * So: `pitch` near one (the files keep a standing host's spacing, only slightly closed up),
- * `aspect` genuinely below one, and `dy` steps of four rank pitches — about a block's own depth
- * plus a gap — so each block clears the one ahead of it instead of standing inside it.
+ * **This is computed from the blocks, not tabulated.** The two previous attempts were a table of
+ * fixed offsets — `dy` steps of four rank pitches — and a table cannot know how deep the block it
+ * is stepping past actually is. Measured on a 900-man host (`shot-column.mjs`), four blocks two
+ * marks wide and three deep were filed 5.7 rank pitches apart: each block was 2 rank pitches deep,
+ * so **two thirds of the column was bare road**. On the map that is not a column, it is four small
+ * groups walking in single file with gaps between them, and it is why the plan was switched off by
+ * default rather than fixed. `marchColumn` sizes each block first and then files them nose to tail
+ * with one marching interval between, so the column closes up at any host size and any heading.
  */
-export const MARCH_PLAN: Partial<Record<FormationKey, FormationTweak>> = {
-  screen: { dx: 0.35, dy: -4.0, pitch: 0.95, aspect: 0.5 },
-  line: { dx: 0, dy: 0, pitch: 0.95, aspect: 0.5 },
-  bows: { dx: -0.35, dy: 4.0, pitch: 0.95, aspect: 0.5 },
-  horse: { dx: 0.2, dy: 8.4, pitch: 1, aspect: 0.55 },
-};
 
 /**
- * The march column, turned to face the way the host is walking.
+ * **Men abreast on the road — set by the road, not by the size of the army.**
  *
- * `MARCH_PLAN` files its blocks front-to-back along one axis, which is right for a host walking
- * that way and wrong for every other heading — a column marching east that is drawn stacked
- * north-to-south is a queue standing side-on to its own road.
- *
- * **And that is what it did.** The rotation was applied as if the plan's base column pointed along
- * +x, but `MARCH_PLAN` files its blocks on `dy` — it points along **+y**, due south. So the turn
- * was a quarter circle out, and the only headings that came out right were the two that happen to
- * be symmetric about it. Measured on a host ordered due west (`_colcheck`): standing it covered
- * 49.8 x 32.9, marching 6.1 x 41.3 — still 41 units long north to south while walking west. A
- * player reads that as the host never forming column at all, which is exactly what was reported.
- * The base points south, so the turn is `heading - π/2`.
- *
- * `dx` is counted in file pitches and `dy` in rank pitches, and those are not the same distance —
- * so the depth is converted to file pitches before the turn and back afterwards. Without that a
- * column heading north-east comes out sheared.
- *
- * **The blocks turn too, as far as an axis-aligned block can.** Each one is built `cols` across by
- * `rows` deep in screen axes, so a block that is deeper than it is wide reads as a column only
- * while the road runs up and down the sheet. On an east-west road the same block is a bar standing
- * across its own line of march. `aspect` therefore follows the heading: elongated along x when the
- * road runs across the sheet, along y when it runs up it, and square on the diagonals where
- * neither reads as either.
+ * This was `√marks × 0.75`, which is how you size a *block*: a 900-man host came out three abreast
+ * and three deep per block, and the player's verdict on it was that they still could not see the
+ * host moving as a line — "only 5 to 10 people in columns". They were right, and the arithmetic
+ * says so: at `MEN_PER_MARK` a 900-man host is drawn with sixteen marks in all, so three abreast
+ * spends them on five ranks. A road is a fixed width; a bigger army does not widen it, it makes a
+ * longer file. Two abreast turns those same sixteen marks into eight ranks strung down the road,
+ * which is the thing being asked for.
  */
+const MARCH_FRONTAGE_MIN = 2;
+/** However long the host, it never files wider than a road. */
+const MARCH_FRONTAGE_MAX = 12;
 /**
- * Marks a host is drawn with before the column has to lengthen to hold them.
+ * The longest a column runs, in ranks — the only thing that ever widens the front.
  *
- * `MARCH_PLAN` files its blocks at fixed offsets — four rank pitches apart — which is a column for
- * a host of eight marks and a *crowd* for one of four hundred: the gaps stay put while each block
- * grows with the men in it. Swept over every size, doctrine and heading, a 24,000-man host came
- * out **109 units long and 132 across** — wider than it was deep, which is the opposite of a
- * column and exactly the "sometimes it does not form up" a player sees, because it only happens
- * to the big hosts. Below 1,800 men nothing failed; above it, 87 of 360 cases did.
- *
- * A block's depth grows with the square root of its marks (rows = √(marks / aspect)), so the
- * spacing between blocks is scaled the same way and the column stays a column at any size.
+ * Two abreast at the mark cap would be 210 ranks — at the spacing below, most of the map in one
+ * column. Past this the file doubles, trebles and so on rather than the tail growing: a 23,000-man
+ * host marches twelve abreast because that is what it takes to fit on a road, not because it is
+ * large. Measured on the map at this value, east then north: a 900-man host files two abreast and
+ * eight deep (47 × 20, 17 × 62), a 2,600-man host three abreast and sixteen deep (98 × 21,
+ * 22 × 128), and the mark cap twelve abreast and thirty-one deep (191 × 54, 60 × 250).
  */
-const MARCH_REFERENCE_MARKS = 8;
-/** A very large host makes a very long column, but not one that crosses a province. */
-const MARCH_MAX_STRETCH = 5;
+const MARCH_MAX_RANKS = 18;
+/**
+ * The gap between one block and the next, in along-road pitches.
+ *
+ * A marching interval — the length of the pause between one sub-unit and the one behind it, not a
+ * field. It has to stay under one figure's width or the four blocks read as four groups again.
+ */
+const MARCH_INTERVAL = 1.0;
+/**
+ * **How far apart the men stand along the road, and across it — as multiples of a standing host's
+ * own file pitch.**
+ *
+ * These are the numbers that decide whether a column reads as marching men or as a caterpillar. A
+ * block is laid out `cols` across screen-x by `rows` down screen-y, so *which* of the two is the
+ * road changes with the heading — and the first pass closed **both** of them up, on the reasoning
+ * that a column is tight. Measured: that put the along-road spacing at 3.08 against a figure drawn
+ * 3.86 wide, so every man stood inside the man in front and a file of sixteen could be counted as
+ * five. "Only 5 to 10 people in columns" is exactly what that looks like.
+ *
+ * A marching column is tight **across** and open **along**: shoulder to shoulder in a rank, a
+ * stride between one rank and the next.
+ *
+ * There are four numbers and not two because a figure is **3.86 wide and 8.15 tall** at map scale
+ * (`verify-map-host`), so the same distance reads as a gap across the sheet and as an overlap up
+ * it. A column marching east needs 0.92 of a pitch between ranks to clear a man's width; the same
+ * column marching north needs 1.25 to clear his height, and at 0.92 it came out a solid vertical
+ * stack — a mass, not a file.
+ */
+const MARCH_ALONG_X = 0.92;
+const MARCH_ALONG_Y = 1.25;
+const MARCH_ACROSS_X = 0.62;
+const MARCH_ACROSS_Y = 0.58;
+/** The horse keeps its own room even in column — a rider is wider and longer than a man. */
+const MARCH_ROOM_HORSE = 1.45;
+/**
+ * How much of the standing rank shear a column keeps.
+ *
+ * The shear leans each rank a fifth of a pitch to the right of the one in front, which reads as men
+ * standing in a loose block and as a *drifting* file on a road running up the sheet — the column
+ * arrived a whole host's width to the right of where it set off.
+ */
+const MARCH_SHEAR = 0.3;
 
-export function marchPlanFacing(
-  radians: number,
-  rankPerFile: number,
-  marks = MARCH_REFERENCE_MARKS,
-): Partial<Record<FormationKey, FormationTweak>> {
-  // The plan's own blocks are filed south (`dy`), so the base heading is +y, not +x.
-  const turn = radians - Math.PI / 2;
-  const cos = Math.cos(turn);
-  const sin = Math.sin(turn);
-  const stretch = Math.min(
-    MARCH_MAX_STRETCH,
-    Math.sqrt(Math.max(1, marks) / MARCH_REFERENCE_MARKS),
-  );
+/** The order the blocks take on the road: the screen out ahead, the horse bringing up the rear. */
+export const MARCH_ORDER: FormationKey[] = ['screen', 'line', 'bows', 'horse'];
+
+/** How a host is laid out while it is on the road — see `marchColumn`. */
+export interface MarchColumn {
+  /** The road's own angle, in radians. */
+  heading: number;
+  /** Blocks front to back along it. */
+  order: FormationKey[];
+  /** Frontage against depth per block, already turned to the road's angle. */
+  aspect: Record<FormationKey, number>;
+  /** How much room that block's men need, against a foot soldier's. */
+  room: Record<FormationKey, number>;
   /**
-   * Which way each block is laid out, as a function of the road's own angle.
-   *
-   * `cos(2θ)` is +1 due east or west, −1 due north or south, and 0 on all four diagonals — so
-   * raising the plan's depth-wise aspect to `-cos(2θ)` gives the block laid along the road at the
-   * axes and a square block on the diagonals, with no seam in between. Interpolating on `|cos θ|`
-   * instead put the diagonals at 1.56 — wide blocks on the one heading that can least afford them,
-   * which is why the diagonals were where this failed most.
+   * Spacing along the road and across it, as multiples of the host's standing file pitch — one
+   * pair for the sheet's x axis and one for its y, because a figure is far taller than it is wide.
    */
-  const lay = -Math.cos(2 * radians);
-  const out: Partial<Record<FormationKey, FormationTweak>> = {};
-  for (const key of Object.keys(MARCH_PLAN) as FormationKey[]) {
-    const tweak = MARCH_PLAN[key];
-    if (!tweak) continue;
-    const dx = (tweak.dx ?? 0) * stretch;
-    const dy = (tweak.dy ?? 0) * stretch * rankPerFile;
-    const deep = tweak.aspect ?? 0.5;
-    out[key] = {
-      ...tweak,
-      aspect: Math.pow(deep, lay),
-      dx: dx * cos - dy * sin,
-      dy: (dx * sin + dy * cos) / rankPerFile,
-    };
+  alongX: number;
+  alongY: number;
+  acrossX: number;
+  acrossY: number;
+  /** The gap between one block and the next, in along-road pitches. */
+  interval: number;
+  /** How much of the standing rank shear the column keeps. */
+  shear: number;
+  /** Men abreast — reported so a harness can check the column is a column. */
+  frontage: number;
+}
+
+/**
+ * The column a host of these blocks forms on a road running at `radians`.
+ *
+ * Only the *shape* of each block is settled here — where it stands is `armyShape`'s, because that
+ * is the only place that knows the block's real pitch in world units and can therefore file one
+ * block behind another rather than at a guessed offset.
+ *
+ * **The aspect has to follow the heading.** A block is built `cols` across by `rows` deep in screen
+ * axes, so a block deeper than it is wide reads as a column only while the road runs up and down
+ * the sheet; on an east-west road the same block is a bar standing across its own line of march.
+ * `cos(2θ)` is +1 due east or west, −1 due north or south and 0 on all four diagonals, so blending
+ * the two exact aspects on it gives the block laid along the road at the axes and a square block on
+ * the diagonals, with no seam in between.
+ */
+export function marchColumn(
+  shares: Record<FormationKey, BlockShare>,
+  radians: number,
+): MarchColumn {
+  const total = MARCH_ORDER.reduce((sum, key) => sum + Math.max(0, shares[key].full), 0);
+  const frontage = Math.min(
+    MARCH_FRONTAGE_MAX,
+    Math.max(MARCH_FRONTAGE_MIN, Math.ceil(Math.max(1, total) / MARCH_MAX_RANKS)),
+  );
+  // 1 due north or south, 0 due east or west, ½ on the diagonals.
+  const along = (1 - Math.cos(2 * radians)) / 2;
+  const aspect = {} as Record<FormationKey, number>;
+  const room = {} as Record<FormationKey, number>;
+  for (const key of MARCH_ORDER) {
+    const full = Math.max(1, shares[key].full);
+    // Never wider than the block has men for: a two-mark screen is two abreast, not six.
+    const files = Math.max(1, Math.min(frontage, full));
+    const depth = Math.max(1, Math.ceil(full / files));
+    // `armyShape` derives rows from `√(full / aspect)`, so these are the two aspects that make it
+    // land exactly on `depth` (road running up the sheet) and on `files` (road running across it).
+    aspect[key] = Math.pow(full / (depth * depth), along) * Math.pow(full / (files * files), 1 - along);
+    room[key] = key === 'horse' ? MARCH_ROOM_HORSE : 1;
   }
-  return out;
+  return {
+    heading: radians,
+    order: MARCH_ORDER,
+    aspect,
+    room,
+    alongX: MARCH_ALONG_X,
+    alongY: MARCH_ALONG_Y,
+    acrossX: MARCH_ACROSS_X,
+    acrossY: MARCH_ACROSS_Y,
+    shear: MARCH_SHEAR,
+    interval: MARCH_INTERVAL,
+    frontage,
+  };
 }
 
 function ringIndex(formation: BattleFormation): number {

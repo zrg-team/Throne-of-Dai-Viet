@@ -14,7 +14,7 @@ page.on('pageerror', (e) => errors.push(`PAGEERROR ${e.message}`));
 page.on('console', (m) => { if (m.type() === 'error') errors.push(`CONSOLE ${m.text()}`); });
 page.on('request', (request) => {
   const path = new globalThis.URL(request.url()).pathname;
-  if (path.startsWith('/faces/')) faceRequests.push(path.slice(1));
+  if (/^\/faces(?:-dongho-v\d+)?\//.test(path)) faceRequests.push(path.slice(1));
 });
 await page.goto(`${URL}/?capture=1`, { waitUntil: 'domcontentloaded' });
 await page.waitForFunction(() => typeof window.__startBenchGame === 'function' && window.__phaserGame.scene.isActive('MenuScene'), null, { timeout: 30000 });
@@ -91,7 +91,9 @@ const r = await page.evaluate(async () => {
   const menu = window.__phaserGame.scene.getScene('MenuScene');
   const portrait = renderHeroFace(menu, heroTemplates[0], 0, 0, 0.5);
   out.runtimePortraitChildren = portrait.list.length;
-  out.atlasFrames = menu.textures.get('face:atlas').frameTotal - 1; // omit __BASE
+  const { getHeroFaceArtPackId, HERO_FACE_ART_PACKS } = await import('/src/ui/faces/artPack.ts');
+  out.artPack = HERO_FACE_ART_PACKS[getHeroFaceArtPackId()];
+  out.atlasFrames = menu.textures.get(out.artPack.texture).frameTotal - 1; // omit __BASE
   portrait.destroy(true);
 
   // ── era signals must not leak later hats and insignia backward in time ──
@@ -228,7 +230,7 @@ const checks = {
   'the wardrobe ships every part it asks for': r.missingParts.length === 0,
   'portraits are not one face in many hats': r.distinctLooks > r.sampleSize * 0.9,
   'the runtime loads one face atlas, not hundreds of SVGs': r.faceRequests.length === 2
-    && r.faceRequests.every((path) => /faces\/atlas\.(svg|json)$/.test(path)),
+    && r.faceRequests.includes(r.artPack.image) && r.faceRequests.includes(r.artPack.atlas),
   'every authored part has one atlas frame': r.atlasFrames === r.parts,
   'a rendered portrait is one baked image': r.runtimePortraitChildren === 1,
   'every head overlaps a neck matched to its jaw': r.headNeck.detached.length === 0

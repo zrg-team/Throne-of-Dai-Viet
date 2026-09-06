@@ -249,7 +249,7 @@ export function addNaturalTravelMotion(
   // The road traveller already has four articulated poses large enough to read. Running the old
   // rigid-stamp bob and tilt on top of those distance-driven frames creates two unrelated clocks:
   // the torso rocks while the feet change elsewhere, which looks like jitter rather than gait.
-  const stableRoadTraveler = frames?.sheet.sourceTextureKey === 'conquest-art:life.traveler';
+  const stableRoadTraveler = frames?.sheet.sourceTextureKey.startsWith('conquest-art:life.traveler');
   const profile = stableRoadTraveler
     ? { bob: 0, angle: 0, duration: 420 }
     : kind === 'person'

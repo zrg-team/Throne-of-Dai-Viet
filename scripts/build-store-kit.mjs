@@ -8,6 +8,7 @@
  * and names the folders after the console screens they belong to.
  *
  *   yarn store:kit
+ *   node scripts/build-store-kit.mjs --icons-only  # refresh just the two store icons
  *
  * ## One source, four outputs
  *
@@ -24,6 +25,7 @@
  * megabytes of screenshots have no business on a build machine.
  */
 import { chromium } from 'playwright';
+import { tagSrgb } from './icons/river-icon-pack.mjs';
 import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -282,58 +284,19 @@ await page.addScriptTag({
       x.restore();
     }
 
-    /**
-     * The seal, from ink/devices.ts: a soi son block, a hairline inset, and a drawn device - the
-     * twelve-ray sun of the tympanum. Never a written character: the game ships in English and
-     * quoc ngu, and a Han glyph would be decoration pretending to be information.
-     */
+    /** The approved river emblem signs every generated store sheet. */
     function seal(x, cx, cy, size, P) {
-      const half = size / 2;
-      const unit = size * 0.28;
-      const rot = -0.06;
-      const at = (dx, dy) => ({
-        x: cx + dx * Math.cos(rot) - dy * Math.sin(rot),
-        y: cy + dx * Math.sin(rot) + dy * Math.cos(rot),
-      });
-      const poly = (pts) => {
-        x.beginPath();
-        x.moveTo(pts[0].x, pts[0].y);
-        for (let i = 1; i < pts.length; i += 1) x.lineTo(pts[i].x, pts[i].y);
-        x.closePath();
-      };
-
-      x.save();
-      x.globalAlpha = 0.9;
-      x.fillStyle = P.son;
-      poly([at(-half, -half), at(half, -half), at(half, half), at(-half, half)]);
-      x.fill();
-
-      const in2 = size * 0.09;
-      x.globalAlpha = 0.42;
-      x.strokeStyle = P.shell;
-      x.lineWidth = Math.max(1, size * 0.028);
-      poly([at(-half + in2, -half + in2), at(half - in2, -half + in2), at(half - in2, half - in2), at(-half + in2, half - in2)]);
-      x.stroke();
-
-      x.globalAlpha = 0.95;
-      x.lineWidth = Math.max(1, size * 0.055);
-      x.beginPath();
-      for (let ray = 0; ray < 12; ray += 1) {
-        const a = (ray / 12) * Math.PI * 2;
-        const p1 = at(Math.cos(a) * unit * 0.32, Math.sin(a) * unit * 0.32);
-        const p2 = at(Math.cos(a) * unit * 1.15, Math.sin(a) * unit * 1.15);
-        x.moveTo(p1.x, p1.y);
-        x.lineTo(p2.x, p2.y);
-      }
-      x.stroke();
-      x.fillStyle = P.shell;
-      x.beginPath();
-      x.arc(cx, cy, unit * 0.3, 0, Math.PI * 2);
-      x.fill();
-      x.restore();
+      x.drawImage(window.appEmblem, cx - size / 2, cy - size / 2, size, size);
     }
   `,
 });
+
+// Decode the source once for all feature graphics and screenshot footers.
+await page.evaluate(async (src) => {
+  window.appEmblem = new Image();
+  window.appEmblem.src = src;
+  await window.appEmblem.decode();
+}, dataUri(join(root, 'apps/mobile/branding/dongho-river-foreground-v7.png'), 'image/png'));
 
 // ── icons ─────────────────────────────────────────────────────────────────────────────────────
 
@@ -351,7 +314,7 @@ const square = async (source, size, file) => {
     x.drawImage(img, 0, 0, size, size);
     return c.toDataURL('image/png');
   }, { src: dataUri(source, 'image/png'), size });
-  writeFileSync(file, Buffer.from(url.split(',')[1], 'base64'));
+  writeFileSync(file, tagSrgb(Buffer.from(url.split(',')[1], 'base64')));
 };
 
 /**
@@ -441,12 +404,11 @@ const featureGraphic = async (source, file, words) => {
     c.style.cssText = 'display:block;width:100%;height:100%';
     document.body.innerHTML = '';
     document.body.appendChild(c);
-  }, { src: dataUri(source, 'image/svg+xml'), w, h, P: PIG, words });
+  }, { src: dataUri(source, 'image/png'), w, h, P: PIG, words });
   writeFileSync(file, await page.screenshot({ omitBackground: false }));
 };
 
 const iosIconSource = join(root, 'apps', 'mobile', 'assets', 'icon.png');
-const webIconSource = join(root, 'public', 'icon-512.png');
 
 if (!existsSync(iosIconSource)) {
   console.error('No apps/mobile/assets/icon.png — run `yarn mobile:sync` first.');
@@ -461,17 +423,20 @@ copyFileSync(iosIconSource, iosIcon);
 note(iosIcon, '1024x1024, no alpha');
 
 const playIcon = join(dir('android', 'icon'), 'play-store-icon-512.png');
-await square(webIconSource, 512, playIcon);
+// Both stores use the same approved river illustration as the app and web.
+await square(iosIconSource, 512, playIcon);
 assertPng(playIcon, 512, 512, true);
 note(playIcon, '512x512, 32-bit');
 
-/**
- * Drawn from `favicon.svg`, not from a PNG. Every PNG cut of the mark is printed on its own sheet
- * of paper, and that sheet is a different speckle from the one drawn here — so it lands as a
- * visible square patch behind the drum. The SVG carries the mark alone, and scales exactly.
- */
+if (process.argv.includes('--icons-only')) {
+  await browser.close();
+  for (const [file, description] of written) console.log(`${file}: ${description}`);
+  process.exit(0);
+}
+
+/** A transparent source avoids a square paper patch inside the feature graphic. */
 const feature = join(dir('android', 'graphics'), 'feature-graphic-1024x500.png');
-await featureGraphic(join(root, 'public', 'favicon.svg'), feature, {
+await featureGraphic(join(root, 'apps/mobile/branding/dongho-river-foreground-v7.png'), feature, {
   title: (S.wordmark && S.wordmark.title) || S.name,
   sub: (S.wordmark && S.wordmark.sub) || S.subtitle,
   tag: (S.wordmark && S.wordmark.tag) || S.subtitle,
@@ -909,6 +874,11 @@ writeFileSync(
 
 Everything here is generated by \`yarn store:kit\` from **\`apps/mobile/store.metadata.json\`**.
 Edit that one file; both stores follow.
+
+The approved boat-and-river-stakes identity is shared with the menu, loading screen, native
+launchers and web icons. Its retained sources are in \`apps/mobile/branding/\`; regenerate the
+platform icons with \`node scripts/build-icon.mjs\` and
+\`node scripts/build-icon.mjs --mobile apps/mobile/assets\` before generating this kit.
 
 \`\`\`
 ios/                              android/

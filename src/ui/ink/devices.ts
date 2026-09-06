@@ -6,8 +6,8 @@ import { PLAYER_KINGDOM_ID } from '../../game/constants';
 import type { Army, ArmyComposition, ArmyWardrobe, GameState } from '../../state/types';
 import {
   blockShares, compositionOfUnits, DOCTRINE, FORMATION_ORDER, FORMATION_PLAN, HOST_MARK_CAP,
-  MARCH_PLAN, MEN_PER_MARK, marchPlanFacing, type BattleFormation, type FormationKey,
-  type FormationTweak, marksFor,
+  MEN_PER_MARK, marchColumn, type BattleFormation, type FormationKey,
+  type FormationTweak,
 } from '../../data/ascent/formations';
 
 /**
@@ -689,9 +689,13 @@ export interface HostKit {
   /**
    * Whether this host is on the road right now.
    *
-   * Drawn in column when it is — see `MARCH_PLAN`. Part of the kit rather than a separate argument
-   * because the kit is already what the marker's redraw signature is built from, and a host that
-   * falls in or breaks ranks has to redraw exactly once.
+   * **This is the whole switch.** A host on the road is drawn in column — narrow at the front,
+   * closed up, filed one block behind another along the way it is walking (`marchColumn`) — and a
+   * host at rest stands in its doctrine's arrangement. There is no second flag: the column used to
+   * be gated behind one, which was off, so every host on the map crossed a province in the loose
+   * shape it holds ground in. Part of the kit rather than a separate argument because the kit is
+   * already what the marker's redraw signature is built from, and a host that falls in or breaks
+   * ranks has to redraw exactly once.
    */
   marching?: boolean;
   /**
@@ -701,13 +705,6 @@ export interface HostKit {
    * curved a degree would rebuild its marker every frame.
    */
   marchHeading?: number;
-  /**
-   * File the blocks one behind another along the road (`MARCH_PLAN`) rather than keeping the
-   * standing arrangement. Off by default: a host on the map keeps its close formation and simply
-   * faces the way it is walking — a compact block on the road reads as the same host that stood
-   * beside its seat, where the long file strung the men out beyond the road's own width.
-   */
-  column?: boolean;
   /**
    * How far apart the men stand, as a multiple of the formation's own pitch.
    *
@@ -1001,23 +998,31 @@ export function armyShape(
   men: number, composition: ArmyComposition, s = 1, mustered?: number, spread = 1,
   shape?: BattleFormation, markCap?: number,
   /**
-   * An arrangement passed straight in, rather than looked up from a battle shape.
+   * The road this host is on, if it is on one — its heading in radians.
    *
-   * The map marker uses this for `MARCH_PLAN`: a host on the road is drawn in column, which is a
-   * drawing and not a battle shape — nothing resolves a fight against it and it is not on the
-   * counter ring. Everything downstream treats it exactly like one of the five.
+   * Hành quân is a *drawing* and not a battle shape: nothing resolves a fight against it and it is
+   * not on the counter ring. It is settled here rather than handed in as a table of offsets
+   * because filing one block behind another needs the block's real pitch in world units, which is
+   * computed below and nowhere else. See `marchColumn`.
    */
-  planOverride?: Partial<Record<FormationKey, FormationTweak>>,
+  march?: { heading: number },
 ): ArmyShape {
   // The allocation — shares by doctrine, casualties spent in formation order — is `blockShares`,
   // which the fight resolver reads too. One table, one arithmetic, so the dock can never offer a
   // shape the exchange thinks has no block left to stand on.
   const shares = blockShares(composition, men, mustered, markCap);
   const plan = DOCTRINE[composition] ?? DOCTRINE.balanced;
+  // On the road, the column decides each block's frontage and how close its files stand; where it
+  // stands is settled after the loop, once the pitches are known.
+  const column = march ? marchColumn(shares, march.heading) : undefined;
   // The five shapes, when a host is standing in one. Absent — every caller that is not the fight
-  // screen — the base table draws exactly what it always has, which is what keeps the map marker
-  // and the History plate out of this entirely.
-  const tweaks = planOverride ?? (shape ? FORMATION_PLAN[shape] : undefined);
+  // screen and not on a road — the base table draws exactly what it always has, which is what keeps
+  // the History plate out of this entirely.
+  const tweaks: Partial<Record<FormationKey, FormationTweak>> | undefined = column
+    ? Object.fromEntries(
+      column.order.map((key) => [key, { aspect: column.aspect[key] }]),
+    ) as Partial<Record<FormationKey, FormationTweak>>
+    : (shape ? FORMATION_PLAN[shape] : undefined);
 
   /**
    * The silhouette must survive the doctrine.
@@ -1100,6 +1105,72 @@ export function armyShape(
     bottom = Math.max(bottom, feet);
   }
 
+  /**
+   * **Nose to tail.**
+   *
+   * On the road the blocks are not where the doctrine puts them — they are strung out along it,
+   * each one clearing the one ahead by a single marching interval and no more. That distance is
+   * the block's own along-road extent, which is only knowable here: `cols`, `rows` and the two
+   * pitches are all decided above, and a table of fixed offsets (which is what this was, twice)
+   * cannot see any of them. The projection `|cos|·width + |sin|·depth` is the block's shadow on
+   * the road's own axis, so the interval is a real gap at every heading and not just at the four
+   * that happen to line up with the sheet.
+   *
+   * The head of the column is forward: the screen leads, the horse brings up the rear.
+   */
+  if (column && blocks.length > 0) {
+    const cos = Math.cos(column.heading);
+    const sin = Math.sin(column.heading);
+    /**
+     * **Tight across the road, open along it.**
+     *
+     * A block is `cols` across screen-x and `rows` down screen-y, so which of its two pitches is
+     * the road depends on the heading — 0 due east or west, 1 due north or south. Closing both (the
+     * first pass) put men in file inside one another; this opens the one the column runs along and
+     * closes only the one across it, at every heading, with the diagonals half way between.
+     */
+    const t = (1 - Math.cos(2 * column.heading)) / 2;
+    // Each axis blends between its along-road spacing and its across-road one. See `MARCH_ALONG_X`.
+    const filePitch = (column.alongX * (1 - t) + column.acrossX * t) * pitch;
+    const depthPitch = (column.acrossY * (1 - t) + column.alongY * t) * pitch;
+    const alongPitch = column.alongX * (1 - t) * pitch + column.alongY * t * pitch;
+    const extent = new Map<FormationKey, number>();
+    for (const block of blocks) {
+      const room = column.room[block.key] ?? 1;
+      block.pitch = filePitch * room;
+      block.rankPitch = depthPitch * room;
+      block.shear = shear * column.shear;
+      extent.set(
+        block.key,
+        Math.abs(cos) * (block.cols - 1) * block.pitch
+        + Math.abs(sin) * (block.rows - 1) * block.rankPitch,
+      );
+    }
+    // The interval is a distance down the road, so it is always the along-road pitch.
+    const gap = column.interval * alongPitch;
+    let cursor = 0;
+    const centres = new Map<FormationKey, number>();
+    for (const key of column.order) {
+      const span = extent.get(key);
+      if (span === undefined) continue;
+      if (centres.size > 0) cursor += gap;
+      centres.set(key, cursor + span / 2);
+      cursor += span;
+    }
+    const middle = cursor / 2;
+    left = Infinity; right = -Infinity; top = Infinity; bottom = -Infinity;
+    for (const block of blocks) {
+      const along = middle - (centres.get(block.key) ?? middle);
+      block.x = along * cos - ((block.cols - 1) * block.pitch) / 2;
+      block.y = along * sin - ((block.rows - 1) * block.rankPitch) / 2;
+      block.feet = block.y + (block.rows - 1) * block.rankPitch;
+      left = Math.min(left, block.x);
+      right = Math.max(right, block.x + (block.cols - 1) * block.pitch);
+      top = Math.min(top, block.y);
+      bottom = Math.max(bottom, block.feet);
+    }
+  }
+
   // Painted bottom-up by ascending feet: whatever stands nearer the viewer is drawn last, or the
   // rear ranks come out on top of the front line. (`setDepth` inside a container is a no-op.)
   blocks.sort((a, b) => a.feet - b.feet);
@@ -1134,6 +1205,18 @@ export interface ArmyPlan {
 }
 
 /**
+ * The road a host is on, as `armyShape` wants it — or nothing, when it is standing still.
+ *
+ * One reading of the kit, shared by everything that draws a host, because the marker computes its
+ * shape twice: once for the ground, the standard and the anchor, and once again inside `planArmy`
+ * for the men. The two used to disagree the moment either side's condition drifted, which reads on
+ * the map as a banner and a shadow that have formed column while the men have not moved.
+ */
+export function marchOf(kit: HostKit): { heading: number } | undefined {
+  return kit.marching ? { heading: kit.marchHeading ?? 0 } : undefined;
+}
+
+/**
  * The placement walk `drawArmy` has always made, separated from the inking — so the same plan can
  * be drawn as live ink (`drawArmy` below, pixel-identical, held to it by `diag-army-hash`) or
  * placed as stamped images (`stampedArmy` in figureStamps.ts).
@@ -1159,9 +1242,7 @@ export function planArmy(
   // `marching` lives on the kit precisely so it survives the second call.
   const shape = armyShape(
     men, compositionFor(kit), s, kit.mustered, kit.spread ?? 1, kit.shape, kit.markCap,
-    kit.marching && kit.column
-      ? marchPlanFacing(kit.marchHeading ?? 0, RANK_PER_FILE, marksFor(men, kit.markCap))
-      : undefined,
+    marchOf(kit),
   );
   const figures: FigurePlacement[] = [];
   let index = 0;

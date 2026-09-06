@@ -20,7 +20,11 @@ export function showCoronation(self: ConquestUIScene): void {
     scene: self,
     ui: self.ui,
     mode: 'coronation',
-    redraw: () => self.replaceLanePage(() => showCoronation(self)),
+    redraw: (preserveScroll) => {
+      const offset = preserveScroll ? -(self.activeScrollAreas[0]?.content.y ?? 0) : 0;
+      self.replaceLanePage(() => showCoronation(self));
+      self.activeScrollAreas[0]?.setScroll(offset);
+    },
     finish: (founder) => {
       setDynastyFounder(founder);
       self.coronationSheet = undefined;

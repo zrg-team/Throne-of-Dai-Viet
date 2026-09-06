@@ -11,6 +11,10 @@
     ],
     "icon": "./assets/icon.png",
     "ios": {
+      "icon": {
+        "light": "./assets/icon.png",
+        "tinted": "./assets/icon-tinted.png"
+      },
       "bundleIdentifier": "zrg.team.vanthang",
       "supportsTablet": true,
       "requireFullScreen": true,
@@ -24,7 +28,8 @@
       "package": "zrg.team.vanthang",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#e9dfc2"
+        "monochromeImage": "./assets/monochrome-icon.png",
+        "backgroundColor": "#f6edd7"
       },
       "versionCode": 419
     },

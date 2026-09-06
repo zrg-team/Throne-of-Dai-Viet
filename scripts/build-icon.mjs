@@ -1,9 +1,8 @@
 /**
- * Generates the app mark: the favicon, the home-screen icons and the web manifest that points at
- * them, all from one drawing. Two cuts of it ship — `public/icon.svg` on its sheet of paper for
- * anywhere the icon is installed, and `public/favicon.svg` on nothing at all for the browser tab.
+ * Exports the approved river icon for web and mobile through icons/river-icon-pack.mjs.
+ * The drum drawing below remains available with an explicit --mark for historical previews.
  *
- * The mark that ships is the face of the Ngọc Lũ drum — the finest Đông Sơn bronze that survives,
+ * The legacy mark is the face of the Ngọc Lũ drum — the finest Đông Sơn bronze that survives,
  * cast about two thousand years ago and now in the National Museum of History in Hanoi. It is drawn
  * from the real object rather than from a memory of one: fourteen sun rays, peacock feathers in the
  * notches between them, tangent circles with a dot at the heart, eighteen chim Lạc in flight
@@ -27,14 +26,14 @@
  * grown to fill what they leave; `plain` is the sun alone, for anywhere the mark goes very small.
  * Output is committed; re-run after editing a path.
  *
- * Usage: node scripts/build-icon.mjs [--mark seal|night|drum] [--out dir] [--check]
- *   --mark   drum · drum-plain · drum-full · drum-bronze · drum-ink (default: drum)
+ * Usage: node scripts/build-icon.mjs [--out dir] [--check] [--mobile dir]
+ *   --mark   explicit legacy preview: drum · drum-plain · drum-full · drum-bronze · drum-ink
  *   --out    where to write (default: public) — point it elsewhere to preview an alternate mark
  *   --check  verify the committed output matches what this script would emit, and fail if not
- *   --mobile cut the 1024 store marks into <dir> instead of the web set — see MOBILE below
+ *   --mobile export native river icons and matching splash into <dir>
  */
 import { chromium } from 'playwright';
-import { readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 
 /**
  * `--mobile <dir>` cuts the store sizes instead of the web set.
@@ -62,6 +61,14 @@ const MARK = (() => {
   const at = process.argv.indexOf('--mark');
   return at >= 0 ? process.argv[at + 1] : 'drum';
 })();
+
+// Normal web and native builds share one approved source. Explicit --mark preserves the
+// legacy drawing for design experiments.
+if (MOBILE || !process.argv.includes('--mark')) {
+  const { buildRiverIcons } = await import('./icons/river-icon-pack.mjs');
+  await buildRiverIcons({ out: OUT, mobile: Boolean(MOBILE), check: CHECK });
+  process.exit(0);
+}
 
 // ── pigments ────────────────────────────────────────────────────────────────
 // The same values as src/ui/ink/palette.ts. Duplicated rather than imported because this script
@@ -415,28 +422,10 @@ const WEB_PNGS = [
   ['icon-maskable-512.png', 'maskable', 512],
 ];
 
-/**
- * The three marks `apps/mobile` bundles, under the names `app.json` already points at.
- *
- * `adaptive-icon.png` is the maskable cut and not the plain one: an Android launcher crops the
- * foreground to whatever shape the phone uses, and the plain mark loses its rim to that crop.
- * iOS takes `icon.png` and cuts every slot it needs from it, so 1024 is the only size that has
- * to exist here.
- *
- * Both sources are drawn on paper, so neither carries an alpha channel out of the screenshot —
- * which is not incidental. App Store Connect rejects an icon that has one.
- */
-const MOBILE_PNGS = [
-  ['icon.png', 'icon', 1024],
-  ['adaptive-icon.png', 'maskable', 1024],
-  // On the ink of the splash, the drum on its sheet of paper reads as a print rather than a logo.
-  ['splash.png', 'icon', 1024],
-];
-
-const PNGS = MOBILE ? MOBILE_PNGS : WEB_PNGS;
+const PNGS = WEB_PNGS;
 
 // The manifest and the SVGs are the web's half of the mark; a cabinet has no use for any of them.
-const TEXT = MOBILE ? new Map() : new Map([
+const TEXT = new Map([
   ['icon.svg', ICON],
   ['favicon.svg', FAVICON],
   ['icon-maskable.svg', MASKABLE],
@@ -456,6 +445,7 @@ for (const [name, source, size] of PNGS) {
 await browser.close();
 
 let drift = 0;
+if (!CHECK) mkdirSync(OUT, { recursive: true });
 const compare = (name, buffer) => {
   const at = `${OUT}/${name}`;
   if (CHECK) {
@@ -478,5 +468,5 @@ if (CHECK && drift > 0) {
   process.exit(1);
 }
 console.log(
-  CHECK ? 'icon output is current' : `${MOBILE ? 'store' : 'icon'} set built from mark "${MARK}"`,
+  CHECK ? 'icon output is current' : `legacy icon set built from mark "${MARK}"`,
 );

@@ -547,9 +547,10 @@ export class TrafficRenderer {
         const { curve } = road;
         this.recordSpan(key, curve);
         const travelers: TrafficMover[] = [];
+        const appearanceSeed = hashString(`traveler-look|${state.mapSettings.seed}|${key}`);
 
         for (let index = 0; index < trafficPerRoad().travellers; index += 1) {
-          const traveler = this.mapItems.createTraveler();
+          const traveler = this.mapItems.createTraveler(appearanceSeed, index);
           traveler.setDepth(69);
           const seed = hashString(`traveler|${key}|${index}`);
           travelers.push(this.walk(traveler, curve, seed, this.roadDuration(curve, seed, 1.25), 'person'));

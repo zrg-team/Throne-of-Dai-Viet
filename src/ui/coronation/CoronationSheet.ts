@@ -3,7 +3,9 @@ import { INK_UI, INK_UI_HEX, scrollGestureConsumedTap, type InkUI } from '../Ink
 import { CARD_ICON_SIZE, drawCardIcon, type CardIconId } from '../CardIcons';
 import { UI_FONT } from '../fonts';
 import { renderLookInBox } from '../FaceRenderer';
-import { drawHouseBanner, emblemIcon } from '../ascent/houseBanner';
+import { drawHouseBanner } from '../ascent/houseBanner';
+import { bannerEmblem, drawBannerEmblem } from '../ascent/bannerEmblems';
+import { PIGMENT } from '../ink/palette';
 import { dynastyRankRarity, getDynasty, type DynastyBanner, type DynastyFounder } from '../../state/dynasty';
 import { HAIRS, SKINS } from '../faces/palette';
 import {
@@ -17,6 +19,8 @@ import type { HeroLook, HeroLookPart } from '../faces/heroLook';
 import { t } from '../../i18n';
 import type { HeroEra } from '../../state/types';
 import { soundDirector } from '../sound/SoundDirector';
+import { ACTIVE_HERO_FACE_ART_PACK } from '../faces/artPack';
+import { donghoWardrobeParts } from '../faces/donghoWardrobe';
 
 /**
  * Lễ Đăng Quang — the four screens, drawn once and hosted twice.
@@ -42,7 +46,7 @@ export interface CoronationSheetHost {
    */
   mode: 'coronation' | 'temple';
   /** Tear the sheet down and draw it again. State lives on the sheet, not on the drawing. */
-  redraw(): void;
+  redraw(preserveScroll?: boolean): void;
   finish(founder: DynastyFounder): void;
   /** Coronation only: take the rolled king as-is. Writes a complete founder, never nothing. */
   skip?(): void;
@@ -228,6 +232,14 @@ export class CoronationSheet {
   }
 
   // -- drawing ---------------------------------------------------------------
+  bannerState(): object | undefined {
+    if (this.current() !== 'banner' || this.grid) return undefined;
+    return {
+      ...this.banner, emblemName: t(`coronation.emblem.${bannerEmblem(this.banner.emblem)}`),
+      options: BANNER_EMBLEMS.map((id) => ({ id, name: t(`coronation.emblem.${id}`), locked: emblemLocked(id) })),
+    };
+  }
+
   /** Draws the current step into `body`, and returns the height it used. */
   draw(body: Phaser.GameObjects.Container, width: number): number {
     if (this.grid) return this.drawGrid(body, width, this.grid);
@@ -312,7 +324,7 @@ export class CoronationSheet {
     }
 
     y = this.stepper(body, width, y, t('coronation.field.dress'),
-      dressLabel(kingGarments(this.choice, rank)),
+      dressLabel(this.visibleGarments(this.choice, rank)),
       t('coronation.of', { n: this.at('dress') + 1, total: KING_DRESS_COUNT }),
       (delta) => { this.choice.dress += delta; this.host.redraw(); },
       { open: 'dress' });
@@ -351,8 +363,7 @@ export class CoronationSheet {
       t('coronation.of', { n: (this.houseIndex % ROYAL_HOUSES.length) + 1, total: ROYAL_HOUSES.length }),
       (delta) => {
         this.houseIndex = (this.houseIndex + delta + ROYAL_HOUSES.length * 4) % ROYAL_HOUSES.length;
-        // The banner opens on the dynasty's own historical field. Adjustable on the next step,
-        // but a Lê house whose banner opens crimson has been given a default that argues with it.
+        // Each house has a game-assigned starting colour, freely adjustable on the next step.
         this.banner = { ...this.banner, field: ROYAL_HOUSES[this.houseIndex].field };
         this.host.redraw();
       });
@@ -378,52 +389,123 @@ export class CoronationSheet {
 
   private drawBanner(body: Phaser.GameObjects.Container, width: number): number {
     const scene = this.host.scene;
-    let y = 4;
-    const mark = drawHouseBanner(scene, this.banner, 64, 84);
-    mark.setPosition((width - 64) / 2, y);
+    const emblem = bannerEmblem(this.banner.emblem);
+    const name = t(`coronation.emblem.${emblem}`);
+    const mark = drawHouseBanner(scene, this.banner, 126, 138);
+    mark.setPosition(4, 2);
     body.add(mark);
-    y += 92;
+    const textX = 146;
+    const textWidth = width - textX - 4;
+    body.add(this.host.ui.label(textX, 14, t('coronation.banner.heirloom'), 'caption', {
+      fontSize: '8.5px', color: '#8a5f1c', wordWrap: { width: textWidth },
+    }));
+    body.add(this.host.ui.label(textX, 33, t('coronation.house', { name: this.house() }), 'label', {
+      fontSize: '19px', wordWrap: { width: textWidth },
+    }));
+    const rule = scene.add.graphics().lineStyle(1, INK_UI.gold, 0.7);
+    rule.lineBetween(textX, 63, width - 5, 63);
+    body.add(rule);
+    body.add(this.host.ui.label(textX, 73, name, 'label', { fontSize: '12px' }));
+    body.add(this.host.ui.label(textX, 94, t(`coronation.motif.${emblem}`), 'caption', {
+      fontSize: '10px', wordWrap: { width: textWidth },
+    }));
+    let y = 150;
+    y = this.bannerSwatches(body, width, y, 'field', FIELD_COLOURS);
+    y = this.bannerSwatches(body, width, y, 'trim', BANNER_TRIMS);
+    body.add(this.host.ui.label(0, y, t('coronation.banner.emblem'), 'label', { fontSize: '11px' }));
+    y += 22;
+    const gap = 7;
+    const cardWidth = (width - gap * 2) / 3;
+    const cardHeight = 78;
+    BANNER_EMBLEMS.forEach((id, index) => {
+      const x = (index % 3) * (cardWidth + gap);
+      const top = y + Math.floor(index / 3) * (cardHeight + gap);
+      const selected = emblem === id;
+      const locked = emblemLocked(id);
+      const tile = this.host.ui.crayonTile({ x, y: top, width: cardWidth, height: cardHeight }, { selected });
+      body.add(tile);
+      const pigments = [PIGMENT.hoePale, PIGMENT.sonPale, PIGMENT.chamPale,
+        PIGMENT.hoePale, PIGMENT.tram, PIGMENT.giDongPale];
+      const device = drawBannerEmblem(scene, id, pigments[index]);
+      device.setPosition(x + cardWidth / 2, top + 27).setScale(0.64).setAlpha(locked ? 0.45 : 1);
+      body.add(device);
+      body.add(this.host.ui.label(x + cardWidth / 2, top + 51, t(`coronation.emblem.${id}`), 'label', {
+        fontSize: '10px', color: locked ? INK_UI_HEX.mutedText : INK_UI_HEX.inkText,
+      }).setOrigin(0.5, 0));
+      if (selected) this.bannerCheck(body, x + cardWidth - 10, top + 10, INK_UI.cinnabar);
+      if (locked) {
+        const lock = scene.add.graphics().lineStyle(1.1, INK_UI.softBrush);
+        lock.strokeRoundedRect(x + 7, top + 6, 5, 6, 2).strokeRect(x + 5, top + 10, 9, 7);
+        body.add(lock);
+        body.add(this.host.ui.label(x + cardWidth / 2, top + 65,
+          t(id === 'branch' ? 'coronation.banner.unlockEmpires' : 'coronation.banner.unlockMandate'), 'caption',
+          { fontSize: '8px', color: '#8a5f1c' }).setOrigin(0.5, 0));
+      }
+      const zone = scene.add.zone(x, top, cardWidth, cardHeight).setOrigin(0)
+        .setInteractive({ useHandCursor: !locked }).setData('bannerChoice', { kind: 'emblem', value: id, locked });
+      zone.on('pointerup', (pointer: Phaser.Input.Pointer) => {
+        if (locked || scrollGestureConsumedTap(pointer)) return;
+        soundDirector.tap();
+        this.banner = { ...this.banner, emblem: id };
+        this.host.redraw(true);
+      });
+      body.add(zone);
+    });
+    y += cardHeight * 2 + gap + 12;
+    const note = this.host.ui.label(0, y, t('coronation.banner.inspiration'), 'caption', {
+      fontSize: '9px', wordWrap: { width },
+    });
+    body.add(note);
+    y += note.height + 8;
+    const where = this.host.ui.label(0, y, t('coronation.banner.where'), 'caption', {
+      fontSize: '9px', wordWrap: { width },
+    });
+    body.add(where);
+    return y + where.height + 10;
+  }
 
-    y = this.swatchRow(body, width, y, t('coronation.banner.field'), FIELD_COLOURS,
-      FIELD_COLOURS.indexOf(this.banner.field),
-      (index) => { this.banner = { ...this.banner, field: FIELD_COLOURS[index] }; this.host.redraw(); });
-    y = this.swatchRow(body, width, y, t('coronation.banner.trim'), BANNER_TRIMS,
-      BANNER_TRIMS.indexOf(this.banner.trim),
-      (index) => { this.banner = { ...this.banner, trim: BANNER_TRIMS[index] }; this.host.redraw(); });
+  private bannerCheck(body: Phaser.GameObjects.Container, x: number, y: number, colour: number): void {
+    const g = this.host.scene.add.graphics().lineStyle(1.8, colour);
+    g.strokePoints([{ x: x - 3, y }, { x: x - 0.5, y: y + 3 }, { x: x + 4, y: y - 3 }]);
+    body.add(g);
+  }
 
-    y = this.chipRow(body, width, y, t('coronation.banner.emblem'), BANNER_EMBLEMS.map((emblem) => {
-      const locked = emblemLocked(emblem);
-      return {
-        label: locked ? '🔒' : '',
-        icon: locked ? undefined : emblemIcon(emblem),
-        on: this.banner.emblem === emblem && !locked,
-        muted: locked,
-        tap: () => {
-          if (locked) return;
-          this.banner = { ...this.banner, emblem };
-          this.host.redraw();
-        },
-      };
-    }), { compact: true });
-
-    for (const emblem of BANNER_EMBLEMS) {
-      if (!emblemLocked(emblem)) continue;
-      y = this.lockRow(body, width, y, t(`coronation.emblem.${emblem}` as Parameters<typeof t>[0]),
-        emblem === 'branch' ? t('coronation.lock.emblem.empires') : t('coronation.lock.emblem.mandate'));
-    }
-
-    const armyEra = ROYAL_HOUSES[this.houseIndex % ROYAL_HOUSES.length].armyEra;
-    body.add(scene.add.text(0, y, t('coronation.armyNote', {
-      house: t('coronation.house', { name: this.house() }),
-      era: eraLabelFor(armyEra),
-    }), {
-      color: INK_UI_HEX.mutedText, fontFamily: UI_FONT, fontSize: '9.5px', wordWrap: { width },
-    }).setFixedSize(width, 0));
-    y += 32;
-    body.add(scene.add.text(0, y, t('coronation.banner.where'), {
-      color: INK_UI_HEX.mutedText, fontFamily: UI_FONT, fontSize: '9px', wordWrap: { width },
-    }).setFixedSize(width, 0));
-    return y + 32;
+  private bannerSwatches(
+    body: Phaser.GameObjects.Container, width: number, y: number,
+    kind: 'field' | 'trim', colours: readonly number[],
+  ): number {
+    const scene = this.host.scene;
+    body.add(this.host.ui.label(0, y, t(`coronation.banner.${kind}`), 'label', { fontSize: '11px' }));
+    body.add(this.host.ui.label(width, y, bannerColourName(this.banner[kind]), 'caption', {
+      fontSize: '10px',
+    }).setOrigin(1, 0));
+    y += 20;
+    const gap = 7;
+    const size = Math.min(44, (width - gap * (colours.length - 1)) / colours.length);
+    colours.forEach((colour, index) => {
+      const x = index * (size + gap);
+      const selected = this.banner[kind] === colour;
+      const g = scene.add.graphics();
+      g.fillStyle(colour).fillRoundedRect(x + 3, y + 3, size - 6, 32, 3);
+      g.lineStyle(1, INK_UI.brush, 0.8).strokeRoundedRect(x + 3, y + 3, size - 6, 32, 3);
+      if (selected) {
+        g.lineStyle(1.8, INK_UI.cinnabar).strokeRoundedRect(x, y, size, 38, 4);
+        const luma = ((colour >> 16) & 255) * 0.299 + ((colour >> 8) & 255) * 0.587 + (colour & 255) * 0.114;
+        this.bannerCheck(body, x + size / 2, y + 19, luma > 145 ? INK_UI.brush : 0xf3e6c4);
+      }
+      // The check must sit above the pigment, not below it in Phaser's display order.
+      body.addAt(g, body.length - (selected ? 1 : 0));
+      const zone = scene.add.zone(x, y - 3, size, 44).setOrigin(0)
+        .setInteractive({ useHandCursor: true }).setData('bannerChoice', { kind, value: colour });
+      zone.on('pointerup', (pointer: Phaser.Input.Pointer) => {
+        if (scrollGestureConsumedTap(pointer)) return;
+        soundDirector.tap();
+        this.banner = { ...this.banner, [kind]: colour };
+        this.host.redraw(true);
+      });
+      body.add(zone);
+    });
+    return y + 48;
   }
 
   private drawCrown(body: Phaser.GameObjects.Container, width: number): number {
@@ -588,7 +670,7 @@ export class CoronationSheet {
   /** What a cell is called. Named where the wardrobe has a name for it, numbered where it does not. */
   private optionLabel(field: GridField, option: KingChoice, index: number, rank: number): string {
     if (field === 'hat') return hatLabel(kingHat(option, rank));
-    if (field === 'dress') return dressLabel(kingGarments(option, rank));
+    if (field === 'dress') return dressLabel(this.visibleGarments(option, rank));
     if (field === 'beard') return t('coronation.of', { n: index + 1, total: this.poolSize(field) });
     return t('coronation.of', { n: index + 1, total: this.poolSize(field) });
   }
@@ -606,7 +688,7 @@ export class CoronationSheet {
 
   private drawCaption(body: Phaser.GameObjects.Container, width: number, y: number): number {
     const rank = this.rank();
-    const line = [hatLabel(kingHat(this.choice, rank)), dressLabel(kingGarments(this.choice, rank))]
+    const line = [hatLabel(kingHat(this.choice, rank)), dressLabel(this.visibleGarments(this.choice, rank))]
       .filter(Boolean).join(' · ');
     const text = this.host.scene.add.text(0, y, line, {
       color: INK_UI_HEX.inkText, fontFamily: UI_FONT, fontSize: '10.5px', align: 'center',
@@ -614,6 +696,11 @@ export class CoronationSheet {
     }).setFixedSize(width, 0);
     body.add(text);
     return y + text.height + ROW_GAP;
+  }
+
+  private visibleGarments(choice: KingChoice, rank: number): HeroLookPart[] {
+    return ACTIVE_HERO_FACE_ART_PACK.id === 'dongho-v2'
+      ? donghoWardrobeParts(buildKingLook(choice, rank)) : kingGarments(choice, rank);
   }
 
   /**
@@ -805,6 +892,17 @@ export class CoronationSheet {
 
 /** Fields a banner may fly. The họ's own colour is always among them. */
 const FIELD_COLOURS: readonly number[] = KING_ROBES;
+
+function bannerColourName(colour: number): string {
+  const names: Record<number, Parameters<typeof t>[0]> = {
+    0xaa3a2c: 'coronation.colour.vermilion', 0x2f5170: 'coronation.colour.blue',
+    0x6f8f64: 'coronation.colour.green', 0x26313c: 'coronation.colour.indigo',
+    0x6b4a2f: 'coronation.colour.brown', 0xb07a24: 'coronation.colour.ochre',
+    0xd8b45a: 'coronation.colour.gold', 0xf3e6c4: 'coronation.colour.ivory',
+    0x2a2118: 'coronation.colour.ink',
+  };
+  return names[colour] ? t(names[colour]) : t('coronation.colour.custom');
+}
 
 /**
  * What a hat is called, by family rather than by key.

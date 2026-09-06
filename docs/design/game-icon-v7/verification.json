@@ -1,0 +1,157 @@
+{
+  "checked": [
+    {
+      "path": "apps/mobile/assets/icon.png",
+      "size": 1024,
+      "colorType": 2,
+      "bytes": 1779009
+    },
+    {
+      "path": "apps/mobile/assets/icon-tinted.png",
+      "size": 1024,
+      "colorType": 2,
+      "bytes": 239962
+    },
+    {
+      "path": "apps/mobile/assets/adaptive-icon.png",
+      "size": 1024,
+      "colorType": 6,
+      "bytes": 481021
+    },
+    {
+      "path": "apps/mobile/assets/monochrome-icon.png",
+      "size": 1024,
+      "colorType": 6,
+      "bytes": 118399
+    },
+    {
+      "path": "apps/mobile/assets/splash.png",
+      "size": 512,
+      "colorType": 6,
+      "bytes": 412066
+    },
+    {
+      "path": "public/app-emblem.png",
+      "size": 256,
+      "colorType": 6,
+      "bytes": 116512
+    },
+    {
+      "path": "public/favicon-16.png",
+      "size": 16,
+      "colorType": 6,
+      "bytes": 996
+    },
+    {
+      "path": "public/favicon-32.png",
+      "size": 32,
+      "colorType": 6,
+      "bytes": 2979
+    },
+    {
+      "path": "public/favicon-48.png",
+      "size": 48,
+      "colorType": 6,
+      "bytes": 5804
+    },
+    {
+      "path": "public/favicon-96.png",
+      "size": 96,
+      "colorType": 6,
+      "bytes": 19903
+    },
+    {
+      "path": "public/apple-touch-icon.png",
+      "size": 180,
+      "colorType": 2,
+      "bytes": 65793
+    },
+    {
+      "path": "public/icon-192.png",
+      "size": 192,
+      "colorType": 2,
+      "bytes": 73724
+    },
+    {
+      "path": "public/icon-maskable-192.png",
+      "size": 192,
+      "colorType": 2,
+      "bytes": 30382
+    },
+    {
+      "path": "public/icon-512.png",
+      "size": 512,
+      "colorType": 2,
+      "bytes": 455886
+    },
+    {
+      "path": "public/icon-maskable-512.png",
+      "size": 512,
+      "colorType": 2,
+      "bytes": 189414
+    },
+    {
+      "path": "apps/mobile/branding/dongho-river-foreground-v7.png",
+      "size": 1254,
+      "colorType": 6,
+      "bytes": 2332892
+    },
+    {
+      "path": "apps/mobile/store/android/icon/play-store-icon-512.png",
+      "size": 512,
+      "colorType": 6,
+      "bytes": 625901
+    },
+    {
+      "path": "apps/mobile/store/ios/icon/app-store-icon-1024.png",
+      "size": 1024,
+      "colorType": 2,
+      "bytes": 1779009
+    },
+    {
+      "path": "docs/design/game-icon-v7/icon-pack/ios/AppIcon.appiconset/App-Icon-1024x1024@1x.png",
+      "size": 1024,
+      "colorType": 2,
+      "bytes": 1812437
+    },
+    {
+      "path": "docs/design/game-icon-v7/icon-pack/ios/AppIcon.appiconset/App-Icon-tinted-1024x1024@1x.png",
+      "size": 1024,
+      "colorType": 2,
+      "bytes": 306588
+    }
+  ],
+  "safeAreas": {
+    "adaptive-icon.png": {
+      "visibleAlphaThreshold": 16,
+      "radius": 0.30247358348668296,
+      "limit": 0.3055555555555556
+    },
+    "monochrome-icon.png": {
+      "visibleAlphaThreshold": 16,
+      "radius": 0.3030279889162887,
+      "limit": 0.3055555555555556
+    },
+    "pwa": {
+      "radiusWithOnePixelMargin": 0.39852836754182436,
+      "limit": 0.4
+    }
+  },
+  "native": {
+    "expoConfigPaths": "pass",
+    "androidDensityFamilies": 5,
+    "androidLayers": [
+      "foreground",
+      "background",
+      "monochrome"
+    ],
+    "iosUniversalAppearances": [
+      "default",
+      "tinted"
+    ]
+  },
+  "limitations": [
+    "No physical-device install or store upload was performed."
+  ],
+  "approvedSourceSha256": "015c10b59b37bc1a29aac8c759a392e5fd0719079b001c2473ee3df7f1d96dc2"
+}

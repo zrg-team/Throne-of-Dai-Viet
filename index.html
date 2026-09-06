@@ -84,15 +84,13 @@
         "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
       }
     </script>
-    <!-- The drum, from `node scripts/build-icon.mjs`. Every href is relative: the game is served
-         from a repository sub-path on GitHub Pages, where a leading slash points at nothing.
-         The tab marks are transparent and the install icons are not — `favicon.svg` is the disc on
-         nothing, while `icon.svg` and the touch icons keep their sheet of paper, because iOS fills
-         an icon's alpha with black. -->
-    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
-    <link rel="icon" href="./favicon-32.png" sizes="32x32" type="image/png" />
-    <link rel="icon" href="./favicon-96.png" sizes="96x96" type="image/png" />
-    <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
+    <!-- Approved river icon exports. Relative URLs also work under the Pages repository path. -->
+    <link rel="preload" href="./app-emblem.png" as="image" />
+    <link rel="icon" href="./favicon-river-v9.ico" sizes="16x16 32x32 48x48" type="image/x-icon" />
+    <link rel="icon" href="./favicon-river-v9-16.png" sizes="16x16" type="image/png" />
+    <link rel="icon" href="./favicon-river-v9-32.png" sizes="32x32" type="image/png" />
+    <link rel="icon" href="./favicon-river-v9-96.png" sizes="96x96" type="image/png" />
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png" sizes="180x180" />
     <meta name="apple-mobile-web-app-title" content="Vạn Thắng" />
     <!-- iOS reads the manifest's `display` only from 16.4; before that this meta is the *only*
          thing that makes an added-to-home-screen icon open without Safari's chrome. Harmless
@@ -385,22 +383,8 @@
     <div id="splash" role="status" aria-live="polite" aria-label="Vạn Thắng — đang tải">
       <div class="sp-sheet" id="sp-sheet">
         <div class="sp-page" id="sp-page">
-          <!-- The mark: the face of the Ngọc Lũ drum, the same device as the app icon and the same
-               one the front page stamps over its title. Fourteen sun rays and twenty-two răng cưa,
-               at the radii `MenuScene.drawDaiVietDrumSeal` uses. The colour block is pulled first
-               and the contour second and they never land together — a device whose fill sits
-               exactly inside its own outline reads as clip art. -->
-          <svg class="sp-mark" viewBox="-48 -48 96 96" aria-hidden="true">
-            <circle cx="-1" cy="-0.8" r="44" fill="#b33a26" fill-opacity="0.97" />
-            <circle cx="0" cy="0" r="44" fill="none" stroke="#2a2118" stroke-opacity="0.92" stroke-width="2" />
-            <path fill="#dcbe7e" fill-opacity="0.95" d="M33 0L39.59 5.69L31.66 9.3ZM31.66 9.3L36.39 16.62L27.76 17.84ZM27.76 17.84L30.23 26.19L21.61 24.94ZM21.61 24.94L21.63 33.65L13.71 30.02ZM13.71 30.02L11.27 38.38L4.7 32.66ZM4.7 32.66L0 40L-4.7 32.66ZM-4.7 32.66L-11.27 38.38L-13.71 30.02ZM-13.71 30.02L-21.63 33.65L-21.61 24.94ZM-21.61 24.94L-30.23 26.19L-27.76 17.84ZM-27.76 17.84L-36.39 16.62L-31.66 9.3ZM-31.66 9.3L-39.59 5.69L-33 0ZM-33 0L-39.59 -5.69L-31.66 -9.3ZM-31.66 -9.3L-36.39 -16.62L-27.76 -17.84ZM-27.76 -17.84L-30.23 -26.19L-21.61 -24.94ZM-21.61 -24.94L-21.63 -33.65L-13.71 -30.02ZM-13.71 -30.02L-11.27 -38.38L-4.7 -32.66ZM-4.7 -32.66L0 -40L4.7 -32.66ZM4.7 -32.66L11.27 -38.38L13.71 -30.02ZM13.71 -30.02L21.63 -33.65L21.61 -24.94ZM21.61 -24.94L30.23 -26.19L27.76 -17.84ZM27.76 -17.84L36.39 -16.62L31.66 -9.3ZM31.66 -9.3L39.59 -5.69L33 0Z" />
-            <circle cx="0" cy="0" r="32.5" fill="none" stroke="#dcbe7e" stroke-opacity="0.85" stroke-width="1" />
-            <path fill="#dcbe7e" fill-opacity="0.9" d="M27.3 6.23m-1.5 0a1.5 1.5 0 1 0 3 0a1.5 1.5 0 1 0 -3 0M21.89 17.46m-1.5 0a1.5 1.5 0 1 0 3 0a1.5 1.5 0 1 0 -3 0M12.15 25.23m-1.5 0a1.5 1.5 0 1 0 3 0a1.5 1.5 0 1 0 -3 0M0 28m-1.5 0a1.5 1.5 0 1 0 3 0a1.5 1.5 0 1 0 -3 0M-12.15 25.23m-1.5 0a1.5 1.5 0 1 0 3 0a1.5 1.5 0 1 0 -3 0M-21.89 17.46m-1.5 0a1.5 1.5 0 1 0 3 0a1.5 1.5 0 1 0 -3 0M-27.3 6.23m-1.5 0a1.5 1.5 0 1 0 3 0a1.5 1.5 0 1 0 -3 0M-27.3 -6.23m-1.5 0a1.5 1.5 0 1 0 3 0a1.5 1.5 0 1 0 -3 0M-21.89 -17.46m-1.5 0a1.5 1.5 0 1 0 3 0a1.5 1.5 0 1 0 -3 0M-12.15 -25.23m-1.5 0a1.5 1.5 0 1 0 3 0a1.5 1.5 0 1 0 -3 0M0 -28m-1.5 0a1.5 1.5 0 1 0 3 0a1.5 1.5 0 1 0 -3 0M12.15 -25.23m-1.5 0a1.5 1.5 0 1 0 3 0a1.5 1.5 0 1 0 -3 0M21.89 -17.46m-1.5 0a1.5 1.5 0 1 0 3 0a1.5 1.5 0 1 0 -3 0M27.3 -6.23m-1.5 0a1.5 1.5 0 1 0 3 0a1.5 1.5 0 1 0 -3 0" />
-            <path fill="#f3ecd8" fill-opacity="0.98" transform="translate(-0.8 -0.7)" d="M0 -23L2.11 -9.26L9.98 -20.72L5.92 -7.43L17.98 -14.34L8.56 -4.12L22.42 -5.12L9.5 0L22.42 5.12L8.56 4.12L17.98 14.34L5.92 7.43L9.98 20.72L2.11 9.26L0 23L-2.11 9.26L-9.98 20.72L-5.92 7.43L-17.98 14.34L-8.56 4.12L-22.42 5.12L-9.5 0L-22.42 -5.12L-8.56 -4.12L-17.98 -14.34L-5.92 -7.43L-9.98 -20.72L-2.11 -9.26Z" />
-            <path fill="none" stroke="#2a2118" stroke-opacity="0.8" stroke-width="1" d="M0 -23L2.11 -9.26L9.98 -20.72L5.92 -7.43L17.98 -14.34L8.56 -4.12L22.42 -5.12L9.5 0L22.42 5.12L8.56 4.12L17.98 14.34L5.92 7.43L9.98 20.72L2.11 9.26L0 23L-2.11 9.26L-9.98 20.72L-5.92 7.43L-17.98 14.34L-8.56 4.12L-22.42 5.12L-9.5 0L-22.42 -5.12L-8.56 -4.12L-17.98 -14.34L-5.92 -7.43L-9.98 -20.72L-2.11 -9.26Z" />
-            <circle cx="-0.8" cy="-0.7" r="9" fill="#f3ecd8" />
-            <circle cx="0" cy="0" r="9" fill="none" stroke="#2a2118" stroke-opacity="0.85" stroke-width="1" />
-          </svg>
+          <!-- The same transparent river emblem used by the game menu. -->
+          <img class="sp-mark" src="./app-emblem.png" alt="" aria-hidden="true" />
 
           <!-- The name does not change with the language: the game is called Vạn Thắng in
                Vietnamese and in English, and the line under it says what that means to the half of

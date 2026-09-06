@@ -1,6 +1,7 @@
 import type { Hero, HeroEra } from '../../state/types';
 import type { HeroLookPart } from './heroLook';
 import { ROBES } from './palette';
+import { ACTIVE_HERO_FACE_ART_PACK } from './artPack';
 
 /**
  * What a person of a given identity is allowed to wear.
@@ -10,14 +11,14 @@ import { ROBES } from './palette';
  * file is the only place that answers *what they wear*, era by era. Adding a dynasty, or
  * giving an office a new hat, touches this file and the part library and nothing else.
  *
- * The Đinh pools, and the ten parts they draw on, are sourced frame by frame in
- * `docs/23-the-thirteenth-wardrobe.html` — every one is set beside the still it came from, with
- * what was taken from it and what was refused.
+ * The legacy Đinh pool used modern film reconstructions documented in
+ * `docs/23-the-thirteenth-wardrobe.html`; these are not primary historical evidence.
+ * V2 corrections and remaining uncertainties are in `docs/research/vietnamese-wardrobe-v2.md`.
  *
  * Đại Việt did not dress the same way for a thousand years, which is why these are keyed on
- * era first: Nguyễn Phúc Khoát's 1744 reform replaced the crossed lapel of the áo giao lĩnh
- * with the standing collar of the áo ngũ thân, so an official of the wrong century is as
- * plainly wrong as an office in the wrong hat.
+ * era first. Nguyễn Phúc Khoát's 1744 reform concerned Đàng Trong; it was not an immediate
+ * nationwide replacement of crossed collars. These broad game-era pools simplify regional,
+ * rank and ceremonial distinctions and do not authenticate each individual outfit.
  *
  * Every list here is a *pool* the seed then picks from, never a single answer. That is the
  * difference between a roster of two hundred and the same six portraits repeated: the
@@ -29,11 +30,18 @@ type Pick = <T>(items: readonly T[]) => T;
 /**
  * Headwear each era actually offers, by role and sex. A monk's list has one entry.
  *
- * The pools are deliberately uneven. A Lê general has five war helms to choose from because
- * the sources describe that many; a Đinh one has two, because the tenth century did not have a
- * court to regulate the rest.
+ * The pools are deliberately uneven. Their number of variants is an illustration choice,
+ * not the number of historically documented helmet forms.
  */
 export function headwearFor(era: HeroEra, type: Hero['type'], woman: boolean, rank: number): string[] {
+  if (ACTIVE_HERO_FACE_ART_PACK.id === 'dongho-v2' && !woman) {
+    // Historical corrections belong to the new presentation; retain older pack selection.
+    if (era === 'nguyen' && type === 'general') return ['hat-khandong', 'hat-non-dau', 'hat-khanvan', 'hat-khandong'];
+    if (era === 'dinh' && type === 'general') return ['hat-binhdinh', 'hat-helm-leather', 'hat-band-cloth', ''];
+    if (era === 'ly' && type === 'minister') return ['hat-phocdau-short', 'hat-phocdau-short', 'hat-khanvuong'];
+    if (era === 'tran' && (type === 'minister' || type === 'governor')) return rank >= 2
+      ? ['hat-dinhtu-streamers', 'hat-dinhtu', ''] : ['hat-dinhtu', 'hat-dinhtu', ''];
+  }
   if (woman) return womenHeadwear(era, rank);
   if (era === 'dinh') {
     // Weighted to the war helm rather than merely offering it: the Đinh state was a võ trị —
@@ -289,8 +297,8 @@ export function garmentsFor(
 
   const shape = type === 'general'
     ? pick(era === 'dinh'
-      // Brigandine is a studded coat and lamellar a laced one; neither is tenth-century. The
-      // shell lame and plain hardened leather are, so a Đinh harness draws from its own list.
+      // Legacy film-derived variety. Exact tenth-century armour forms lack surviving
+      // object evidence; v2 substitutes its restrained leather interpretation at presentation.
       ? ['robe-armour-fanscale', 'robe-armour-fanscale', 'robe-armour-leather', 'robe-armour', 'robe-armour-scale']
       : ['robe-armour', 'robe-armour-lamellar', 'robe-armour-scale', 'robe-armour-brigandine', 'robe-armour-leather'])
     : pick(['robe-body', 'robe-body', 'robe-slim', 'robe-sloped', 'robe-broad']);
@@ -322,7 +330,7 @@ export function garmentsFor(
     // the lapel on a man with some, the beast-mask shoulder on a man who commands armies.
     if ((type === 'minister' || type === 'governor') && rank >= 1) {
       // Áo đối khâm — two parallel bands hanging open, with the placket of ô vuông between
-      // them. The round-collar áo viên lĩnh and its bổ tử are both Lê inventions and stay out.
+      // them. Keep the old pool; round collars predate Lê, while rank-square chronology differs.
       return [
         ...body,
         { key: 'collar-doikham', tint: 'robeDark' },
@@ -331,7 +339,7 @@ export function garmentsFor(
         { key: pick(['sash-cord', 'sash-silk', 'sash-ochre']), tint: 'none' },
       ];
     }
-    // The two-flap wrap the Đông Sơn drums show, closed with a sash.
+    // Legacy practical wrap illustration, closed with a sash; not a traced Đông Sơn garment.
     const dinh: HeroLookPart[] = [
       ...body,
       { key: 'collar-twoflap', tint: 'robeDark' },

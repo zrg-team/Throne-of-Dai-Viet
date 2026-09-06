@@ -3,6 +3,7 @@ import type { ArmyWardrobe } from '../state/types';
 import type { Stamp, StampBox } from './ink/stamp';
 import dongHoV4Assets from './conquestDongHoV4Assets.json';
 import dongHoV4Walks from './conquestDongHoV4Walks.json';
+import travelerVariants from './conquestTravelerVariants.json';
 
 // One registry serves map, battlefield and History. Only reviewed redraws are listed here;
 // missing wardrobes keep their own historical silhouettes until their redraw is ready.
@@ -240,21 +241,24 @@ const BUILDING_SCALE: Record<(typeof buildings)[number], ConquestArtScaleContrac
 };
 
 /**
- * Total compound heights are deliberately hierarchical. Individual roofs inside the rural
- * composites land near the procedural 11–15 px house height; citadels retain monumental mass.
+ * Reviewed against the v4 roofs and the standalone 15-unit house. A larger settlement adds
+ * buildings and courtyard depth; it must not turn each roof into a much larger building.
+ * Capitals sit just above the town band, with walls and halls carrying their importance.
+ * Width limits also keep shallow composites from sprawling across neighbouring map features.
  */
 const SETTLEMENT_SCALE: Record<(typeof settlements)[number], ConquestArtScaleContract> = {
-  hamlet: { class: 'rural-settlement', worldHeight: 38 },
-  village: { class: 'village', worldHeight: 44 },
-  'market-town': { class: 'town', worldHeight: 48 },
-  'shrine-village': { class: 'town', worldHeight: 52 },
-  farmstead: { class: 'rural-settlement', worldHeight: 34 },
-  'mine-camp': { class: 'rural-settlement', worldHeight: 38 },
-  'citadel-dinh': { class: 'citadel', worldHeight: 76 },
-  'citadel-ly': { class: 'citadel', worldHeight: 78 },
-  'citadel-tran': { class: 'citadel', worldHeight: 78 },
-  'citadel-le': { class: 'citadel', worldHeight: 86 },
-  'citadel-nguyen': { class: 'citadel', worldHeight: 82, maxWorldWidth: 116 },
+  hamlet: { class: 'rural-settlement', worldHeight: 32, maxWorldWidth: 56 },
+  village: { class: 'village', worldHeight: 38, maxWorldWidth: 60 },
+  'market-town': { class: 'town', worldHeight: 40, maxWorldWidth: 62 },
+  'shrine-village': { class: 'town', worldHeight: 44, maxWorldWidth: 64 },
+  farmstead: { class: 'rural-settlement', worldHeight: 28, maxWorldWidth: 56 },
+  'mine-camp': { class: 'rural-settlement', worldHeight: 32, maxWorldWidth: 56 },
+  // Wide, low palace compounds must not grow just to fill a height target.
+  'citadel-dinh': { class: 'citadel', worldHeight: 50, maxWorldWidth: 64 },
+  'citadel-ly': { class: 'citadel', worldHeight: 52, maxWorldWidth: 64 },
+  'citadel-tran': { class: 'citadel', worldHeight: 52, maxWorldWidth: 64 },
+  'citadel-le': { class: 'citadel', worldHeight: 52, maxWorldWidth: 64 },
+  'citadel-nguyen': { class: 'citadel', worldHeight: 52, maxWorldWidth: 64 },
 };
 
 const lifeRuntimeScale: Record<(typeof life)[number], number> = {
@@ -334,6 +338,13 @@ export const CONQUEST_MAP_ART: readonly ConquestArtAsset[] = [
   })),
   ...markers.map((state) => acceptedAsset(`marker.${state}`, 'markers', markerBounds, {
     state, runtimeScale: markerRuntimeScale(state), projection: 'flat-overlay',
+  })),
+  ...Object.entries(travelerVariants).map(([id, variant]) => ({
+    ...acceptedAsset(id, 'life', lifeBounds.traveler, {
+      state: id.replace('life.', ''), runtimeScale: lifeRuntimeScale.traveler,
+      projection: 'character-facing',
+    }),
+    path: variant.stillPath,
   })),
   ...themes.flatMap((theme) => tiers.flatMap((tier) => arms.map((arm) => acceptedAsset(
     `figure.${theme}.${tier}.${arm}`, 'figures', arm === 'mounted' ? mounted : foot,
@@ -474,10 +485,20 @@ const reviewedWalks = dongHoV4Walks as unknown as Readonly<Record<string,
   Pick<ConquestWalkSheet, 'path' | 'frameWidth' | 'frameHeight' | 'contentHeight' | 'baselines' | 'anchorsX'>>>;
 
 /** Select reviewed art and its measured frame anchors together, preserving each role's gait. */
-export const CONQUEST_WALK_SHEETS: readonly ConquestWalkSheet[] = originalWalkSheets.map(sheet => ({
-  ...sheet,
-  ...reviewedWalks[sheet.textureKey.replace('conquest-art:', '')],
-}));
+export const CONQUEST_WALK_SHEETS: readonly ConquestWalkSheet[] = [
+  ...originalWalkSheets.map(sheet => ({
+    ...sheet,
+    ...reviewedWalks[sheet.textureKey.replace('conquest-art:', '')],
+  })),
+  ...Object.entries(travelerVariants).map(([id, variant]): ConquestWalkSheet => ({
+    kind: 'person', sourceTextureKey: `conquest-art:${id}`,
+    textureKey: `conquest-art:${id}-walk`, path: variant.path,
+    frameWidth: 627, frameHeight: 627, contentHeight: variant.contentHeight,
+    baselines: variant.baselines as [number, number, number, number],
+    anchorsX: variant.anchorsX as [number, number, number, number],
+    subjectMetres: 1.68, cycleMetres: 1.45,
+  })),
+];
 
 const walkSheetBySourceTexture = new Map(
   CONQUEST_WALK_SHEETS.map((sheet) => [sheet.sourceTextureKey, sheet] as const),

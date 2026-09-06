@@ -1,0 +1,14 @@
+{
+  "generator": "built-in image_gen",
+  "revision1": {
+    "status": "rejected: high knees lowered but the same forward support foot repeats in both passing poses",
+    "prompt": "Use case: precise-object-edit. Edit this existing four-frame traveller sprite sheet to repair an exaggerated high-knee walk. Keep the SAME character, face, headwear, clothes, pigment colors, ink texture, carried objects, direction, upper-body proportions, 2x2 grid and frame registration. This is a calm ordinary level-ground walking cycle, viewed from the right-facing side. Redraw the LEGS AND FEET ONLY as needed, especially the BOTTOM-RIGHT frame. In every frame keep BOTH KNEES LOW and both thighs pointing mostly DOWN. In passing poses the moving foot passes just above the ground, beside the planted ankle, with its sole ONLY 8–15 pixels above the planted sole for a 550-pixel-tall character. The swinging knee stays at its ordinary knee level, far BELOW the hip and below the garment hem. Do not bring a thigh toward horizontal. Do not tuck a heel up toward the buttocks. No knee-high stepping, stomping, hopping, running, crouching, kicking or marching. The feet should skim level ground in a relaxed short stride. Four DISTINCT poses in reading order: top left near foot slightly ahead in contact and far foot trailing with toes low; top right near leg supports the body with foot planted a little forward and far foot swinging low behind the planted ankle; bottom left far foot slightly ahead in contact and near foot trailing with toes low, opposite leg overlap; bottom right far leg supports the body with foot planted a little behind the hip and near foot swings just ahead of that ankle, almost at ground level, knee barely flexed. Keep each character the same full standing height; the hip and head do not rise or fall. Keep the same ground line and head position relative to each equal cell. Exactly two arms and two complete legs per figure. Preserve carried baskets/net/bundles/bag/staff/wood wherever present; no new objects. Transparent alpha background including gaps between legs, no checkerboard or opaque matte, no drawn ground line, shadow, labels or cell borders. Four full figures completely inside the cells with generous transparent margin. Highest priority is LOW foot clearance and relaxed mostly straight legs, replacing the conspicuous raised knee in bottom right.",
+    "outputs": {
+      "basket": "66cc4b9d-1030-4d14-b993-e00de689dc78",
+      "fisher": "c7407745-a675-44bc-b9ff-097c2ad0065f",
+      "merchant": "56d59857-f0d3-42c4-8d58-5f32c37efe71",
+      "pilgrim": "3996df9a-701a-4c17-a1c2-431a7b598295",
+      "woodcutter": "bcb63e11-b8b5-4edd-98d1-45692886e464"
+    }
+  }
+}

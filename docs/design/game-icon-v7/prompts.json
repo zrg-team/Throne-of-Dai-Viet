@@ -1,0 +1,15 @@
+{
+  "date": "2026-09-06",
+  "mode": "built-in ImageGen",
+  "approvedSource": "approved-master.png",
+  "jobs": [
+    {
+      "id": "android-foreground",
+      "prompt": "Use case: background-extraction. Input image 1 is the exact approved game icon, an edit target. Prepare its ANDROID ADAPTIVE FOREGROUND layer.\nRemove ONLY the exterior cream paper background. Return the SAME boat, ochre sail, forest-green hull, indigo wave curls, red accents, three pointed river stakes and cream splash, all in exactly the same positions, proportions and colors. Preserve the bold black contours and internal pigment texture. Preserve opaque ivory inside the splashes and wave highlights. The empty external area and open space between separate droplets must be fully transparent (alpha 0). Keep the fine natural outline. Do not redraw, simplify, recolor, add, rearrange, or crop any part of the subject.\nOne square PNG on TRUE TRANSPARENT BACKGROUND, not a checkerboard drawing or white/gray/cream rectangle. Same framing as the supplied original, no added padding, no round corners, no shadows, text or mockups. This is a technical layer extraction, not a new concept."
+    },
+    {
+      "id": "android-monochrome",
+      "prompt": "Use case: precise-object-edit. Input image 1 is the approved boat-and-river-stakes app icon. Produce its Android themed-icon MONOCHROME LAYER as ONE flat WHITE shape with clear TRANSPARENT negative-space separations. Keep the exact distinctive silhouette and orientation: tilted boat, large battened sail to upper right, curling waves below, three pointed stakes in the center bottom. Same composition and framing as the input, no added margin.\nTranslate the subject into strong clean white masses. Separate sail panels, hull edge, wave curls and the three stakes with a few broad transparent gaps so they stay recognizable at 48 pixels. Outside the subject must be fully transparent alpha 0. Inside the white marks must be opaque. No black or gray paint, no paper, no grain, no gradients. White graphic on a genuinely transparent PNG, not white graphic on black or checkerboard pixels. Retain the recognizable Đông Hồ curves; do not introduce any new shapes, symbols, border, text, pedestal or drop shadow. This is the system-tinted technical variant of the same icon, not a new logo."
+    }
+  ]
+}

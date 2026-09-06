@@ -1,0 +1,28 @@
+{
+  "exports": [
+    {
+      "file": "apps/mobile/assets/icon.png",
+      "size": 1024,
+      "colorType": 2
+    },
+    {
+      "file": "apps/mobile/assets/adaptive-icon.png",
+      "size": 1024,
+      "colorType": 2
+    },
+    {
+      "file": "apps/mobile/store/ios/icon/app-store-icon-1024.png",
+      "size": 1024,
+      "colorType": 2
+    },
+    {
+      "file": "apps/mobile/store/android/icon/play-store-icon-512.png",
+      "size": 512,
+      "colorType": 6
+    }
+  ],
+  "iosStoreMatches": true,
+  "adaptiveInkRadius": 0.2969753698032471,
+  "safeRadius": 0.3055555555555556,
+  "allInkInsideSafeCircle": true
+}

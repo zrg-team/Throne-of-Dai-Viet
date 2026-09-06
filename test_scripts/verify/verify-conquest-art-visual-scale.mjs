@@ -24,7 +24,7 @@ const measured = await page.evaluate(async () => {
   const scene = window.__phaserGame.scene.scenes.find((candidate) => candidate.mapItems);
   if (!scene) throw new Error('Map scene renderer was not found');
 
-  const [{ CONQUEST_MAP_ART, conquestArtStamp }, { placeStamp }, { GROUND_SCALE },
+  const [{ CONQUEST_MAP_ART, conquestArtStamp, conquestArtAsset, inkExtent }, { placeStamp }, { GROUND_SCALE },
     { figureStamp }, { bakedBuffalo }] = await Promise.all([
     import('/src/ui/conquestMapArt.ts'),
     import('/src/ui/ink/stamp.ts'),
@@ -71,7 +71,13 @@ const measured = await page.evaluate(async () => {
     settlements: Object.fromEntries([
       'hamlet', 'village', 'market-town', 'shrine-village', 'farmstead', 'mine-camp',
       'citadel-dinh', 'citadel-ly', 'citadel-tran', 'citadel-le', 'citadel-nguyen',
-    ].map((state) => [state, authored(state, `settlement.${state}`, worldBox)])),
+    ].map((state) => {
+      const id = `settlement.${state}`;
+      return [state, {
+        ...authored(state, id, worldBox),
+        ink: inkExtent(scene, conquestArtAsset(id).textureKey),
+      }];
+    })),
     paddies: Object.fromEntries([
       'flooded', 'fallow', 'transplanted', 'ripe', 'nursery',
           // The single rectangular plates were retired in favour of the connected shared-bund field
@@ -147,16 +153,41 @@ const townHeights = ['village', 'market-town', 'shrine-village']
 const citadelHeights = Object.entries(values.settlements)
   .filter(([name]) => name.startsWith('citadel-'))
   .map(([, value]) => value.height);
+const visibleFootprint = value => ({
+  width: value.width * value.ink.x,
+  height: value.height * value.ink.y,
+  area: value.width * value.ink.x * value.height * value.ink.y,
+});
+const citadels = Object.entries(values.settlements)
+  .filter(([name]) => name.startsWith('citadel-'))
+  .map(([, value]) => visibleFootprint(value));
+const townAreas = ['village', 'market-town', 'shrine-village']
+  .map(name => visibleFootprint(values.settlements[name]).area);
 const spread = (numbers) => Math.max(...numbers) / Math.min(...numbers);
 check('rural compounds stay within their reviewed band', spread(ruralHeights) <= 1.15, `${spread(ruralHeights).toFixed(2)}× spread`);
 check('town compounds stay within their reviewed band', spread(townHeights) <= 1.20, `${spread(townHeights).toFixed(2)}× spread`);
-check('citadel-era sizes stay within 15%', spread(citadelHeights) <= 1.15, `${spread(citadelHeights).toFixed(2)}× spread`);
+// A low gateway precinct may be shorter than a deep compound. Compare both visible
+// dimensions: height-only parity encouraged enlarging the wide Lý/Lê/Nguyễn buildings.
 check(
-  'rural compound is smaller than town and every citadel dominates both',
+  'capital widths stay within 10% and footprint areas within 30%',
+  spread(citadels.map(value => value.width)) <= 1.10
+    && spread(citadels.map(value => value.area)) <= 1.30,
+  `${spread(citadels.map(value => value.width)).toFixed(2)}× width / ${spread(citadels.map(value => value.area)).toFixed(2)}× area`,
+);
+check(
+  'capital footprints retain town hierarchy without monumental scaling',
   Math.max(...ruralHeights) < Math.max(...townHeights)
-    && Math.min(...citadelHeights) >= Math.max(...townHeights) * 1.44
-    && Math.max(...citadelHeights) <= values.soldier.height * 11,
+    && Math.min(...citadels.map(value => value.area)) >= Math.max(...townAreas)
+    && Math.max(...citadels.map(value => value.area)) <= Math.max(...townAreas) * 1.40
+    && citadels.every(value => value.width <= 64.01 && value.height <= 52.01)
+    && Math.max(...citadelHeights) <= Math.max(...townHeights) * 1.30
+    && Math.max(...citadelHeights) <= values.house.height * 3.75,
   `rural ${Math.min(...ruralHeights).toFixed(1)}–${Math.max(...ruralHeights).toFixed(1)}, town ${Math.min(...townHeights).toFixed(1)}–${Math.max(...townHeights).toFixed(1)}, citadel ${Math.min(...citadelHeights).toFixed(1)}–${Math.max(...citadelHeights).toFixed(1)} px`,
+);
+check(
+  'no capital sprawls beyond five standalone houses',
+  Object.entries(values.settlements).filter(([name]) => name.startsWith('citadel-'))
+    .every(([, value]) => value.width <= values.house.width * 5),
 );
 
 const contractedStructures = measured.projections.filter(({ family, accepted }) => (

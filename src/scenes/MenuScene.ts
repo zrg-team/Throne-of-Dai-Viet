@@ -544,7 +544,7 @@ export class MenuScene extends Phaser.Scene {
     // vertical-only scale as the landscape it used to be collected with, a 96-unit circle comes out
     // 96 wide and 66 tall on a 664-tall phone sheet, and the emblem inside it flattens with it.
     this.drawColumnVeil();
-    this.drawDaiVietDrumSeal();
+    this.drawAppEmblem();
   }
 
   /**
@@ -2064,96 +2064,13 @@ export class MenuScene extends Phaser.Scene {
     }
   }
 
-  /**
-   * The dynastic seal: the face of a Đông Sơn drum, which is also the mark on the app icon.
-   *
-   * It used to be a lotus, and a lotus at eighty-eight pixels across is a pale fan that reads as a
-   * sheaf of wheat — five petals is not enough shape to survive that size, however carefully the
-   * petals are swung. A drum face survives it because it is a *pattern* rather than a silhouette:
-   * a sun on a raised boss, răng cưa at the rim, and enough register between them that the eye
-   * reads an object. Fourteen rays, because that is the count on the Ngọc Lũ drum in Hanoi, which
-   * is the drum this is drawn from and the same one `scripts/build-icon.mjs` draws.
-   *
-   * Drawn after the landscape layer and scaled *uniformly*. Collected into that squashed layer, a
-   * 44-unit circle came out a third wider than tall on a phone sheet, and the device inside it
-   * flattened with it.
-   *
-   * Flat, and deliberately so. The first cut of this had a soft sheen disc over it to suggest cast
-   * metal, which is a thing a painter can do and a woodblock printer cannot.
-   */
-  private drawDaiVietDrumSeal(): void {
-    const seal = this.add.graphics({ x: GAME_WIDTH / 2, y: this.vy(68) }).setDepth(-4);
-    // The device is drawn at a 44-unit radius and scaled up, rather than every radius in it being
-    // rewritten: the proportions between the sun, the dot ring and the sawtooth were tuned against
-    // each other, and re-typing eleven numbers is how one of them ends up not scaling with the rest.
-    seal.setScale(this.vScale * 1.3);
-
-    // Three blocks and the paper, and every one of them is already on this page.
-    //
-    // The drum is bronze, and the first cut of this was gỉ đồng because of it — which made the seal
-    // the only green thing on a sheet whose whole palette is điệp, mực, sỏi son and hoa hòe. One
-    // cool hue at the top of a warm page pulls the eye straight off the button column. A Đông Hồ
-    // printer cut what was in the tray, not what the subject was made of, so this is cut in the
-    // tray's red: the same red as the standards on the field below it and the primary button under
-    // that. The brightest thing on it is unprinted điệp — on a real print the white is always the
-    // sheet showing through — and the contour is mực, because a Đông Hồ contour is soot and nothing
-    // else. `scripts/build-icon.mjs --mark drum-bronze` still cuts the green one.
-    const block = PIGMENT.son;
-    const gold = PIGMENT.hoePale;
-    const white = PIGMENT.diepHi;
-    const RAYS = 14;
-    // The register slip. The colour block is pulled first and the contour second, and they never
-    // land together; a device whose fill sits exactly inside its own outline reads as clip art.
-    const SLIP = 1;
-
-    seal.fillStyle(block, 0.97);
-    seal.fillCircle(-SLIP, -SLIP * 0.8, 44);
-    seal.lineStyle(2, PIGMENT.muc, 0.92);
-    seal.strokeCircle(0, 0, 44);
-
-    // Răng cưa — the sawtooth register that rings every tympanum.
-    seal.fillStyle(gold, 0.95);
-    const TEETH = 22;
-    for (let tooth = 0; tooth < TEETH; tooth += 1) {
-      const a0 = (tooth / TEETH) * Math.PI * 2;
-      const a1 = ((tooth + 1) / TEETH) * Math.PI * 2;
-      const mid = (a0 + a1) / 2;
-      seal.fillPoints(
-        [
-          { x: Math.cos(a0) * 33, y: Math.sin(a0) * 33 },
-          { x: Math.cos(mid) * 40, y: Math.sin(mid) * 40 },
-          { x: Math.cos(a1) * 33, y: Math.sin(a1) * 33 },
-        ],
-        true,
-      );
-    }
-    seal.lineStyle(1, gold, 0.85);
-    seal.strokeCircle(0, 0, 32.5);
-
-    // A ring of raised dots: the plainest register a drum carries, and the one that keeps the band
-    // between the sun and the rim from reading as bare metal.
-    seal.fillStyle(gold, 0.9);
-    for (let dot = 0; dot < RAYS; dot += 1) {
-      const angle = ((dot + 0.5) / RAYS) * Math.PI * 2;
-      seal.fillCircle(Math.cos(angle) * 28, Math.sin(angle) * 28, 1.5);
-    }
-
-    // The sun, as a fourteen-point star whose valleys land on the edge of the boss.
-    const sun: Pt[] = [];
-    for (let point = 0; point < RAYS * 2; point += 1) {
-      const angle = (point / (RAYS * 2)) * Math.PI * 2 - Math.PI / 2;
-      const radius = point % 2 === 0 ? 23 : 9.5;
-      sun.push({ x: Math.cos(angle) * radius, y: Math.sin(angle) * radius });
-    }
-    seal.fillStyle(white, 0.98);
-    seal.fillPoints(sun.map((point) => ({ x: point.x - SLIP * 0.8, y: point.y - SLIP * 0.7 })), true);
-    seal.lineStyle(1, PIGMENT.muc, 0.8);
-    seal.strokePoints(sun, true);
-
-    seal.fillStyle(white, 1);
-    seal.fillCircle(-SLIP * 0.8, -SLIP * 0.7, 9);
-    seal.lineStyle(1, PIGMENT.muc, 0.85);
-    seal.strokeCircle(0, 0, 9);
+  /** The approved app emblem, scaled uniformly above the title. */
+  private drawAppEmblem(): void {
+    const size = 116 * this.vScale;
+    this.add.image(GAME_WIDTH / 2, this.vy(68), 'app-emblem-river-v7')
+      .setDisplaySize(size, size)
+      .setDepth(-4)
+      .setName('app-emblem-river-v7');
   }
 
   /**
@@ -2410,7 +2327,8 @@ export class MenuScene extends Phaser.Scene {
     }
     // The ledger draws its own head (`renderDynastyTitleBar`): a masthead that spent the top
     // 236 units of a 620 sheet on a name the player had just read is why the page scrolled.
-    if (this.mode !== 'dynasty' && this.mode !== 'legacy') this.renderTitle();
+    const bannerEditor = this.mode === 'temple' && Boolean(this.templeSheet?.bannerState());
+    if (this.mode !== 'dynasty' && this.mode !== 'legacy' && !bannerEditor) this.renderTitle();
     // The wordmark is outside the arrival on purpose: it is the same block of type on every page,
     // and a title that re-landed on each navigation would be the one thing on the sheet that never
     // holds still.
@@ -3066,7 +2984,11 @@ export class MenuScene extends Phaser.Scene {
       scene: this,
       ui: this.ui,
       mode: 'temple',
-      redraw: () => this.render(),
+      redraw: (preserveScroll) => {
+        const offset = preserveScroll ? -(this.pageScroll?.content.y ?? 0) : 0;
+        this.render();
+        this.pageScroll?.setScroll(offset);
+      },
       finish: (founder) => {
         // The *look* and the mark, never the name or the house: a Temple that renamed the line
         // would rewrite every reign the Chronicle has already recorded under the old one.
@@ -3092,11 +3014,16 @@ export class MenuScene extends Phaser.Scene {
 
     const PAD = 20;
     const W = GAME_WIDTH - PAD * 2;
-    this.content.push(this.add.text(GAME_WIDTH / 2, this.vy(236), sheet.title(), {
+    // Give the banner and its choices the page, with a compact title instead of the home masthead.
+    const titleY = sheet.bannerState() ? this.vy(28) : this.vy(236);
+    if (sheet.bannerState()) {
+      this.content.push(this.add.rectangle(0, 0, GAME_WIDTH, titleY + 60, PIGMENT.diep).setOrigin(0));
+    }
+    this.content.push(this.add.text(GAME_WIDTH / 2, titleY, sheet.title(), {
       color: '#2a2118', fontFamily: TITLE_FONT, fontSize: '20px', fontStyle: '700', align: 'center',
     }).setOrigin(0.5, 0));
 
-    let y = this.vy(236) + 26;
+    let y = titleY + 26;
     const note = this.ui.label(GAME_WIDTH / 2, y, sheet.subtitle(), 'caption', {
       fontSize: '10px', align: 'center', wordWrap: { width: W },
       // On parchment like every band on the dynasty sheet: the front page's landscape is still
@@ -3152,7 +3079,7 @@ export class MenuScene extends Phaser.Scene {
     this.children.moveBelow(plate, layer);
     this.content.push(plate);
 
-    const footY = y + viewport + FOOT_GAP;
+    const footY = y + (sheet.bannerState() ? Math.min(viewport, used) : viewport) + FOOT_GAP;
     if (foot.back) {
       this.content.push(this.ui.button({ x: PAD, y: footY, width: Math.round(W * 0.44), height: 38 },
         foot.back.label, foot.back.onTap, { variant: 'ghost', fontSize: '11.5px' }));
