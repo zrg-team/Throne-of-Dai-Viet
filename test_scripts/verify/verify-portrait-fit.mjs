@@ -32,6 +32,9 @@
 import { chromium } from 'playwright';
 
 const BASE = process.env.DEV_URL ?? 'http://127.0.0.1:5179';
+// This gate measures the original layered-collar geometry. V2 has complete garments;
+// its assembly, alpha and anatomy checks live in verify-wardrobe-v2.mjs.
+const PACK = process.env.HERO_ART ?? 'dongho-v1';
 /** Units a worn part may stand proud of the body beneath it. */
 const BUDGET = 12;
 
@@ -46,7 +49,7 @@ const page = await browser.newPage({ viewport: { width: 390, height: 844 }, devi
 const errors = [];
 page.on('pageerror', (e) => errors.push(`PAGEERROR ${e.message}`));
 page.on('console', (m) => { if (m.type() === 'error') errors.push(`CONSOLE ${m.text().slice(0, 140)}`); });
-await page.goto(`${BASE}/?capture=1`, { waitUntil: 'domcontentloaded' });
+await page.goto(`${BASE}/?capture=1&heroArt=${PACK}`, { waitUntil: 'domcontentloaded' });
 await page.waitForFunction(() => typeof window.__startBenchGame === 'function'
   && window.__phaserGame.scene.isActive('MenuScene'), null, { timeout: 40000 });
 await page.evaluate(() => window.__startBenchGame(20260901, 'ascent'));
@@ -55,6 +58,7 @@ await page.waitForTimeout(700);
 
 const out = await page.evaluate(async () => {
   const { FACE_PART_DEFS } = await import('/src/ui/faces/parts.generated.ts');
+  const { ACTIVE_HERO_FACE_ART_PACK } = await import('/src/ui/faces/artPack.ts');
   const scene = window.__phaserGame.scene.getScene('ConquestUIScene');
   const byKey = new Map(FACE_PART_DEFS.map((p) => [p.key, p]));
   const SCALE = 5, CX = 195, CY = 300, Y0 = 14, Y1 = 70;
@@ -64,7 +68,7 @@ const out = await page.evaluate(async () => {
     scene.children.removeAll(true);
     scene.add.graphics().fillStyle(0x00ff00, 1).fillRect(0, 0, 390, 844).setDepth(-10);
     const root = scene.add.container(CX, CY).setScale(SCALE);
-    root.add(scene.add.image(def.cx, def.cy, 'face:atlas', def.key).setDisplaySize(def.w, def.h));
+    root.add(scene.add.image(def.cx, def.cy, ACTIVE_HERO_FACE_ART_PACK.texture, def.key).setDisplaySize(def.w, def.h));
     await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
     const img = new Image();
     img.src = window.__phaserGame.canvas.toDataURL('image/png');

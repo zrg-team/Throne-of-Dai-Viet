@@ -1,0 +1,2504 @@
+{
+  "id": "dongho-v1",
+  "generator": "built-in ImageGen",
+  "generatedCount": 187,
+  "compatibilityCount": 109,
+  "sourceScale": 3,
+  "atlasScale": 2,
+  "research": "docs/research/vietnamese-portrait-research-findings.md",
+  "parts": [
+    {
+      "id": "plate-common",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "plate-rare",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "plate-epic",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "plate-legendary",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "robe-body",
+      "origin": "generated",
+      "sheet": "cloth-1",
+      "sourceBounds": {
+        "left": 38,
+        "top": 46,
+        "right": 262,
+        "bottom": 177
+      }
+    },
+    {
+      "id": "robe-broad",
+      "origin": "generated",
+      "sheet": "cloth-1",
+      "sourceBounds": {
+        "left": 329,
+        "top": 52,
+        "right": 557,
+        "bottom": 170
+      }
+    },
+    {
+      "id": "robe-slim",
+      "origin": "generated",
+      "sheet": "cloth-1",
+      "sourceBounds": {
+        "left": 625,
+        "top": 38,
+        "right": 849,
+        "bottom": 189
+      }
+    },
+    {
+      "id": "robe-sloped",
+      "origin": "generated",
+      "sheet": "cloth-1",
+      "sourceBounds": {
+        "left": 919,
+        "top": 48,
+        "right": 1145,
+        "bottom": 182
+      }
+    },
+    {
+      "id": "robe-square",
+      "origin": "generated",
+      "sheet": "cloth-1",
+      "sourceBounds": {
+        "left": 37,
+        "top": 279,
+        "right": 257,
+        "bottom": 402
+      }
+    },
+    {
+      "id": "robe-armour",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "robe-armour-lamellar",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "robe-armour-scale",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "robe-armour-brigandine",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "robe-armour-leather",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "robe-armour-fanscale",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "robe-hem-gold",
+      "origin": "generated",
+      "sheet": "cloth-1",
+      "sourceBounds": {
+        "left": 327,
+        "top": 330,
+        "right": 559,
+        "bottom": 349
+      }
+    },
+    {
+      "id": "robe-hem-dark",
+      "origin": "generated",
+      "sheet": "cloth-1",
+      "sourceBounds": {
+        "left": 624,
+        "top": 330,
+        "right": 853,
+        "bottom": 350
+      }
+    },
+    {
+      "id": "robe-sheen",
+      "origin": "generated",
+      "sheet": "cloth-1",
+      "sourceBounds": {
+        "left": 976,
+        "top": 261,
+        "right": 1090,
+        "bottom": 418
+      }
+    },
+    {
+      "id": "robe-sheen-soft",
+      "origin": "generated",
+      "sheet": "cloth-1",
+      "sourceBounds": {
+        "left": 104,
+        "top": 487,
+        "right": 199,
+        "bottom": 640
+      }
+    },
+    {
+      "id": "guard-shoulder",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "guard-shoulder-gilt",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "guard-beastmask",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "neck",
+      "origin": "generated",
+      "sheet": "anatomy",
+      "sourceBounds": {
+        "left": 121,
+        "top": 72,
+        "right": 380,
+        "bottom": 327
+      }
+    },
+    {
+      "id": "neck-slim",
+      "origin": "generated",
+      "sheet": "anatomy",
+      "sourceBounds": {
+        "left": 605,
+        "top": 51,
+        "right": 822,
+        "bottom": 339
+      }
+    },
+    {
+      "id": "neck-broad",
+      "origin": "generated",
+      "sheet": "anatomy",
+      "sourceBounds": {
+        "left": 1066,
+        "top": 59,
+        "right": 1421,
+        "bottom": 339
+      }
+    },
+    {
+      "id": "ears",
+      "origin": "generated",
+      "sheet": "anatomy",
+      "sourceBounds": {
+        "left": 1585,
+        "top": 128,
+        "right": 1988,
+        "bottom": 301
+      }
+    },
+    {
+      "id": "ears-small",
+      "origin": "generated",
+      "sheet": "anatomy",
+      "sourceBounds": {
+        "left": 73,
+        "top": 531,
+        "right": 432,
+        "bottom": 664
+      }
+    },
+    {
+      "id": "ears-long",
+      "origin": "generated",
+      "sheet": "anatomy",
+      "sourceBounds": {
+        "left": 543,
+        "top": 481,
+        "right": 919,
+        "bottom": 698
+      }
+    },
+    {
+      "id": "head-oval",
+      "origin": "generated",
+      "sheet": "heads",
+      "sourceBounds": {
+        "left": 100,
+        "top": 40,
+        "right": 248,
+        "bottom": 247
+      }
+    },
+    {
+      "id": "head-narrow",
+      "origin": "generated",
+      "sheet": "heads",
+      "sourceBounds": {
+        "left": 460,
+        "top": 39,
+        "right": 587,
+        "bottom": 247
+      }
+    },
+    {
+      "id": "head-broad",
+      "origin": "generated",
+      "sheet": "heads",
+      "sourceBounds": {
+        "left": 786,
+        "top": 40,
+        "right": 963,
+        "bottom": 243
+      }
+    },
+    {
+      "id": "head-square",
+      "origin": "generated",
+      "sheet": "heads",
+      "sourceBounds": {
+        "left": 1148,
+        "top": 40,
+        "right": 1306,
+        "bottom": 242
+      }
+    },
+    {
+      "id": "head-soft",
+      "origin": "generated",
+      "sheet": "heads",
+      "sourceBounds": {
+        "left": 100,
+        "top": 314,
+        "right": 249,
+        "bottom": 520
+      }
+    },
+    {
+      "id": "head-round",
+      "origin": "generated",
+      "sheet": "heads",
+      "sourceBounds": {
+        "left": 432,
+        "top": 319,
+        "right": 614,
+        "bottom": 522
+      }
+    },
+    {
+      "id": "head-long",
+      "origin": "generated",
+      "sheet": "heads",
+      "sourceBounds": {
+        "left": 813,
+        "top": 310,
+        "right": 937,
+        "bottom": 518
+      }
+    },
+    {
+      "id": "head-heart",
+      "origin": "generated",
+      "sheet": "heads",
+      "sourceBounds": {
+        "left": 1142,
+        "top": 320,
+        "right": 1311,
+        "bottom": 525
+      }
+    },
+    {
+      "id": "head-angular",
+      "origin": "generated",
+      "sheet": "heads",
+      "sourceBounds": {
+        "left": 99,
+        "top": 593,
+        "right": 250,
+        "bottom": 802
+      }
+    },
+    {
+      "id": "head-wide",
+      "origin": "generated",
+      "sheet": "heads",
+      "sourceBounds": {
+        "left": 429,
+        "top": 593,
+        "right": 620,
+        "bottom": 800
+      }
+    },
+    {
+      "id": "head-slim",
+      "origin": "generated",
+      "sheet": "heads",
+      "sourceBounds": {
+        "left": 813,
+        "top": 594,
+        "right": 935,
+        "bottom": 799
+      }
+    },
+    {
+      "id": "head-full",
+      "origin": "generated",
+      "sheet": "heads",
+      "sourceBounds": {
+        "left": 1133,
+        "top": 597,
+        "right": 1320,
+        "bottom": 800
+      }
+    },
+    {
+      "id": "head-tapered",
+      "origin": "generated",
+      "sheet": "heads",
+      "sourceBounds": {
+        "left": 102,
+        "top": 864,
+        "right": 246,
+        "bottom": 1078
+      }
+    },
+    {
+      "id": "head-blunt",
+      "origin": "generated",
+      "sheet": "heads",
+      "sourceBounds": {
+        "left": 431,
+        "top": 869,
+        "right": 617,
+        "bottom": 1077
+      }
+    },
+    {
+      "id": "head-fine",
+      "origin": "generated",
+      "sheet": "heads",
+      "sourceBounds": {
+        "left": 814,
+        "top": 864,
+        "right": 936,
+        "bottom": 1077
+      }
+    },
+    {
+      "id": "head-stern",
+      "origin": "generated",
+      "sheet": "heads",
+      "sourceBounds": {
+        "left": 1153,
+        "top": 863,
+        "right": 1299,
+        "bottom": 1078
+      }
+    },
+    {
+      "id": "collar-giaolinh",
+      "origin": "generated",
+      "sheet": "cloth-1",
+      "sourceBounds": {
+        "left": 362,
+        "top": 485,
+        "right": 527,
+        "bottom": 641
+      }
+    },
+    {
+      "id": "collar-giaolinh-over",
+      "origin": "generated",
+      "sheet": "cloth-1",
+      "sourceBounds": {
+        "left": 658,
+        "top": 487,
+        "right": 818,
+        "bottom": 640
+      }
+    },
+    {
+      "id": "collar-giaolinh-wide",
+      "origin": "generated",
+      "sheet": "cloth-1",
+      "sourceBounds": {
+        "left": 941,
+        "top": 485,
+        "right": 1121,
+        "bottom": 642
+      }
+    },
+    {
+      "id": "collar-giaolinh-wide-over",
+      "origin": "generated",
+      "sheet": "cloth-1",
+      "sourceBounds": {
+        "left": 62,
+        "top": 710,
+        "right": 237,
+        "bottom": 865
+      }
+    },
+    {
+      "id": "collar-giaolinh-trim",
+      "origin": "generated",
+      "sheet": "cloth-1",
+      "sourceBounds": {
+        "left": 379,
+        "top": 702,
+        "right": 516,
+        "bottom": 865
+      }
+    },
+    {
+      "id": "collar-twoflap",
+      "origin": "generated",
+      "sheet": "cloth-1",
+      "sourceBounds": {
+        "left": 653,
+        "top": 711,
+        "right": 821,
+        "bottom": 862
+      }
+    },
+    {
+      "id": "collar-twoflap-over",
+      "origin": "generated",
+      "sheet": "cloth-1",
+      "sourceBounds": {
+        "left": 948,
+        "top": 709,
+        "right": 1116,
+        "bottom": 864
+      }
+    },
+    {
+      "id": "collar-band-brocade",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "collar-band-oxblood",
+      "origin": "generated",
+      "sheet": "cloth-1",
+      "sourceBounds": {
+        "left": 59,
+        "top": 934,
+        "right": 239,
+        "bottom": 1085
+      }
+    },
+    {
+      "id": "collar-placket-square",
+      "origin": "generated",
+      "sheet": "cloth-1",
+      "sourceBounds": {
+        "left": 410,
+        "top": 934,
+        "right": 475,
+        "bottom": 1089
+      }
+    },
+    {
+      "id": "collar-vienlinh",
+      "origin": "generated",
+      "sheet": "cloth-1",
+      "sourceBounds": {
+        "left": 632,
+        "top": 942,
+        "right": 842,
+        "bottom": 1077
+      }
+    },
+    {
+      "id": "collar-vienlinh-trim",
+      "origin": "generated",
+      "sheet": "cloth-1",
+      "sourceBounds": {
+        "left": 918,
+        "top": 961,
+        "right": 1147,
+        "bottom": 1062
+      }
+    },
+    {
+      "id": "collar-doikham",
+      "origin": "generated",
+      "sheet": "cloth-1",
+      "sourceBounds": {
+        "left": 130,
+        "top": 1156,
+        "right": 172,
+        "bottom": 1304
+      }
+    },
+    {
+      "id": "collar-doikham-over",
+      "origin": "generated",
+      "sheet": "cloth-1",
+      "sourceBounds": {
+        "left": 424,
+        "top": 1156,
+        "right": 465,
+        "bottom": 1305
+      }
+    },
+    {
+      "id": "collar-tuthan",
+      "origin": "generated",
+      "sheet": "cloth-1",
+      "sourceBounds": {
+        "left": 693,
+        "top": 1149,
+        "right": 786,
+        "bottom": 1305
+      }
+    },
+    {
+      "id": "collar-tuthan-over",
+      "origin": "generated",
+      "sheet": "cloth-1",
+      "sourceBounds": {
+        "left": 985,
+        "top": 1152,
+        "right": 1078,
+        "bottom": 1304
+      }
+    },
+    {
+      "id": "collar-tuthan-knot",
+      "origin": "generated",
+      "sheet": "cloth-2",
+      "sourceBounds": {
+        "left": 74,
+        "top": 65,
+        "right": 321,
+        "bottom": 201
+      }
+    },
+    {
+      "id": "collar-baba",
+      "origin": "generated",
+      "sheet": "cloth-2",
+      "sourceBounds": {
+        "left": 429,
+        "top": 90,
+        "right": 694,
+        "bottom": 192
+      }
+    },
+    {
+      "id": "collar-baba-front",
+      "origin": "generated",
+      "sheet": "cloth-2",
+      "sourceBounds": {
+        "left": 905,
+        "top": 45,
+        "right": 937,
+        "bottom": 236
+      }
+    },
+    {
+      "id": "sash-ochre",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "sash-baldric",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "sash-baldric-red",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "sash-silk",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "sash-cord",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "sash-waist",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "sash-waist-red",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "belt-jade",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "belt-gold",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "belt-rope-coil",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "collar-nguthan",
+      "origin": "generated",
+      "sheet": "cloth-2",
+      "sourceBounds": {
+        "left": 1140,
+        "top": 90,
+        "right": 1387,
+        "bottom": 197
+      }
+    },
+    {
+      "id": "collar-nguthan-body",
+      "origin": "generated",
+      "sheet": "cloth-2",
+      "sourceBounds": {
+        "left": 81,
+        "top": 316,
+        "right": 305,
+        "bottom": 508
+      }
+    },
+    {
+      "id": "collar-nguthan-tall",
+      "origin": "generated",
+      "sheet": "cloth-2",
+      "sourceBounds": {
+        "left": 425,
+        "top": 336,
+        "right": 687,
+        "bottom": 493
+      }
+    },
+    {
+      "id": "buttons-five",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "buttons-jade",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "buttons-knot",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "collar-yem-wrap",
+      "origin": "generated",
+      "sheet": "cloth-2",
+      "sourceBounds": {
+        "left": 770,
+        "top": 336,
+        "right": 1055,
+        "bottom": 485
+      }
+    },
+    {
+      "id": "yem",
+      "origin": "generated",
+      "sheet": "cloth-2",
+      "sourceBounds": {
+        "left": 1134,
+        "top": 301,
+        "right": 1411,
+        "bottom": 526
+      }
+    },
+    {
+      "id": "yem-cream",
+      "origin": "generated",
+      "sheet": "cloth-2",
+      "sourceBounds": {
+        "left": 56,
+        "top": 587,
+        "right": 331,
+        "bottom": 801
+      }
+    },
+    {
+      "id": "yem-indigo",
+      "origin": "generated",
+      "sheet": "cloth-2",
+      "sourceBounds": {
+        "left": 419,
+        "top": 594,
+        "right": 682,
+        "bottom": 797
+      }
+    },
+    {
+      "id": "yem-jade",
+      "origin": "generated",
+      "sheet": "cloth-2",
+      "sourceBounds": {
+        "left": 779,
+        "top": 589,
+        "right": 1047,
+        "bottom": 798
+      }
+    },
+    {
+      "id": "collar-nhatbinh",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "collar-nhatbinh-trim",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "collar-nhatbinh-phoenix",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "kesa",
+      "origin": "generated",
+      "sheet": "cloth-2",
+      "sourceBounds": {
+        "left": 1122,
+        "top": 603,
+        "right": 1416,
+        "bottom": 779
+      }
+    },
+    {
+      "id": "kesa-red",
+      "origin": "generated",
+      "sheet": "cloth-2",
+      "sourceBounds": {
+        "left": 45,
+        "top": 876,
+        "right": 342,
+        "bottom": 1053
+      }
+    },
+    {
+      "id": "kesa-grey",
+      "origin": "generated",
+      "sheet": "cloth-2",
+      "sourceBounds": {
+        "left": 408,
+        "top": 882,
+        "right": 699,
+        "bottom": 1052
+      }
+    },
+    {
+      "id": "kesa-patches",
+      "origin": "generated",
+      "sheet": "cloth-2",
+      "sourceBounds": {
+        "left": 765,
+        "top": 861,
+        "right": 1097,
+        "bottom": 1041
+      }
+    },
+    {
+      "id": "badge-crane",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "badge-pheasant",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "badge-peacock",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "badge-dragon",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "badge-tiger",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "badge-lion",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "badge-bear",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "badge-rhino",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "hair-crown",
+      "origin": "generated",
+      "sheet": "hair-1",
+      "sourceBounds": {
+        "left": 54,
+        "top": 67,
+        "right": 280,
+        "bottom": 161
+      }
+    },
+    {
+      "id": "hair-cropped",
+      "origin": "generated",
+      "sheet": "hair-1",
+      "sourceBounds": {
+        "left": 339,
+        "top": 60,
+        "right": 565,
+        "bottom": 155
+      }
+    },
+    {
+      "id": "hair-low",
+      "origin": "generated",
+      "sheet": "hair-1",
+      "sourceBounds": {
+        "left": 624,
+        "top": 51,
+        "right": 859,
+        "bottom": 162
+      }
+    },
+    {
+      "id": "hair-high",
+      "origin": "generated",
+      "sheet": "hair-1",
+      "sourceBounds": {
+        "left": 907,
+        "top": 70,
+        "right": 1131,
+        "bottom": 143
+      }
+    },
+    {
+      "id": "hair-peak",
+      "origin": "generated",
+      "sheet": "hair-1",
+      "sourceBounds": {
+        "left": 49,
+        "top": 288,
+        "right": 278,
+        "bottom": 383
+      }
+    },
+    {
+      "id": "hair-swept",
+      "origin": "generated",
+      "sheet": "hair-1",
+      "sourceBounds": {
+        "left": 341,
+        "top": 289,
+        "right": 558,
+        "bottom": 376
+      }
+    },
+    {
+      "id": "hair-receding",
+      "origin": "generated",
+      "sheet": "hair-1",
+      "sourceBounds": {
+        "left": 612,
+        "top": 295,
+        "right": 843,
+        "bottom": 373
+      }
+    },
+    {
+      "id": "hair-thick",
+      "origin": "generated",
+      "sheet": "hair-1",
+      "sourceBounds": {
+        "left": 908,
+        "top": 278,
+        "right": 1129,
+        "bottom": 388
+      }
+    },
+    {
+      "id": "hair-parted",
+      "origin": "generated",
+      "sheet": "hair-1",
+      "sourceBounds": {
+        "left": 52,
+        "top": 508,
+        "right": 277,
+        "bottom": 599
+      }
+    },
+    {
+      "id": "hair-wavy",
+      "origin": "generated",
+      "sheet": "hair-1",
+      "sourceBounds": {
+        "left": 340,
+        "top": 507,
+        "right": 560,
+        "bottom": 599
+      }
+    },
+    {
+      "id": "hair-long",
+      "origin": "generated",
+      "sheet": "hair-1",
+      "sourceBounds": {
+        "left": 656,
+        "top": 455,
+        "right": 798,
+        "bottom": 650
+      }
+    },
+    {
+      "id": "hair-long-full",
+      "origin": "generated",
+      "sheet": "hair-1",
+      "sourceBounds": {
+        "left": 949,
+        "top": 456,
+        "right": 1086,
+        "bottom": 642
+      }
+    },
+    {
+      "id": "hair-long-short",
+      "origin": "generated",
+      "sheet": "hair-1",
+      "sourceBounds": {
+        "left": 90,
+        "top": 689,
+        "right": 240,
+        "bottom": 865
+      }
+    },
+    {
+      "id": "hair-braid",
+      "origin": "generated",
+      "sheet": "hair-1",
+      "sourceBounds": {
+        "left": 394,
+        "top": 681,
+        "right": 509,
+        "bottom": 863
+      }
+    },
+    {
+      "id": "hair-tail",
+      "origin": "generated",
+      "sheet": "hair-1",
+      "sourceBounds": {
+        "left": 619,
+        "top": 690,
+        "right": 836,
+        "bottom": 865
+      }
+    },
+    {
+      "id": "topknot",
+      "origin": "generated",
+      "sheet": "hair-1",
+      "sourceBounds": {
+        "left": 929,
+        "top": 700,
+        "right": 1097,
+        "bottom": 848
+      }
+    },
+    {
+      "id": "topknot-tall",
+      "origin": "generated",
+      "sheet": "hair-1",
+      "sourceBounds": {
+        "left": 89,
+        "top": 890,
+        "right": 231,
+        "bottom": 1074
+      }
+    },
+    {
+      "id": "topknot-small",
+      "origin": "generated",
+      "sheet": "hair-1",
+      "sourceBounds": {
+        "left": 382,
+        "top": 909,
+        "right": 526,
+        "bottom": 1073
+      }
+    },
+    {
+      "id": "topknot-side",
+      "origin": "generated",
+      "sheet": "hair-1",
+      "sourceBounds": {
+        "left": 664,
+        "top": 890,
+        "right": 782,
+        "bottom": 1060
+      }
+    },
+    {
+      "id": "knot-nape",
+      "origin": "generated",
+      "sheet": "hair-1",
+      "sourceBounds": {
+        "left": 944,
+        "top": 895,
+        "right": 1079,
+        "bottom": 1072
+      }
+    },
+    {
+      "id": "topknot-wrapped",
+      "origin": "generated",
+      "sheet": "hair-1",
+      "sourceBounds": {
+        "left": 72,
+        "top": 1120,
+        "right": 243,
+        "bottom": 1272
+      }
+    },
+    {
+      "id": "bun-high",
+      "origin": "generated",
+      "sheet": "hair-1",
+      "sourceBounds": {
+        "left": 350,
+        "top": 1119,
+        "right": 546,
+        "bottom": 1276
+      }
+    },
+    {
+      "id": "bun-low",
+      "origin": "generated",
+      "sheet": "hair-1",
+      "sourceBounds": {
+        "left": 620,
+        "top": 1115,
+        "right": 819,
+        "bottom": 1275
+      }
+    },
+    {
+      "id": "bun-double",
+      "origin": "generated",
+      "sheet": "hair-1",
+      "sourceBounds": {
+        "left": 896,
+        "top": 1145,
+        "right": 1116,
+        "bottom": 1241
+      }
+    },
+    {
+      "id": "bun-coil",
+      "origin": "generated",
+      "sheet": "hair-2",
+      "sourceBounds": {
+        "left": 71,
+        "top": 68,
+        "right": 319,
+        "bottom": 230
+      }
+    },
+    {
+      "id": "bun-wide",
+      "origin": "generated",
+      "sheet": "hair-2",
+      "sourceBounds": {
+        "left": 424,
+        "top": 89,
+        "right": 686,
+        "bottom": 208
+      }
+    },
+    {
+      "id": "bun-wrapped",
+      "origin": "generated",
+      "sheet": "hair-2",
+      "sourceBounds": {
+        "left": 776,
+        "top": 65,
+        "right": 1057,
+        "bottom": 238
+      }
+    },
+    {
+      "id": "bun-tall-fore",
+      "origin": "generated",
+      "sheet": "hair-2",
+      "sourceBounds": {
+        "left": 1198,
+        "top": 53,
+        "right": 1335,
+        "bottom": 242
+      }
+    },
+    {
+      "id": "hair-woman-center",
+      "origin": "generated",
+      "sheet": "hair-2",
+      "sourceBounds": {
+        "left": 57,
+        "top": 333,
+        "right": 337,
+        "bottom": 513
+      }
+    },
+    {
+      "id": "hair-woman-temple",
+      "origin": "generated",
+      "sheet": "hair-2",
+      "sourceBounds": {
+        "left": 463,
+        "top": 321,
+        "right": 655,
+        "bottom": 529
+      }
+    },
+    {
+      "id": "hair-woman-short",
+      "origin": "generated",
+      "sheet": "hair-2",
+      "sourceBounds": {
+        "left": 834,
+        "top": 321,
+        "right": 1005,
+        "bottom": 526
+      }
+    },
+    {
+      "id": "hair-woman-loose",
+      "origin": "generated",
+      "sheet": "hair-2",
+      "sourceBounds": {
+        "left": 1188,
+        "top": 322,
+        "right": 1343,
+        "bottom": 531
+      }
+    },
+    {
+      "id": "hair-woman-wrapped",
+      "origin": "generated",
+      "sheet": "hair-2",
+      "sourceBounds": {
+        "left": 59,
+        "top": 616,
+        "right": 337,
+        "bottom": 798
+      }
+    },
+    {
+      "id": "hair-woman-tran-short",
+      "origin": "generated",
+      "sheet": "hair-2",
+      "sourceBounds": {
+        "left": 421,
+        "top": 621,
+        "right": 695,
+        "bottom": 792
+      }
+    },
+    {
+      "id": "bun-fan-high",
+      "origin": "generated",
+      "sheet": "hair-2",
+      "sourceBounds": {
+        "left": 784,
+        "top": 609,
+        "right": 1055,
+        "bottom": 801
+      }
+    },
+    {
+      "id": "bun-snail-coil",
+      "origin": "generated",
+      "sheet": "hair-2",
+      "sourceBounds": {
+        "left": 1174,
+        "top": 608,
+        "right": 1353,
+        "bottom": 803
+      }
+    },
+    {
+      "id": "bun-side-loops",
+      "origin": "generated",
+      "sheet": "hair-2",
+      "sourceBounds": {
+        "left": 57,
+        "top": 910,
+        "right": 337,
+        "bottom": 1008
+      }
+    },
+    {
+      "id": "bun-tran-brush",
+      "origin": "generated",
+      "sheet": "hair-2",
+      "sourceBounds": {
+        "left": 466,
+        "top": 874,
+        "right": 659,
+        "bottom": 1048
+      }
+    },
+    {
+      "id": "bun-nape-right",
+      "origin": "generated",
+      "sheet": "hair-2",
+      "sourceBounds": {
+        "left": 846,
+        "top": 880,
+        "right": 990,
+        "bottom": 1048
+      }
+    },
+    {
+      "id": "bun-nape-left",
+      "origin": "generated",
+      "sheet": "hair-2",
+      "sourceBounds": {
+        "left": 1192,
+        "top": 880,
+        "right": 1337,
+        "bottom": 1048
+      }
+    },
+    {
+      "id": "hairpin",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "hairpin-jade",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "hairpin-long",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "hairpin-plain",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "hair-comb",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "hair-flower",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "hair-ribbon",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "hair-cord",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "hairpin-nape-right",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "hairpin-nape-right-jade",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "hairpin-nape-left",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "hairpin-nape-left-jade",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "hat-khanvan",
+      "origin": "generated",
+      "sheet": "headwear",
+      "sourceBounds": {
+        "left": 51,
+        "top": 100,
+        "right": 319,
+        "bottom": 205
+      }
+    },
+    {
+      "id": "hat-khanvan-tall",
+      "origin": "generated",
+      "sheet": "headwear",
+      "sourceBounds": {
+        "left": 419,
+        "top": 71,
+        "right": 689,
+        "bottom": 235
+      }
+    },
+    {
+      "id": "hat-khanvan-low",
+      "origin": "generated",
+      "sheet": "headwear",
+      "sourceBounds": {
+        "left": 777,
+        "top": 118,
+        "right": 1049,
+        "bottom": 203
+      }
+    },
+    {
+      "id": "hat-khanvan-brown",
+      "origin": "generated",
+      "sheet": "headwear",
+      "sourceBounds": {
+        "left": 1142,
+        "top": 110,
+        "right": 1413,
+        "bottom": 225
+      }
+    },
+    {
+      "id": "hat-khanvan-indigo",
+      "origin": "generated",
+      "sheet": "headwear",
+      "sourceBounds": {
+        "left": 51,
+        "top": 383,
+        "right": 317,
+        "bottom": 492
+      }
+    },
+    {
+      "id": "hat-khandong",
+      "origin": "generated",
+      "sheet": "headwear",
+      "sourceBounds": {
+        "left": 411,
+        "top": 385,
+        "right": 686,
+        "bottom": 486
+      }
+    },
+    {
+      "id": "hat-khandong-jewel",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "hat-khandong-gold",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "hat-khanxep",
+      "origin": "generated",
+      "sheet": "headwear",
+      "sourceBounds": {
+        "left": 779,
+        "top": 383,
+        "right": 1049,
+        "bottom": 486
+      }
+    },
+    {
+      "id": "hat-khanvuong",
+      "origin": "generated",
+      "sheet": "headwear",
+      "sourceBounds": {
+        "left": 1134,
+        "top": 373,
+        "right": 1413,
+        "bottom": 505
+      }
+    },
+    {
+      "id": "hat-dinhtu",
+      "origin": "generated",
+      "sheet": "headwear",
+      "sourceBounds": {
+        "left": 81,
+        "top": 597,
+        "right": 282,
+        "bottom": 799
+      }
+    },
+    {
+      "id": "hat-dinhtu-streamers",
+      "origin": "generated",
+      "sheet": "headwear",
+      "sourceBounds": {
+        "left": 454,
+        "top": 596,
+        "right": 637,
+        "bottom": 802
+      }
+    },
+    {
+      "id": "hat-phocdau-short",
+      "origin": "generated",
+      "sheet": "headwear",
+      "sourceBounds": {
+        "left": 762,
+        "top": 643,
+        "right": 1046,
+        "bottom": 749
+      }
+    },
+    {
+      "id": "hat-phocdau-long",
+      "origin": "generated",
+      "sheet": "headwear",
+      "sourceBounds": {
+        "left": 1126,
+        "top": 654,
+        "right": 1413,
+        "bottom": 742
+      }
+    },
+    {
+      "id": "hat-phocdau-grand",
+      "origin": "generated",
+      "sheet": "headwear",
+      "sourceBounds": {
+        "left": 38,
+        "top": 913,
+        "right": 333,
+        "bottom": 1002
+      }
+    },
+    {
+      "id": "hat-xungthien",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "hat-osa",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "hat-binhdinh",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "hat-tamson",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "hat-duongcan",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "hat-muni",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "hat-helm",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "hat-helm-plume",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "hat-helm-horned",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "hat-helm-lamellar",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "hat-helm-daumau",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "hat-helm-leather",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "hat-helm-cheeks",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "hat-helm-crest",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "hat-helm-dinh",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "hat-non",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "hat-non-chop",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "hat-non-dau",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "hat-non-quaithao",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "hat-non-batam",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "hat-non-worker",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "hat-moqua",
+      "origin": "generated",
+      "sheet": "headwear",
+      "sourceBounds": {
+        "left": 411,
+        "top": 893,
+        "right": 688,
+        "bottom": 1030
+      }
+    },
+    {
+      "id": "hat-moqua-brown",
+      "origin": "generated",
+      "sheet": "headwear",
+      "sourceBounds": {
+        "left": 770,
+        "top": 891,
+        "right": 1046,
+        "bottom": 1030
+      }
+    },
+    {
+      "id": "hat-moqua-tied",
+      "origin": "generated",
+      "sheet": "headwear",
+      "sourceBounds": {
+        "left": 1134,
+        "top": 893,
+        "right": 1410,
+        "bottom": 1036
+      }
+    },
+    {
+      "id": "hat-vanhday",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "hat-coronet",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "hat-coronet-jade",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "hat-crown-nhatbinh",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "hat-crown-phoenix",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "hat-crown-seven",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "hat-veil",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "hat-band",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "hat-band-cloth",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "hat-band-warrior",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "hat-band-gold",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "hat-fur",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "scalp-shaven",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "scalp-dots",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "scalp-dots-nine",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "earring-jade",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "earring-gold",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "earring-drop",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "earring-pearl",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "brow-flat",
+      "origin": "generated",
+      "sheet": "upper-face",
+      "sourceBounds": {
+        "left": 37,
+        "top": 110,
+        "right": 261,
+        "bottom": 139
+      }
+    },
+    {
+      "id": "brow-arched",
+      "origin": "generated",
+      "sheet": "upper-face",
+      "sourceBounds": {
+        "left": 310,
+        "top": 104,
+        "right": 523,
+        "bottom": 142
+      }
+    },
+    {
+      "id": "brow-angled",
+      "origin": "generated",
+      "sheet": "upper-face",
+      "sourceBounds": {
+        "left": 571,
+        "top": 111,
+        "right": 780,
+        "bottom": 138
+      }
+    },
+    {
+      "id": "brow-thick",
+      "origin": "generated",
+      "sheet": "upper-face",
+      "sourceBounds": {
+        "left": 826,
+        "top": 108,
+        "right": 1061,
+        "bottom": 143
+      }
+    },
+    {
+      "id": "brow-thin",
+      "origin": "generated",
+      "sheet": "upper-face",
+      "sourceBounds": {
+        "left": 39,
+        "top": 305,
+        "right": 258,
+        "bottom": 331
+      }
+    },
+    {
+      "id": "brow-straight",
+      "origin": "generated",
+      "sheet": "upper-face",
+      "sourceBounds": {
+        "left": 305,
+        "top": 307,
+        "right": 524,
+        "bottom": 328
+      }
+    },
+    {
+      "id": "brow-bushy",
+      "origin": "generated",
+      "sheet": "upper-face",
+      "sourceBounds": {
+        "left": 562,
+        "top": 300,
+        "right": 793,
+        "bottom": 337
+      }
+    },
+    {
+      "id": "brow-sparse",
+      "origin": "generated",
+      "sheet": "upper-face",
+      "sourceBounds": {
+        "left": 843,
+        "top": 310,
+        "right": 1049,
+        "bottom": 335
+      }
+    },
+    {
+      "id": "brow-raised",
+      "origin": "generated",
+      "sheet": "upper-face",
+      "sourceBounds": {
+        "left": 37,
+        "top": 496,
+        "right": 254,
+        "bottom": 533
+      }
+    },
+    {
+      "id": "brow-low",
+      "origin": "generated",
+      "sheet": "upper-face",
+      "sourceBounds": {
+        "left": 304,
+        "top": 507,
+        "right": 528,
+        "bottom": 535
+      }
+    },
+    {
+      "id": "brow-sharp",
+      "origin": "generated",
+      "sheet": "upper-face",
+      "sourceBounds": {
+        "left": 576,
+        "top": 509,
+        "right": 795,
+        "bottom": 528
+      }
+    },
+    {
+      "id": "brow-soft",
+      "origin": "generated",
+      "sheet": "upper-face",
+      "sourceBounds": {
+        "left": 846,
+        "top": 500,
+        "right": 1056,
+        "bottom": 536
+      }
+    },
+    {
+      "id": "brow-heavy",
+      "origin": "generated",
+      "sheet": "upper-face",
+      "sourceBounds": {
+        "left": 38,
+        "top": 712,
+        "right": 253,
+        "bottom": 741
+      }
+    },
+    {
+      "id": "brow-short",
+      "origin": "generated",
+      "sheet": "upper-face",
+      "sourceBounds": {
+        "left": 295,
+        "top": 710,
+        "right": 513,
+        "bottom": 742
+      }
+    },
+    {
+      "id": "eyes-almond",
+      "origin": "generated",
+      "sheet": "upper-face",
+      "sourceBounds": {
+        "left": 569,
+        "top": 709,
+        "right": 786,
+        "bottom": 747
+      }
+    },
+    {
+      "id": "eyes-wide",
+      "origin": "generated",
+      "sheet": "upper-face",
+      "sourceBounds": {
+        "left": 839,
+        "top": 711,
+        "right": 1059,
+        "bottom": 747
+      }
+    },
+    {
+      "id": "eyes-narrow",
+      "origin": "generated",
+      "sheet": "upper-face",
+      "sourceBounds": {
+        "left": 34,
+        "top": 915,
+        "right": 247,
+        "bottom": 951
+      }
+    },
+    {
+      "id": "eyes-hooded",
+      "origin": "generated",
+      "sheet": "upper-face",
+      "sourceBounds": {
+        "left": 297,
+        "top": 919,
+        "right": 518,
+        "bottom": 954
+      }
+    },
+    {
+      "id": "eyes-round",
+      "origin": "generated",
+      "sheet": "upper-face",
+      "sourceBounds": {
+        "left": 565,
+        "top": 923,
+        "right": 791,
+        "bottom": 954
+      }
+    },
+    {
+      "id": "eyes-upturned",
+      "origin": "generated",
+      "sheet": "upper-face",
+      "sourceBounds": {
+        "left": 837,
+        "top": 913,
+        "right": 1060,
+        "bottom": 953
+      }
+    },
+    {
+      "id": "eyes-downturned",
+      "origin": "generated",
+      "sheet": "upper-face",
+      "sourceBounds": {
+        "left": 32,
+        "top": 1124,
+        "right": 256,
+        "bottom": 1156
+      }
+    },
+    {
+      "id": "eyes-sharp",
+      "origin": "generated",
+      "sheet": "upper-face",
+      "sourceBounds": {
+        "left": 296,
+        "top": 1126,
+        "right": 518,
+        "bottom": 1165
+      }
+    },
+    {
+      "id": "eyes-gentle",
+      "origin": "generated",
+      "sheet": "upper-face",
+      "sourceBounds": {
+        "left": 567,
+        "top": 1126,
+        "right": 789,
+        "bottom": 1160
+      }
+    },
+    {
+      "id": "eyes-deepset",
+      "origin": "generated",
+      "sheet": "upper-face",
+      "sourceBounds": {
+        "left": 834,
+        "top": 1125,
+        "right": 1060,
+        "bottom": 1164
+      }
+    },
+    {
+      "id": "eyes-bright",
+      "origin": "generated",
+      "sheet": "upper-face",
+      "sourceBounds": {
+        "left": 32,
+        "top": 1330,
+        "right": 256,
+        "bottom": 1363
+      }
+    },
+    {
+      "id": "eyes-crescent",
+      "origin": "generated",
+      "sheet": "upper-face",
+      "sourceBounds": {
+        "left": 298,
+        "top": 1325,
+        "right": 520,
+        "bottom": 1366
+      }
+    },
+    {
+      "id": "eyes-keen",
+      "origin": "generated",
+      "sheet": "upper-face",
+      "sourceBounds": {
+        "left": 567,
+        "top": 1325,
+        "right": 792,
+        "bottom": 1361
+      }
+    },
+    {
+      "id": "eyes-tired",
+      "origin": "generated",
+      "sheet": "upper-face",
+      "sourceBounds": {
+        "left": 834,
+        "top": 1326,
+        "right": 1057,
+        "bottom": 1366
+      }
+    },
+    {
+      "id": "nose-straight",
+      "origin": "generated",
+      "sheet": "lower-face",
+      "sourceBounds": {
+        "left": 104,
+        "top": 56,
+        "right": 170,
+        "bottom": 187
+      }
+    },
+    {
+      "id": "nose-long",
+      "origin": "generated",
+      "sheet": "lower-face",
+      "sourceBounds": {
+        "left": 374,
+        "top": 52,
+        "right": 443,
+        "bottom": 196
+      }
+    },
+    {
+      "id": "nose-soft",
+      "origin": "generated",
+      "sheet": "lower-face",
+      "sourceBounds": {
+        "left": 642,
+        "top": 64,
+        "right": 724,
+        "bottom": 188
+      }
+    },
+    {
+      "id": "nose-broad",
+      "origin": "generated",
+      "sheet": "lower-face",
+      "sourceBounds": {
+        "left": 911,
+        "top": 55,
+        "right": 1008,
+        "bottom": 198
+      }
+    },
+    {
+      "id": "nose-snub",
+      "origin": "generated",
+      "sheet": "lower-face",
+      "sourceBounds": {
+        "left": 81,
+        "top": 266,
+        "right": 184,
+        "bottom": 395
+      }
+    },
+    {
+      "id": "nose-aquiline",
+      "origin": "generated",
+      "sheet": "lower-face",
+      "sourceBounds": {
+        "left": 370,
+        "top": 268,
+        "right": 431,
+        "bottom": 408
+      }
+    },
+    {
+      "id": "nose-narrow",
+      "origin": "generated",
+      "sheet": "lower-face",
+      "sourceBounds": {
+        "left": 651,
+        "top": 269,
+        "right": 705,
+        "bottom": 406
+      }
+    },
+    {
+      "id": "nose-flat",
+      "origin": "generated",
+      "sheet": "lower-face",
+      "sourceBounds": {
+        "left": 914,
+        "top": 276,
+        "right": 1006,
+        "bottom": 404
+      }
+    },
+    {
+      "id": "nose-round",
+      "origin": "generated",
+      "sheet": "lower-face",
+      "sourceBounds": {
+        "left": 82,
+        "top": 481,
+        "right": 164,
+        "bottom": 595
+      }
+    },
+    {
+      "id": "nose-fine",
+      "origin": "generated",
+      "sheet": "lower-face",
+      "sourceBounds": {
+        "left": 384,
+        "top": 481,
+        "right": 445,
+        "bottom": 599
+      }
+    },
+    {
+      "id": "nose-strong",
+      "origin": "generated",
+      "sheet": "lower-face",
+      "sourceBounds": {
+        "left": 645,
+        "top": 480,
+        "right": 728,
+        "bottom": 600
+      }
+    },
+    {
+      "id": "nose-short",
+      "origin": "generated",
+      "sheet": "lower-face",
+      "sourceBounds": {
+        "left": 925,
+        "top": 486,
+        "right": 1013,
+        "bottom": 591
+      }
+    },
+    {
+      "id": "mouth-neutral",
+      "origin": "generated",
+      "sheet": "lower-face",
+      "sourceBounds": {
+        "left": 44,
+        "top": 735,
+        "right": 225,
+        "bottom": 780
+      }
+    },
+    {
+      "id": "mouth-smile",
+      "origin": "generated",
+      "sheet": "lower-face",
+      "sourceBounds": {
+        "left": 317,
+        "top": 729,
+        "right": 511,
+        "bottom": 788
+      }
+    },
+    {
+      "id": "mouth-firm",
+      "origin": "generated",
+      "sheet": "lower-face",
+      "sourceBounds": {
+        "left": 595,
+        "top": 739,
+        "right": 777,
+        "bottom": 764
+      }
+    },
+    {
+      "id": "mouth-wide",
+      "origin": "generated",
+      "sheet": "lower-face",
+      "sourceBounds": {
+        "left": 862,
+        "top": 739,
+        "right": 1041,
+        "bottom": 771
+      }
+    },
+    {
+      "id": "mouth-small",
+      "origin": "generated",
+      "sheet": "lower-face",
+      "sourceBounds": {
+        "left": 42,
+        "top": 923,
+        "right": 224,
+        "bottom": 973
+      }
+    },
+    {
+      "id": "mouth-downturned",
+      "origin": "generated",
+      "sheet": "lower-face",
+      "sourceBounds": {
+        "left": 305,
+        "top": 926,
+        "right": 494,
+        "bottom": 977
+      }
+    },
+    {
+      "id": "mouth-pursed",
+      "origin": "generated",
+      "sheet": "lower-face",
+      "sourceBounds": {
+        "left": 595,
+        "top": 906,
+        "right": 775,
+        "bottom": 986
+      }
+    },
+    {
+      "id": "mouth-thin",
+      "origin": "generated",
+      "sheet": "lower-face",
+      "sourceBounds": {
+        "left": 876,
+        "top": 937,
+        "right": 1040,
+        "bottom": 959
+      }
+    },
+    {
+      "id": "mouth-full",
+      "origin": "generated",
+      "sheet": "lower-face",
+      "sourceBounds": {
+        "left": 33,
+        "top": 1115,
+        "right": 230,
+        "bottom": 1186
+      }
+    },
+    {
+      "id": "mouth-grim",
+      "origin": "generated",
+      "sheet": "lower-face",
+      "sourceBounds": {
+        "left": 314,
+        "top": 1135,
+        "right": 506,
+        "bottom": 1171
+      }
+    },
+    {
+      "id": "mouth-soft",
+      "origin": "generated",
+      "sheet": "lower-face",
+      "sourceBounds": {
+        "left": 587,
+        "top": 1118,
+        "right": 783,
+        "bottom": 1176
+      }
+    },
+    {
+      "id": "mouth-broad-smile",
+      "origin": "generated",
+      "sheet": "lower-face",
+      "sourceBounds": {
+        "left": 849,
+        "top": 1129,
+        "right": 1047,
+        "bottom": 1173
+      }
+    },
+    {
+      "id": "mouth-lacquered",
+      "origin": "generated",
+      "sheet": "lower-face",
+      "sourceBounds": {
+        "left": 39,
+        "top": 1315,
+        "right": 230,
+        "bottom": 1378
+      }
+    },
+    {
+      "id": "mouth-lacquered-smile",
+      "origin": "generated",
+      "sheet": "lower-face",
+      "sourceBounds": {
+        "left": 315,
+        "top": 1318,
+        "right": 504,
+        "bottom": 1380
+      }
+    },
+    {
+      "id": "mouth-lacquered-firm",
+      "origin": "generated",
+      "sheet": "lower-face",
+      "sourceBounds": {
+        "left": 585,
+        "top": 1320,
+        "right": 777,
+        "bottom": 1384
+      }
+    },
+    {
+      "id": "mouth-betel",
+      "origin": "generated",
+      "sheet": "lower-face",
+      "sourceBounds": {
+        "left": 876,
+        "top": 1339,
+        "right": 1038,
+        "bottom": 1381
+      }
+    },
+    {
+      "id": "beard-moustache",
+      "origin": "generated",
+      "sheet": "beards",
+      "sourceBounds": {
+        "left": 60,
+        "top": 91,
+        "right": 338,
+        "bottom": 151
+      }
+    },
+    {
+      "id": "beard-moustache-thin",
+      "origin": "generated",
+      "sheet": "beards",
+      "sourceBounds": {
+        "left": 440,
+        "top": 103,
+        "right": 691,
+        "bottom": 144
+      }
+    },
+    {
+      "id": "beard-moustache-wide",
+      "origin": "generated",
+      "sheet": "beards",
+      "sourceBounds": {
+        "left": 771,
+        "top": 95,
+        "right": 1051,
+        "bottom": 157
+      }
+    },
+    {
+      "id": "beard-goatee",
+      "origin": "generated",
+      "sheet": "beards",
+      "sourceBounds": {
+        "left": 1161,
+        "top": 71,
+        "right": 1376,
+        "bottom": 192
+      }
+    },
+    {
+      "id": "beard-goatee-long",
+      "origin": "generated",
+      "sheet": "beards",
+      "sourceBounds": {
+        "left": 116,
+        "top": 318,
+        "right": 270,
+        "bottom": 483
+      }
+    },
+    {
+      "id": "beard-long",
+      "origin": "generated",
+      "sheet": "beards",
+      "sourceBounds": {
+        "left": 463,
+        "top": 309,
+        "right": 633,
+        "bottom": 489
+      }
+    },
+    {
+      "id": "beard-full",
+      "origin": "generated",
+      "sheet": "beards",
+      "sourceBounds": {
+        "left": 783,
+        "top": 310,
+        "right": 1044,
+        "bottom": 483
+      }
+    },
+    {
+      "id": "beard-full-short",
+      "origin": "generated",
+      "sheet": "beards",
+      "sourceBounds": {
+        "left": 1145,
+        "top": 333,
+        "right": 1399,
+        "bottom": 456
+      }
+    },
+    {
+      "id": "beard-threepart",
+      "origin": "generated",
+      "sheet": "beards",
+      "sourceBounds": {
+        "left": 75,
+        "top": 587,
+        "right": 316,
+        "bottom": 772
+      }
+    },
+    {
+      "id": "beard-forked",
+      "origin": "generated",
+      "sheet": "beards",
+      "sourceBounds": {
+        "left": 483,
+        "top": 580,
+        "right": 608,
+        "bottom": 776
+      }
+    },
+    {
+      "id": "beard-wispy",
+      "origin": "generated",
+      "sheet": "beards",
+      "sourceBounds": {
+        "left": 844,
+        "top": 578,
+        "right": 976,
+        "bottom": 776
+      }
+    },
+    {
+      "id": "beard-chinstrap",
+      "origin": "generated",
+      "sheet": "beards",
+      "sourceBounds": {
+        "left": 1140,
+        "top": 600,
+        "right": 1403,
+        "bottom": 743
+      }
+    },
+    {
+      "id": "beard-stubble",
+      "origin": "generated",
+      "sheet": "beards",
+      "sourceBounds": {
+        "left": 59,
+        "top": 875,
+        "right": 331,
+        "bottom": 1002
+      }
+    },
+    {
+      "id": "beard-patriarch",
+      "origin": "generated",
+      "sheet": "beards",
+      "sourceBounds": {
+        "left": 474,
+        "top": 856,
+        "right": 621,
+        "bottom": 1038
+      }
+    },
+    {
+      "id": "mark-age",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "mark-age-deep",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "mark-scar",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "mark-scar-cheek",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "mark-scar-brow",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "mark-mole",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "mark-freckles",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "mark-dimples",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "mark-brand",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "mark-tattoo",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "mark-tattoo-court",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "mark-tattoo-drum",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "mark-tattoo-wave",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "mark-warpaint",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "rank-rare",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "rank-epic",
+      "origin": "legacy-raster-compatibility"
+    },
+    {
+      "id": "rank-legendary",
+      "origin": "legacy-raster-compatibility"
+    }
+  ]
+}

@@ -26,12 +26,12 @@ const buildings = {
 };
 
 const settlements = {
-  hamlet: ['rural-settlement', 38], village: ['village', 44],
-  'market-town': ['town', 48], 'shrine-village': ['town', 52],
-  farmstead: ['rural-settlement', 34], 'mine-camp': ['rural-settlement', 38],
-  'citadel-dinh': ['citadel', 76], 'citadel-ly': ['citadel', 78],
-  'citadel-tran': ['citadel', 78], 'citadel-le': ['citadel', 86],
-  'citadel-nguyen': ['citadel', 82, 116],
+  hamlet: ['rural-settlement', 32, 56], village: ['village', 38, 60],
+  'market-town': ['town', 40, 62], 'shrine-village': ['town', 44, 64],
+  farmstead: ['rural-settlement', 28, 56], 'mine-camp': ['rural-settlement', 32, 56],
+  'citadel-dinh': ['citadel', 50, 64], 'citadel-ly': ['citadel', 52, 64],
+  'citadel-tran': ['citadel', 52, 64], 'citadel-le': ['citadel', 52, 64],
+  'citadel-nguyen': ['citadel', 52, 64],
 };
 
 function contractFor(id) {
@@ -59,14 +59,20 @@ function updateEntries(entries) {
 
 function update(relativePath, arrayKey) {
   const file = path.join(root, relativePath);
-  const json = JSON.parse(fs.readFileSync(file, 'utf8'));
+  const source = fs.readFileSync(file, 'utf8');
+  const json = JSON.parse(source);
   const entries = arrayKey ? json[arrayKey] : json;
   updateEntries(entries);
-  fs.writeFileSync(file, `${JSON.stringify(json, null, 2)}\n`);
+  const newline = source.includes('\r\n') ? '\r\n' : '\n';
+  fs.writeFileSync(file, `${JSON.stringify(json, null, 2)}\n`.replaceAll('\n', newline));
 }
 
 update('public/art/conquest-dongho/manifest.json', 'assets');
-update('output/conquest-dongho-review/manifest.json', 'assets');
-update('output/conquest-dongho-review/decisions.json');
+// Review output is generated locally and is absent from a fresh checkout.
+for (const [file, key] of [
+  ['output/conquest-dongho-review/manifest.json', 'assets'],
+  ['output/conquest-dongho-review/decisions.json', undefined],
+]) {
+  if (fs.existsSync(path.join(root, file))) update(file, key);
+}
 console.log('synchronised semantic scale contracts for buildings and settlements');
-

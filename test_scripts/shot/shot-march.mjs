@@ -6,8 +6,9 @@
  *   map.png      — the same host on the map itself, standing then marching.
  *
  * The formation is drawn exactly as the map draws it — `createArmyMarker` with no `drawScale`, so
- * the renderer uses `MAP_HOST_SPREAD` — and only the finished container is scaled up. Passing a
- * `drawScale` here would force `spread: 1` and quietly show an arrangement the map never uses.
+ * the renderer uses `MAP_HOST_SPREAD` standing and `MAP_MARCH_SPREAD` on the road — and only the
+ * finished container is scaled up. Passing a `drawScale` here would force `spread: 1` and quietly
+ * show an arrangement the map never uses.
  */
 import { chromium } from 'playwright';
 const URL = process.env.DEV_URL ?? 'http://127.0.0.1:5179';

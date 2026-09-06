@@ -11,6 +11,7 @@ import { getMapTheme } from './ui/mapTheme';
 import { stampStats } from './ui/ink/stamp';
 import { installQualityLadder } from './game/qualityLadder';
 import { renderScaleNow } from './game/graphicsQuality';
+import type { CoronationSheet } from './ui/coronation/CoronationSheet';
 import { installResilience } from './game/resilience';
 
 declare global {
@@ -116,8 +117,10 @@ window.__fpsProbe = (seconds = 3) => new Promise((resolve) => {
 
 window.render_game_to_text = () => {
   if (window.__phaserGame?.scene.isActive('MenuScene')) {
+    const menu = window.__phaserGame.scene.getScene('MenuScene') as Phaser.Scene & { templeSheet?: CoronationSheet };
     return JSON.stringify({
       mode: 'menu',
+      bannerEditor: menu.templeSheet?.bannerState(),
       language: getLanguage(),
       languageOptions: ['vi', 'en'],
       actions: ['guide', 'history', 'settings'],
@@ -147,6 +150,7 @@ window.render_game_to_text = () => {
     ? window.__phaserGame.scene.getScene('ConquestUIScene') as Phaser.Scene & {
         openPromptKey?: string;
         chronicleTab?: 'actions' | 'ongoing' | 'heard' | 'recorded';
+        coronationSheet?: CoronationSheet;
       }
     : undefined;
 
@@ -267,6 +271,7 @@ window.render_game_to_text = () => {
             : null,
           ui: {
             screen: ascentUi?.openPromptKey || 'map',
+            bannerEditor: state.pendingAscentPrompt?.kind === 'coronation' ? ascentUi?.coronationSheet?.bannerState() : undefined,
             chronicleTab: ascentUi?.openPromptKey === 'lane:chronicle'
               ? ascentUi.chronicleTab ?? 'actions'
               : null,

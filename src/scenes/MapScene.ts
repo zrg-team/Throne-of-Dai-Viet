@@ -638,13 +638,16 @@ export class MapScene extends Phaser.Scene {
         if (liveInk.length === 0) continue;
         const node = this.landNodes.get(landId);
         if (!node) continue;
+        const bounds = this.landStructureBounds.get(landId);
         const id = `ink::${landId}`;
         live.add(id);
         this.viewIndex.set(id, {
           kind: 'node',
-          x: node.x,
-          y: node.y,
-          radius: 140,
+          // Completed additions can extend well beyond the seat. Cull the whole layout so a
+          // house at its edge stays visible while the province centre is offscreen.
+          x: bounds ? (bounds.left + bounds.right) / 2 : node.x,
+          y: bounds ? (bounds.top + bounds.bottom) / 2 : node.y,
+          radius: bounds ? Math.hypot(bounds.right - bounds.left, bounds.bottom - bounds.top) / 2 + 8 : 140,
           setCulled: (culled) => {
             for (const g of liveInk) g.setVisible(!culled);
           },
@@ -1735,6 +1738,7 @@ export class MapScene extends Phaser.Scene {
         }
         : { width: 88, height: 44 };
       const capitalHighlight = this.mapItems.createCapitalHighlight(ground.width, ground.height);
+      capitalHighlight.setData('conquestGroundSurface', true);
       capitalHighlight.setDepth(-1);
       capitalHighlight.setPosition(ringAt.x, ringAt.y);
       container.addAt(capitalHighlight, 0);
@@ -1764,21 +1768,7 @@ export class MapScene extends Phaser.Scene {
     this.harvestSettlementInk(land, container);
   }
 
-  /**
-   * Lifts a settlement's drawn ink out of its live node and into the static-bake band.
-   *
-   * A town cluster is hundreds of ink-path segments that never change between rebuilds, and as
-   * live `Graphics` Phaser 4 re-triangulates all of them every frame. Everything drawn is moved
-   * to scene level inside [1.40, 1.50) — under the `depth <= 1.5` bake sweep — so the next
-   * `bakeStaticTerrain` flattens it into the cached texture; what must stay alive stays in the
-   * node: the animals (Images, wandering), the name `Text`, and — on tiers whose zoom LOD drops
-   * labels — the plate under the name, so the LOD can hide both together.
-   *
-   * The paint order inside a cluster is preserved exactly: `paintByGround` ordered the layers,
-   * and the harvest walks the same list order, stepping depth per piece. The one accepted art
-   * change: the animals, staying live above the bake, now stand in front of every roof — the
-   * compromise this design chose over a third RenderTexture.
-   */
+  /** Lift static structures into the shared terrain order; retain moving sprites in the node. */
   private harvestSettlementInk(
     land: Land,
     node: Phaser.GameObjects.Container,
@@ -1788,22 +1778,35 @@ export class MapScene extends Phaser.Scene {
       return;
     }
     const ink: Array<Phaser.GameObjects.Graphics | Phaser.GameObjects.Image> = [];
-    // **A town takes its place in the ground order like everything else standing on the ground.**
-    //
-    // This band used to be [1.41, 1.49) — its own storey, above the whole landscape — so a town
-    // drew over every mountain on the map regardless of which stood in front. See `groundDepth`.
-    // The foot line is the compound's own bottom edge where the art declares one, not the province
-    // centre: a citadel is drawn eighty units tall and hanging its depth off the middle of the
-    // province put it half a compound behind where its walls actually meet the ground.
     const structure = this.landStructureBounds.get(land.id);
+    const fallbackDepth = groundDepth(structure ? structure.bottom : node.y);
+    let fallbackStep = 0;
     const walk = (root: Phaser.GameObjects.Container, ox: number, oy: number): void => {
       for (const child of [...root.list]) {
+        const role = child.getData('conquestStructureRole');
         if (child instanceof Phaser.GameObjects.Graphics
-          || (child instanceof Phaser.GameObjects.Image && child.getData('conquestSettlementArt') === true)) {
+          || (child instanceof Phaser.GameObjects.Image && (child.getData('conquestSettlementArt') === true
+            || role === 'satellite' || role === 'enclosure'))) {
+          const localFootY = child.getData('conquestGroundFootY') as number | undefined;
           root.remove(child);
           child.setPosition(ox + child.x, oy + child.y);
           this.add.existing(child);
           ink.push(child);
+          if (child.getData('conquestGroundSurface') === true) {
+            // Roads and selection washes belong under every standing object, including after
+            // baking. Do not tag them as live ground ink or the bake would leave them on top.
+            child.setDepth(1.005);
+          } else {
+            // Every building owns its foot line. Satellites and walls used to remain in the
+            // depth-2 node above ALL relief; sharing the compound's foot would still misorder
+            // additions on opposite sides of a mountain. Stable scene sorting handles ties.
+            child.setDepth(child instanceof Phaser.GameObjects.Image
+              ? groundDepth(stampFootY(child))
+              : localFootY !== undefined
+                ? groundDepth(oy + localFootY)
+                : fallbackDepth + (++fallbackStep) * GROUND_DEPTH_PIECE_STEP);
+            child.setData('conquestGroundOrder', 'settlement');
+          }
         } else if (child instanceof Phaser.GameObjects.Container) {
           walk(child, ox + child.x, oy + child.y);
         }
@@ -1811,30 +1814,6 @@ export class MapScene extends Phaser.Scene {
       }
     };
     walk(node, node.x, node.y);
-    // **Where the compound's ink meets the ground, not where its layout rect ends.**
-    //
-    // `conquestStructureBounds` is a union of planned rectangles — the core, the enclosure, the
-    // satellites — and the authored art inside it does not fill that box. Measured across a map,
-    // every compound's drawn feet sat 6 to 7 units *above* the rect it sorted on, so each town
-    // behaved as though it stood a stride nearer the viewer than it does. Paired with relief that
-    // sorted 13 units the other way, that is what put a house in front of a mountain. See
-    // `inkFoot`. Procedurally drawn towns have no authored ink to read and keep the rect.
-    const authored = ink.filter((piece): piece is Phaser.GameObjects.Image => (
-      piece instanceof Phaser.GameObjects.Image && piece.getData('conquestSettlementArt') === true
-    ));
-    const footY = authored.length > 0
-      ? Math.max(...authored.map((piece) => stampFootY(piece)))
-      : (structure ? structure.bottom : node.y);
-    const base = groundDepth(footY);
-    let step = 0;
-    for (const piece of ink) {
-      piece.setDepth(base + (step += 1) * GROUND_DEPTH_PIECE_STEP);
-    }
-    for (const piece of ink) {
-      // What the bake's live-ink carve-out keys off. It used to key off a depth threshold, which
-      // stopped meaning anything the moment settlements shared a band with the landscape.
-      piece.setData('conquestGroundOrder', 'settlement');
-    }
     if (ink.length > 0) {
       this.landInk.set(land.id, ink);
     }

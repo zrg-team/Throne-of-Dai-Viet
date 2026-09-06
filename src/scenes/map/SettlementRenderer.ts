@@ -21,6 +21,7 @@ import { placeStamp } from '../../ui/ink/stamp';
 import { bakedBuffalo } from '../../ui/ink/sprites';
 import { grazeInSmallArea, livingSprite, wanderInSmallArea } from '../../ui/ink/life';
 import { GROUND_SCALE, unitScale } from '../../ui/ink/proportion';
+import { conquestTravelerArtId } from '../../ui/conquestTravelerStyles';
 import {
   footprintRect,
   planSettlementLane,
@@ -383,7 +384,8 @@ export class SettlementRenderer {
     const seed = Math.round(at.x * 19 + at.y * 23 + settlementId.length * 101);
 
     roles.forEach((role, index) => {
-      const personStamp = conquestArtStamp(this.scene, role);
+      const artId = role === 'life.traveler' ? conquestTravelerArtId(seed, index) : role;
+      const personStamp = conquestArtStamp(this.scene, artId) ?? conquestArtStamp(this.scene, role);
       if (!personStamp) return;
       void unitScale(role === 'life.farmer' ? 'farmer' : 'figure', GROUND_SCALE);
       const side = index === 0 ? 1 : -1;
@@ -393,6 +395,7 @@ export class SettlementRenderer {
       // procedural fallback still resolves to the same single stamped image as before.
       const person = livingSprite(this.scene, personStamp, homeX, homeY, GROUND_SCALE)
         .setData('conquestLivingPerson', true);
+      if (role === 'life.traveler') person.setData('conquestTravelerStyle', artId);
       wanderInSmallArea(
         this.scene,
         person,
@@ -439,9 +442,8 @@ export class SettlementRenderer {
    * Places completed buildings inside one compact, irregular settlement plan.
    *
    * The seat is the only safe origin: a province centroid may lie in water or limestone. Additions
-   * are inserted before the authored compound, so its transparent yard reveals useful structures
-   * while halls and connected front walls still occlude them naturally. A wall is treated as an
-   * enclosure around an unwalled settlement, never as a second free-standing gate.
+   * sort independently against the compound and surrounding relief at their own ground lines.
+   * A wall is treated as an enclosure around an unwalled settlement.
    */
   private addBuildingDecorations(
     cluster: Phaser.GameObjects.Container,
@@ -459,7 +461,7 @@ export class SettlementRenderer {
     const coreRect = footprintRect(at.x, at.y, coreFootprint, 3);
     const hasEnclosure = !isCitadel && land.buildings.some((building) => building.type === 'wall');
     let layoutCore = hasEnclosure ? expandRect(coreRect, 9) : coreRect;
-    const lanes = this.scene.add.graphics();
+    const lanes = this.scene.add.graphics().setData('conquestGroundSurface', true);
 
     // A wall is one connected enclosure around the existing compound. It is not a detached gate
     // dropped into a courtyard, and a citadel never receives a second wall inside its own walls.
@@ -534,13 +536,16 @@ export class SettlementRenderer {
       brushStroke(lanes, path, 0.72, this.palette.cityRoad.track, 0.20, seed + index * 31 + 7);
     });
 
-    // Lanes and satellites remain behind the settlement composite. Their alpha rectangles no
-    // longer intersect it, so this order is stable rather than relying on accidental occlusion.
+    // MapScene lifts these into scene order: lanes under the terrain band, satellites at their
+    // own foot lines. Container insertion order cannot sort a house against an outside mountain.
     cluster.add(lanes);
     for (const building of placed) {
       const glyphs = this.mapItems.createBuildingGlyph(building.value, building.x, building.y);
       for (const glyph of glyphs) {
-        glyph.setData('conquestStructureRole', 'satellite');
+        glyph.setData('conquestStructureRole', 'satellite')
+          // Procedural glyphs draw at local coordinates inside a Graphics at (0, 0).
+          // Images use their measured ink base instead when lifted into the scene.
+          .setData('conquestGroundFootY', building.y);
       }
       cluster.add(glyphs);
     }
@@ -583,7 +588,7 @@ export class SettlementRenderer {
   ): void {
     if (cityCoords.length < 2) return;
 
-    const graphics = this.scene.add.graphics();
+    const graphics = this.scene.add.graphics().setData('conquestGroundSurface', true);
     const maxAdjacentDist = hexSize * MAP_SCALE * 2.1;
     const { cityRoad } = this.palette;
 

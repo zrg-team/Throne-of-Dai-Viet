@@ -399,7 +399,7 @@ export function stampedArmy(
    * marching west was therefore drawn walking backwards down its own road — half of all marches,
    * and the single most obviously wrong thing about a host in motion. A host at rest keeps the
    * native pose (there is nothing to face); a marching one turns with `marchHeading`, the same
-   * angle `MARCH_PLAN` files its blocks along, so the men and the column agree.
+   * angle `marchColumn` files its blocks along, so the men and the column agree.
    *
    * Per figure rather than by mirroring the marker: flipping the container would mirror the
    * formation too, and a screen thrown forward would end up behind the line.

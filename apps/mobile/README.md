@@ -23,6 +23,14 @@ npm run sync                     # dist-shell/ → assets/web.zip + the launcher
 has no game in it, and every change to `src/` needs `build:shell` + `sync` before it reaches a
 device. Both steps together are `yarn mobile:sync` from the root.
 
+The approved mobile icon source is committed at `branding/dongho-river-v7.png`. Sync exports
+the iOS icon and tint source, Android adaptive and monochrome layers, and a matching splash.
+To regenerate just the icons from the repository root, run
+`node scripts/build-icon.mjs --mobile apps/mobile/assets`. Add `--check` to verify the exports.
+`node scripts/build-store-kit.mjs --icons-only` refreshes both store icons from the mobile export.
+Run `node scripts/build-icon.mjs` for matching web/menu assets, and `node scripts/build-store-kit.mjs`
+for the full store kit. See the [platform pack and checks](../../docs/design/game-icon-v7/README.md).
+
 ## Building
 
 `ios/` and `android/` are gitignored. This is a Continuous Native Generation project: they are

@@ -53,3 +53,14 @@ scripts/promo/out/
 # Python bytecode from the art tooling in scripts/conquest-art.
 __pycache__/
 *.pyc
+
+# Icon-design scratch under docs/design that is either regenerated on demand or a byte-for-byte
+# copy of something already committed elsewhere. `scripts/icons/package-river-icons.mjs` rebuilds
+# the first two from apps/mobile/assets; the rest duplicated apps/mobile/branding/ and public/,
+# which are the single sources. Keeping them cost 36 MB for zero information. The parts a gate
+# actually reads — icon-pack/android and icon-pack/ios — are committed.
+docs/design/*/native-export-check/
+docs/design/*/icon-pack/web/
+docs/design/*/icon-pack/sources/
+docs/design/*/*.zip
+docs/design/*/preview.html

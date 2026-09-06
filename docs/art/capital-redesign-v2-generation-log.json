@@ -1,0 +1,67 @@
+{
+  "date": "2026-09-06",
+  "generator": "built-in ImageGen",
+  "request": "Correct the unreal architecture and oversized appearance in the user's three attached capitals.",
+  "prompts": "docs/art/capital-redesign-v2-prompts.json",
+  "corrections": "docs/art/capital-redesign-v2-corrections.json",
+  "selected": [
+    {
+      "era": "ly",
+      "source": "C:/Users/zerg/.codex/generated_images/01a0768f-66ea-7af3-b7de-8ddc859ac120/exec-1e881d63-1b75-4fc2-997b-6800f4e2260c.png",
+      "visibleWidth": 64,
+      "visibleHeight": 39.875,
+      "master": "output/capital-redesign-v2/masters/citadel-ly.png",
+      "asset": "public/art/conquest-capitals-v2/settlement/citadel-ly.png"
+    },
+    {
+      "era": "le",
+      "source": "C:/Users/zerg/.codex/generated_images/01a0768f-66ea-7af3-b7de-8ddc859ac120/exec-5431d841-6c65-4649-99f7-a301efcccf17.png",
+      "visibleWidth": 64,
+      "visibleHeight": 39.63333333333333,
+      "master": "output/capital-redesign-v2/masters/citadel-le.png",
+      "asset": "public/art/conquest-capitals-v2/settlement/citadel-le.png"
+    },
+    {
+      "era": "nguyen",
+      "source": "C:/Users/zerg/.codex/generated_images/01a0768f-66ea-7af3-b7de-8ddc859ac120/exec-b60fb4d1-1ea5-450a-b5e9-0fca50c42885.png",
+      "visibleWidth": 64,
+      "visibleHeight": 45.47916666666667,
+      "master": "output/capital-redesign-v2/masters/citadel-nguyen.png",
+      "asset": "public/art/conquest-capitals-v2/settlement/citadel-nguyen.png"
+    }
+  ],
+  "rejected": [
+    {
+      "era": "nguyen",
+      "source": "exec-c4df8a33-927f-4afd-9940-65347125150d.png",
+      "reason": "Repeated forward-facing wing arches. Replaced them with solid masonry; retained the central three doors."
+    }
+  ],
+  "export": {
+    "command": "node scripts/conquest-art/capital-pack.mjs output/capital-redesign-v2/masters conquest-capitals-v2 ly,le,nguyen",
+    "operations": "Neutral matte removal, isolated-speck cleanup, crop and uniform downsample. Generated masters again lacked requested alpha; exported PNGs have real alpha. No architecture drawn by code.",
+    "size": "Maximum 512-pixel canvas dimension; 480 visible-pixel extent and 16-pixel padding."
+  },
+  "integration": {
+    "registry": "src/ui/conquestDongHoV4Assets.json",
+    "retained": "Dinh and Tran use their v1 drawings. All older versions preserved.",
+    "scale": "All five capital width ceilings reduced from 80 to 64. Le height ceiling reduced from 56 to 52; Dinh remains 50 and others 52. Fit is uniform and may stop at width before reaching the height ceiling."
+  },
+  "review": {
+    "comparison": "output/capital-redesign-v2/capital-comparison.png",
+    "baseline": "Previously shipped v1 sprites and measured runtime sizes, not the user-attached obsolete gate-count drafts.",
+    "visuals": "Inspected all three dark-background exports, all five in the comparison, and actual Le/Nguyen game screenshots. Dinh smoke-client screenshot and text state inspected. Ly is not selected by current era progression; its loaded runtime metrics are included in the comparison.",
+    "metrics": "output/capital-redesign-v2/runtime-metrics.json",
+    "widthSpread": "1.06x across five capitals",
+    "visibleAreaSpread": "1.27x across five capitals"
+  },
+  "checks": {
+    "build": "Pass; existing font/chunk warnings.",
+    "layouts": "11/11 pass; 42 labels, 35 structures, no overlaps.",
+    "fallback": "4/4 missing/corrupt settlement/map cases pass.",
+    "scale": "15/17. Revised capital assertions use visible widths and footprint areas for low, broad buildings; all settlement checks pass. Existing farmer/traveler and 45-structure-count failures remain.",
+    "client": "Installed develop-web-game client completed two bursts with zero browser errors. Render smoke coverage, not proof of land selection.",
+    "diff": "Pass with Windows CR-at-EOL whitespace interpretation; legacy manifest's indexed newline style is mixed."
+  },
+  "limitations": "Source-informed game interpretations with compressed layouts and stylized ornament, not exact archaeological reconstructions. Reference photo is used only for generation and is not shipped. Local masters and review captures are ignored output artifacts; runtime PNGs, prompts and documentation are versionable."
+}

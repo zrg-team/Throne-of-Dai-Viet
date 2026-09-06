@@ -51,7 +51,7 @@ export interface MapItemRenderer {
   createFarmCluster(scale: number, upgradeLevel: number): Phaser.GameObjects.Container;
   createMineCluster(scale: number, upgradeLevel: number): Phaser.GameObjects.Container;
   createBuildingGlyph(building: LandBuildingType, x: number, y: number): Phaser.GameObjects.GameObject[];
-  createTraveler(): Phaser.GameObjects.Container;
+  createTraveler(appearanceSeed?: number, index?: number): Phaser.GameObjects.Container;
   createCart(): Phaser.GameObjects.Container;
   /** `kingdomColor` distinguishes one rival empire's host from another's. */
   /**

@@ -1,0 +1,91 @@
+{
+  "date": "2026-09-06",
+  "generator": "built-in ImageGen (image_gen.imagegen)",
+  "research": "docs/research/capital-architecture-redesign.md",
+  "initialPrompts": "docs/art/capital-redesign-v1-prompts.json",
+  "correctivePrompts": "docs/art/capital-redesign-v1-corrections.json",
+  "selected": [
+    {
+      "era": "dinh",
+      "generatedSource": "C:\\Users\\zerg\\.codex\\generated_images\\01a0768f-66ea-7af3-b7de-8ddc859ac120\\exec-f47c95b8-ddee-480b-987b-4355a9bd9e12.png",
+      "workspaceMaster": "output/capital-redesign-v1/masters/citadel-dinh.png",
+      "asset": "public/art/conquest-capitals-v1/settlement/citadel-dinh.png",
+      "corrected": false
+    },
+    {
+      "era": "ly",
+      "generatedSource": "C:\\Users\\zerg\\.codex\\generated_images\\01a0768f-66ea-7af3-b7de-8ddc859ac120\\exec-a977e9f0-ac9f-4956-9b0b-40d26d9374b1.png",
+      "workspaceMaster": "output/capital-redesign-v1/masters/citadel-ly.png",
+      "asset": "public/art/conquest-capitals-v1/settlement/citadel-ly.png",
+      "corrected": false
+    },
+    {
+      "era": "tran",
+      "generatedSource": "C:\\Users\\zerg\\.codex\\generated_images\\01a0768f-66ea-7af3-b7de-8ddc859ac120\\exec-4995005e-3f5b-4e03-8b3f-7ccacfd1c68b.png",
+      "workspaceMaster": "output/capital-redesign-v1/masters/citadel-tran.png",
+      "asset": "public/art/conquest-capitals-v1/settlement/citadel-tran.png",
+      "corrected": false
+    },
+    {
+      "era": "le",
+      "generatedSource": "C:\\Users\\zerg\\.codex\\generated_images\\01a0768f-66ea-7af3-b7de-8ddc859ac120\\exec-f613d49b-83e6-4c64-a288-1fb78f914dca.png",
+      "workspaceMaster": "output/capital-redesign-v1/masters/citadel-le.png",
+      "asset": "public/art/conquest-capitals-v1/settlement/citadel-le.png",
+      "corrected": true
+    },
+    {
+      "era": "nguyen",
+      "generatedSource": "C:\\Users\\zerg\\.codex\\generated_images\\01a0768f-66ea-7af3-b7de-8ddc859ac120\\exec-1ee8347c-7430-4d3b-9a89-74066f46d9ab.png",
+      "workspaceMaster": "output/capital-redesign-v1/masters/citadel-nguyen.png",
+      "asset": "public/art/conquest-capitals-v1/settlement/citadel-nguyen.png",
+      "corrected": true
+    }
+  ],
+  "rejected": [
+    {
+      "era": "le",
+      "source": "exec-9b90e63e-344b-448b-a5cb-05eee265b2b8.png",
+      "reason": "Seven front arches and six dragon balustrades. Corrected to five arches, four balustrades and three stair approaches."
+    },
+    {
+      "era": "nguyen",
+      "source": "exec-644fcd4f-08e9-44ea-a233-c193ed73f70d.png",
+      "reason": "Five forward-facing arches. Corrected to three central front passages; the other two historical entrances belong to the side returns."
+    }
+  ],
+  "additionalReference": {
+    "era": "nguyen",
+    "file": "output/capital-redesign-v1/references/ngo-mon.jpg",
+    "source": "https://huetourism.gov.vn/Medias/Nam2024/Thang9/huetourism-chiem-nguong-bon-cua-vao-hoang-thanh-hue-16.jpg",
+    "use": "Reference for corrective generation only; not shipped as game artwork."
+  },
+  "export": {
+    "script": "scripts/conquest-art/capital-pack.mjs",
+    "operations": [
+      "Remove neutral baked checker matte; retain warm architecture colors.",
+      "Remove isolated export specks under 24 pixels.",
+      "Crop and uniformly downsample to 480 visible pixels with 16 pixels of padding."
+    ],
+    "notes": "Generated masters lacked true alpha despite the prompts. Runtime PNGs have real alpha and were visually inspected on paper and dark backgrounds. No architecture was drawn or semantically edited by the exporter."
+  },
+  "integration": {
+    "registry": "src/ui/conquestDongHoV4Assets.json",
+    "originals": "public/art/conquest-dongho-v4/settlement (preserved)",
+    "scale": "Existing 50/52/52/56/52 height contracts and 80 maximum width retained. Denser roof ensembles are wider than old narrow drawings, but stay within the approved cap."
+  },
+  "verification": {
+    "build": "Pass; existing font/chunk warnings.",
+    "layout": "11/11 settlement cases pass; 42 labels, 35 structures, zero overlaps.",
+    "fallback": "4/4 missing/corrupt settlement and map-art cases pass.",
+    "visualScale": "15/17; all settlement checks pass. Existing farmer/traveler height comparison and stale 45-structure count still fail.",
+    "gameClient": "Installed develop-web-game client ran two action bursts; screenshots and text state inspected; zero browser errors. Its click did not select a land; this is a render smoke check, not evidence of land-selection coverage.",
+    "visualReview": "All five paper/dark exports and old/new comparison inspected. Dinh, Tran, Le and Nguyen captured in the actual ConquestScene through its existing era selector. Ly included in the comparison with actual loaded runtime display metrics; the current game era mapping does not select Ly."
+  },
+  "artifacts": {
+    "comparison": "output/capital-redesign-v1/capital-comparison.png",
+    "maps": "output/capital-redesign-v1/map-{dinh,tran,le,nguyen}.png",
+    "metrics": "output/capital-redesign-v1/runtime-metrics.json",
+    "client": "output/capital-redesign-v1/client"
+  },
+  "limits": "Source-informed game interpretations with compressed plans, not exact archaeological reconstructions. Original generated masters and review output are local ignored artifacts; shipped PNGs, prompts, research and this log are versionable."
+}

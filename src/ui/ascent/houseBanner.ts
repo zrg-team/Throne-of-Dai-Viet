@@ -1,9 +1,8 @@
 import Phaser from 'phaser';
-import { CARD_ICON_SIZE, drawCardIcon, type CardIconId } from '../CardIcons';
 import { INK_UI } from '../InkUI';
-import { shade } from '../faces/palette';
 import { getDynasty, type DynastyBanner } from '../../state/dynasty';
-import { BANNER_EMBLEMS, ROYAL_HOUSES } from '../faces/kingLook';
+import { ROYAL_HOUSES } from '../faces/kingLook';
+import { BANNER_EMBLEM_SIZE, drawBannerEmblem } from './bannerEmblems';
 
 /**
  * The house's mark — two colours and a glyph, on a hanging silk.
@@ -27,64 +26,62 @@ export function drawHouseBanner(
 ): Phaser.GameObjects.Container {
   const root = scene.add.container(0, 0);
   const g = scene.add.graphics();
-  const trim = readableTrim(banner.field, banner.trim);
-
-  // A silk hung from a pole: square shoulders, a swallowtail at the foot. The tail is what makes
-  // it read as a banner rather than as a coloured rectangle at 40 units wide.
-  const tail = Math.max(6, Math.round(height * 0.16));
-  const body: Phaser.Types.Math.Vector2Like[] = [
-    { x: 0, y: 0 },
-    { x: width, y: 0 },
-    { x: width, y: height - tail },
-    { x: width / 2, y: height },
-    { x: 0, y: height - tail },
-  ];
-  g.fillStyle(banner.field, 1);
-  g.fillPoints(body, true);
-  g.lineStyle(2, INK_UI.brush, 0.82);
-  g.strokePoints(body, true);
-  // The trim is a band inside the edge, not a second outline: an outline in a second colour at
-  // this size reads as a rendering error rather than as a border.
-  g.lineStyle(2.4, trim, 0.95);
-  g.strokeRect(3.5, 3.5, width - 7, height - tail - 3.5);
+  // Square cloth, layered bands and flame-shaped fringe draw on Vietnamese ceremonial flags.
+  // This two-colour game standard is not a reconstruction of a dynasty's historical flag.
+  const unit = Math.min(width / 100, height / 116);
+  const side = 80 * unit;
+  const x = (width - 94 * unit) / 2 + 9 * unit;
+  const y = 14 * unit;
+  const path = (points: number[][], colour: number, weight = 1.2): void => {
+    const vertices = points.map(([px, py]) => ({ x: px, y: py }));
+    g.fillStyle(colour).fillPoints(vertices, true);
+    g.lineStyle(weight * unit, INK_UI.brush).strokePoints(vertices, true);
+  };
+  const pole = x - 4 * unit;
+  g.lineStyle(3.8 * unit, INK_UI.brush).lineBetween(pole, 7 * unit, pole, height - unit);
+  g.lineStyle(1.2 * unit, 0xc49a57).lineBetween(pole - 0.6 * unit, 9 * unit, pole - 0.6 * unit, height - 2 * unit);
+  path([[pole, unit], [pole + 3 * unit, 7 * unit], [pole, 10 * unit], [pole - 3 * unit, 7 * unit]], 0xd8b45a);
+  const teeth = width >= 70 ? 8 : 5;
+  for (let i = 0; i < teeth; i += 1) {
+    const a = side * i / teeth;
+    const b = side * (i + 1) / teeth;
+    const mid = (a + b) / 2;
+    path([[x + a, y], [x + mid - unit, y - 5 * unit], [x + b, y]], banner.trim, 0.8);
+    path([[x + side, y + a], [x + side + 6 * unit, y + mid - unit], [x + side, y + b]], banner.trim, 0.8);
+    path([[x + a, y + side], [x + mid + unit, y + side + 6 * unit], [x + b, y + side]], banner.trim, 0.8);
+  }
+  g.fillStyle(banner.trim).fillRect(x, y, side, side);
+  g.lineStyle(1.6 * unit, INK_UI.brush).strokeRect(x, y, side, side);
+  const edge = luma(banner.trim) > 140 ? INK_UI.brush : 0xf3e6c4;
+  g.lineStyle(1.1 * unit, edge, 0.9).strokeRect(x + 3 * unit, y + 3 * unit, side - 6 * unit, side - 6 * unit);
+  g.fillStyle(banner.field).fillRect(x + 7 * unit, y + 7 * unit, side - 14 * unit, side - 14 * unit);
+  g.lineStyle(1.1 * unit, edge).strokeRect(x + 7 * unit, y + 7 * unit, side - 14 * unit, side - 14 * unit);
+  const markColour = Math.abs(luma(banner.trim) - luma(banner.field)) >= 80
+    ? banner.trim : luma(banner.field) > 140 ? INK_UI.brush : 0xf3e6c4;
+  // Sparse woven ticks; omit at the smallest dynasty-chip sizes.
+  if (width >= 70) {
+    g.lineStyle(0.65 * unit, markColour, 0.22);
+    for (let i = 0; i < 7; i += 1) {
+      const iy = y + (14 + i * 9) * unit;
+      g.lineBetween(x + 10 * unit, iy, x + 14 * unit, iy + unit);
+      g.lineBetween(x + side - 14 * unit, iy, x + side - 10 * unit, iy + unit);
+    }
+  }
+  g.lineStyle(1.5 * unit, 0xd8b45a).lineBetween(pole - unit, y + 7 * unit, x + unit, y + 7 * unit);
+  g.lineBetween(pole - unit, y + side - 7 * unit, x + unit, y + side - 7 * unit);
   root.add(g);
-
-  const emblem = drawCardIcon(scene, emblemIcon(banner.emblem), trim);
-  const scale = Math.min((width - 14) / CARD_ICON_SIZE, (height - tail - 14) / CARD_ICON_SIZE, 1.6);
-  emblem.setPosition(width / 2, (height - tail) / 2);
-  emblem.setScale(scale);
+  const emblem = drawBannerEmblem(scene, banner.emblem, markColour,
+    luma(markColour) > 140 ? INK_UI.brush : 0xf3e6c4, banner.field);
+  emblem.setPosition(x + side / 2, y + side / 2);
+  emblem.setScale(side * 0.66 / BANNER_EMBLEM_SIZE);
   root.add(emblem);
+  root.setData('houseBanner', { ...banner, width, height });
   return root;
 }
 
-/**
- * A trim that can actually be seen against its own field.
- *
- * The house colours and the trim list overlap — cinnabar is both a field a dynasty flies and a
- * trim the picker offers — so a rolled banner could land on vermilion-on-vermilion, and did:
- * Nhà Nguyễn's default came out as a plain red silk with no border and no emblem on it at all.
- * A mark nobody can read is worse than no mark, and the player has not made a mistake here, the
- * roll has. Rather than forbid the pair, the *drawing* steps the trim away from the field far
- * enough to read, which also covers a hand-edited save and any colour added to either list later.
- *
- * Rec. 601 luma, and 46 is the smallest separation at which the 2.4-unit border still reads at
- * the 26-unit size the dynasty sheet draws this at.
- */
+/** Keep the player's colours exact; contrast comes from the seam and the motif's ink. */
 function luma(colour: number): number {
   return 0.299 * ((colour >> 16) & 255) + 0.587 * ((colour >> 8) & 255) + 0.114 * (colour & 255);
-}
-
-export function readableTrim(field: number, trim: number): number {
-  const gap = luma(trim) - luma(field);
-  if (Math.abs(gap) >= 46) return trim;
-  // Away from the field, never toward it: a dark field takes a lightened trim and a light one a
-  // darkened trim, so the step can never walk a mid-tone into the ground it is sitting on.
-  return shade(trim, luma(field) > 128 ? -80 : 80);
-}
-
-/** An emblem id the glyph table actually knows; anything stale falls back to the crown. */
-export function emblemIcon(emblem: string): CardIconId {
-  return (BANNER_EMBLEMS as readonly string[]).includes(emblem) ? emblem as CardIconId : 'crown';
 }
 
 /**
@@ -93,7 +90,7 @@ export function emblemIcon(emblem: string): CardIconId {
  * A house crowned before the banner step existed — or one whose founder is still the run's
  * champion rather than a made king — has no stored mark, and a sheet with a hole in it where the
  * other sheets have a banner is worse than a default. The fallback is the dynasty's own
- * historical field, which is what the banner step itself opens on.
+ * game-assigned field, which is what the banner step itself opens on.
  */
 export function houseBanner(): DynastyBanner {
   const founder = getDynasty().founder;

@@ -1,0 +1,97 @@
+{
+  "life.traveler-basket": {
+    "stillPath": "art/conquest-travelers-v1/life/traveler-basket.png",
+    "path": "art/conquest-travelers-v1/life/traveler-basket-walk.png",
+    "frameWidth": 627,
+    "frameHeight": 627,
+    "contentHeight": 550,
+    "baselines": [
+      590,
+      590,
+      590,
+      590
+    ],
+    "anchorsX": [
+      313.5,
+      313.5,
+      313.5,
+      313.5
+    ]
+  },
+  "life.traveler-fisher": {
+    "stillPath": "art/conquest-travelers-v1/life/traveler-fisher.png",
+    "path": "art/conquest-travelers-v1/life/traveler-fisher-walk.png",
+    "frameWidth": 627,
+    "frameHeight": 627,
+    "contentHeight": 550,
+    "baselines": [
+      590,
+      590,
+      590,
+      590
+    ],
+    "anchorsX": [
+      313.5,
+      313.5,
+      313.5,
+      313.5
+    ]
+  },
+  "life.traveler-merchant": {
+    "stillPath": "art/conquest-travelers-v1/life/traveler-merchant.png",
+    "path": "art/conquest-travelers-v1/life/traveler-merchant-walk.png",
+    "frameWidth": 627,
+    "frameHeight": 627,
+    "contentHeight": 550,
+    "baselines": [
+      590,
+      590,
+      590,
+      590
+    ],
+    "anchorsX": [
+      313.5,
+      313.5,
+      313.5,
+      313.5
+    ]
+  },
+  "life.traveler-pilgrim": {
+    "stillPath": "art/conquest-travelers-v1/life/traveler-pilgrim.png",
+    "path": "art/conquest-travelers-v1/life/traveler-pilgrim-walk.png",
+    "frameWidth": 627,
+    "frameHeight": 627,
+    "contentHeight": 550,
+    "baselines": [
+      590,
+      590,
+      590,
+      590
+    ],
+    "anchorsX": [
+      313.5,
+      313.5,
+      313.5,
+      313.5
+    ]
+  },
+  "life.traveler-woodcutter": {
+    "stillPath": "art/conquest-travelers-v1/life/traveler-woodcutter.png",
+    "path": "art/conquest-travelers-v1/life/traveler-woodcutter-walk.png",
+    "frameWidth": 627,
+    "frameHeight": 627,
+    "contentHeight": 550,
+    "baselines": [
+      590,
+      590,
+      590,
+      590
+    ],
+    "anchorsX": [
+      313.5,
+      313.5,
+      313.5,
+      313.5
+    ]
+  }
+}

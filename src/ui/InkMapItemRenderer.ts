@@ -76,7 +76,7 @@ export class InkMapItemRenderer implements MapItemRenderer {
   }
 
   /** Tiny ink traveler glyph, used to populate roads between connected settlements. */
-  createTraveler(): Phaser.GameObjects.Container {
+  createTraveler(_appearanceSeed = 0, _index = 0): Phaser.GameObjects.Container {
     const container = this.scene.add.container(0, 0);
     const graphics = this.scene.add.graphics();
 

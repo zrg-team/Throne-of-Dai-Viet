@@ -23,6 +23,7 @@ export class PreloadScene extends Phaser.Scene {
     // perspective drift that comes from rebuilding the scene out of map tokens. Ground v5,
     // mountains v2, bamboo v2 and lotus v2 are the Đông Hồ pigment repaint of the same
     // composition — chàm river and shadow, lá xanh foliage, hòe paddies, son petals, on a plain sheet.
+    this.load.image('app-emblem-river-v7', `${baseUrl}app-emblem.png`);
     this.load.image('menu-layer-ground-v5', `${baseUrl}art/menu-layer-ground-v5.png`);
     this.load.image('menu-layer-mountains-v3', `${baseUrl}art/menu-layer-mountains-v3.png`);
     this.load.image('menu-layer-bamboo-v2', `${baseUrl}art/menu-layer-bamboo-v2.png`);

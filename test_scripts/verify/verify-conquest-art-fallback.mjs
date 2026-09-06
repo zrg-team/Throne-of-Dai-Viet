@@ -22,8 +22,8 @@ for (const testCase of cases) {
   let intercepted = 0;
   page.on('pageerror', (error) => pageErrors.push(error.message));
   const pattern = testCase.family === 'settlement'
-    ? /\/art\/conquest-dongho(?:-v\d+)?\/settlement\/[^/]+\.png/
-    : /\/art\/conquest-dongho(?:-v\d+)?\/(?:flora|terrain|life|marker)\/.*\.png/;
+    ? /\/art\/conquest-(?:dongho(?:-v\d+)?|capitals-v\d+)\/settlement\/[^/]+\.png/
+    : /\/art\/conquest-(?:dongho(?:-v\d+)?|travelers-v\d+)\/(?:flora|terrain|life|marker)\/.*\.png/;
   await page.route(pattern, async (route) => {
     intercepted += 1;
     await route.fulfill(testCase.response);

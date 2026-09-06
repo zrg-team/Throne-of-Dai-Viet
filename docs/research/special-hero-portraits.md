@@ -1,0 +1,50 @@
+# Special-hero portrait review
+
+Reviewed 6 September 2026. Applies to `dongho-v2` only.
+
+## Coverage and evidence limits
+
+The review includes **143 game entries**: every authored `real-*` hero, historical summon names absent from the authored roster, and the named teachers Thích Không Lộ and Thích Thường Chiếu. Alternate titles remain separate gameplay entries but share their person's appearance. The [complete inventory](special-hero-portrait-inventory.md) records the period, life stage, outfit, evidence level and interpretation for every entry.
+
+Every portrait was rendered and visually inspected across eight sheets. Every entry receives a deliberate period/role policy. This does **not** mean that 143 individual biographies, lifetime portraits or surviving outfits have been authenticated. Most faces, skin tones, textile pigments and exact garment cuts remain artistic choices. Individual corrections below have additional evidence; the remainder use the qualified Vietnamese wardrobe research already recorded in [wardrobe references](vietnamese-wardrobe-v2.md) and [portrait findings](vietnamese-portrait-research-findings.md).
+
+The six software eras are broad asset families, not exact historical dates. Pre-Đinh figures are explicitly marked as commemorative interpretations. The `tran` family includes Hồ figures and `le` includes Mạc and Lê–Trịnh figures; those labels do not reassign their political allegiance. Named Nguyễn generals use a plain robe interpretation, not an asserted campaign uniform or a reconstructed ceremonial court ensemble.
+
+## Historical decisions and sources
+
+| Figure / group | Applied direction | Evidence and its limit |
+|---|---|---|
+| Lê Quý Đôn | Lê–Trịnh scholar dress instead of the inherited Nguyễn era; round collar and short phốc đầu interpretation. | The museum biography places his life in 1726–1784 and his service under the Trịnh. It does not authenticate the game's exact hat. [National Museum biography](https://baotanglichsu.vn/VI/Articles/3098/19442/nha-bac-hoc-le-quy-djon-1726-1784.html). |
+| Đoàn Thị Điểm | Lê-period crossed-lapel robe, restrained tied hair; no Nguyễn Nhật Bình or vành dây. | The museum identifies her as a Lê Trung Hưng writer, 1705–1748. [Museum biography](https://baotanglichsuquocgia.vn/vi/Articles/3098/15087/djoan-thi-djiem-1705-1748-nu-si-viet-nam-thoi-le-trung-hung.html). |
+| Thường Chiếu | Lý teacher, shaven head and monastic robe. | The Trúc Lâm edition of Thích Thanh Từ's biography records his death in 1203. The old `tran` presentation was incorrect. [Thiền sư Thường Chiếu](https://thientruclam.info/ht-thich-thanh-tu/thien-su-viet-nam/thien-su-thuong-chieu---1203-doi-thu-12-dong-vo-ngon-thong). |
+| Lý Thường Kiệt | Adult statesman/commander with a deliberate clean-shaven face. | Museum discussion of the eunuch record informs this choice; it does not establish exact facial anatomy. [Museum family-history study](https://baotanglichsu.vn/vi/Articles/3096/19861/gop-them-tu-lieu-ve-gia-toc-ly-thuong-kiet.html). |
+| Lê Văn Duyệt | Adult Gia Định governor, plain Nguyễn robe and no random beard or medieval armour. | The museum biography records his eunuch background and governorship. [Museum biography](https://baotanglichsu.vn/VI/Articles/3098/17600/le-van-duyet-1764-1832-hai-lan-lam-tong-tran-gia-djinh-voi-nhung-cai-cach-kinh-te-tao-bao.html). |
+| Trần Quốc Toản | Young face, dark hair, no beard or age marks; restrained campaign armour. | The historical account discusses his youth at Bình Than and subsequent campaigning. Armour shape remains a period interpretation. [Quân đội nhân dân historical discussion](https://sknc.qdnd.vn/chuyen-xua-nay/thieu-nien-dung-tuong-tran-quoc-toan-da-thanh-liet-si-cong-huan-nhu-the-nao-500642). |
+| Lê Ngọc Hân | Young adult Tây Sơn queen, no elder face or nineteenth-century ceremonial outfit. | Government naming records identify her lifespan as 1770–1799. These establish chronology, not a surviving costume. [Thanh Hóa naming record](https://dbndthanhhoa.gov.vn/portal/VanBan/2025-12/59.2.2025.NQ_YOxOOk6dEEKyvgtz.pdf). |
+| Lý Chiêu Hoàng | Explicitly an adult post-reign interpretation, not her childhood accession. | Her chronology requires distinguishing these life phases. [Government biography](https://buonho.daklak.gov.vn/ly-chieu-hoang-1218-1278-5603.html). |
+| Trần Nhân Tông and named monastics | Preserve the authored sovereign phase; an explicitly monastic Trần Nhân Tông uses the monastic interpretation. No random scalp dots, jewellery, office cap or elongated ears. | The Huệ Quang statue is later commemorative evidence, not a lifetime likeness. Monastic vows do not establish an individual's ear shape or ritual marks. [Cultural Heritage Department record](https://dsvh.gov.vn/thu-tuong-chinh-phu-ky-quyet-dinh-cong-nhan-bao-vat-quoc-gia-nam-2020-3300). |
+| Hoàng Hoa Thám | Close dark wrap, substantial beard, plain dark robe. | Visually inspected the museum's standing photograph and group photograph. These support broad silhouette and beard; monochrome photography does not establish exact pigments. [Museum photographs and biography](https://baotanglichsu.vn/vi/Articles/3098/15307/tuong-quan-hoang-hoa-tham-linh-hon-cua-cuoc-khoi-nghia-yen-the.html). |
+| Nguyễn Thiện Thuật | Later-life face, small pointed beard and dark high-neck robe. | Visually inspected the museum-published portrait. Its reproduction is undated; do not treat a possible exile cap as proof of a Vietnamese uniform. The game retains a qualified Vietnamese wrap interpretation. [Museum portrait](https://vnmh.com.vn/vi/Articles/3098/15723/nguyen-thien-thuat-linh-hon-cua-cuoc-khoi-nghia-bai-say.html). |
+| Phan Đình Phùng | Dark close head covering, small facial-hair shapes and high-neck robe. | Visually inspected the reproduced print. Commons attributes it to a 1935 Ngô Tất Tố publication and links Gallica. This is posthumous published imagery, not an authenticated lifetime photograph. [Print and provenance](https://commons.wikimedia.org/wiki/File:%E1%BA%A2nh_Phan_%C4%90%C3%ACnh_Ph%C3%B9ng.jpg). |
+| Nguyễn Đình Chiểu | Later-life teacher/poet with plain robe, without an official badge. | The recorded blindness does not justify inventing a visible eye pathology or automatically closing both eyes. [Museum biography](https://baotanglichsu.vn/VI/Articles/3098/15130/nguyen-djinh-chieu-nha-tho-yeu-nuoc-cua-the-ky-xix.html). |
+| Nguyễn Trường Tộ | Plain lay scholar/reformer dress, no Buddhist regalia or rarity-derived rank badge. | Biography supports his Catholic lay background and reform work; the particular blue pigment is an art choice. [Nghệ An biography](https://baonghean.vn/nguyen-truong-to-nguoi-cong-giao-yeu-nuoc-xu-nghe-voi-tu-tuong-vuot-thoi-dai-10198766.html). |
+
+Other deliberate choices are recorded individually in the inventory: Yết Kiêu and Dã Tượng use plain attendant/campaign dress; Ngô Quyền and Lê Lợi use qualified campaign interpretations; Huyền Trân is represented in her Đại Việt phase without invented Chăm jewellery; Gia Long and Minh Mạng use informal Nguyễn dress rather than a purported đại triều reconstruction. These choices describe the illustration's intended context, not newly established costume facts.
+
+## Đông Hồ treatment
+
+The existing generated PNG library supplies continuous robe panels, readable folded cloth, warm black contours and muted mineral/earth-colour shapes. The references are the [National Museum study of Đông Hồ prints](https://baotanglichsu.vn/VI/Articles/3096/19432/tim-hieu-ve-dong-tranh-dan-gian-djong-ho.html) and [UNESCO craft description](https://ich.unesco.org/en/USL/craft-of-making-ong-h-folk-woodblock-printings-01737?USL=01737). These guide the illustration treatment, not the attribution of every costume to a particular century.
+
+No Chinese film costumes, Qing-court images or generic fantasy crowns were introduced as Vietnamese evidence. Historically shared forms such as phốc đầu require evidence of Vietnamese use, discussed in the wardrobe references. The uncertain Quang Trung portrait tradition was not used as a costume template.
+
+## Implementation and verification
+
+- `historicalPortraits.ts` applies period, life-stage and outfit decisions before generic wardrobe randomness can affect a historical figure. Canonical aliases share a seed; rank changes only the game frame/seal.
+- No arbitrary court badges, scars, tattoos, betel-stained mouths, ritual scalp dots or jewellery are assigned to named people. Facial anatomy and pigment variation remain openly artistic.
+- The renderer retains the head-specific hat fit and one cached image per portrait. This pass reassembles the existing generated PNGs; it does not generate replacement face textures or enlarge the atlas.
+- `legacy` and `dongho-v1` remain selectable. Player-created monarchs and saved looks are preserved; source heroes and gameplay statistics are not rewritten.
+- `npm run verify:special-heroes` checks all 143 profiles and loaded frames, complete outfits, alias consistency, four rarity levels, role changes, source immutability, life-stage/period corrections, monastic identity and player/generic exclusions. It renders eight sheets and exports a searchable offline gallery from actual game textures.
+- The final eight sheets were visually inspected; the two additional published-portrait refinements were inspected again on sheets 7 and 8. The gallery's accent-insensitive name search was exercised.
+- The existing checks also passed: 367 outfits, 10,304 fitted head/hat/eye combinations, 53,232 creator combinations, all three art loaders, cache reuse, saved-look preservation and gameplay/roster screens. Production build and the web-game skill smoke check passed, with the pre-existing font-path and bundle-size build warnings.
+
+Review: [searchable gallery](../../output/hero-dongho-v2/special/gallery.html), [full inventory](special-hero-portrait-inventory.md). The gallery includes the limits of each interpretation so future revisions can improve the evidence without changing gameplay identities.

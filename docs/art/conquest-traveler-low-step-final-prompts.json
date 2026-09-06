@@ -1,0 +1,13 @@
+{
+  "generator": "built-in image_gen",
+  "status": "selected for runtime: low passing foot with support on the opposite side",
+  "prompt": "Use case: precise-object-edit. Image 1 is the edit target: keep its exact character design, all upper bodies, clothing colors, props and first THREE cells unchanged. Image 2 is a POSE REFERENCE ONLY. Edit ONLY the LEGS in the BOTTOM-RIGHT cell of image 1: copy the low close-legged passing stance from the BOTTOM-RIGHT of image 2. Pay close attention: the LEFTMOST foot in this one cell is the weight-bearing PLANTED foot, flat on the ground BELOW the hip. The OTHER foot is just to its RIGHT, passing very close beside the planted ankle, with its sole 12 pixels higher, both toes facing right. This reverses which side is supporting the body compared with image 1's top-right cell. BOTH thighs hang nearly VERTICAL; knees side by side, below the crotch, barely bent. Legs close together, narrow ankle gap, no long forward stride in this one cell. No raised knee or high heel lift. Preserve the subject height, torso/head position, ink outlines, accessories, texture and existing 2x2 sheet layout from image 1. Do NOT copy the red clothes, hat, hoe or colors from image 2; ONLY copy its bottom-right leg pose into the bottom-right character, using image 1's own trousers/robe. Keep first three poses unchanged. Transparent alpha background, no checkerboard, no text, no shadows or gridlines.",
+  "poseReference": "public/art/conquest-dongho-v4/life/traveler-walk.png",
+  "outputs": {
+    "basket": "684bb163-3e95-43a6-a3da-944cd6017ee3",
+    "fisher": "735a9ee2-455e-4dc6-b818-2818651ec0c0",
+    "merchant": "69bd9752-5b86-4dfa-8f48-cc55f48c54e2",
+    "pilgrim": "044dabc7-968f-4acf-9cb7-4c82e81caff8",
+    "woodcutter": "b8227e16-4c7b-42bb-b8a6-0dddb2f6c75b"
+  }
+}

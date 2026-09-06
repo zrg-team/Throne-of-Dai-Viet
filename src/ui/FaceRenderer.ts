@@ -8,9 +8,13 @@ import { hatchPoly, inkPath, washFill } from './ink/stroke';
 import type { Hero } from '../state/types';
 import { placeStamp, stamp } from './ink/stamp';
 import { registerGpuBake, unregisterGpuBake } from '../game/gpuBakes';
+import { ACTIVE_HERO_FACE_ART_PACK, heroFaceHeadwearSupported } from './faces/artPack';
+import donghoV2Defs from './faces/dongho-v2.defs.json';
+import { donghoWardrobeParts } from './faces/donghoWardrobe';
+import { donghoHead, fitDonghoPart } from './faces/donghoFit';
 
 /**
- * Hero portraits, composed from a library of SVG parts.
+ * Hero portraits, composed from independently versioned part atlases.
  *
  * This used to draw every portrait from Phaser primitives at runtime — twenty-odd rectangles
  * and ellipses per face, built fresh on every render. That is why the faces all looked alike:
@@ -18,15 +22,15 @@ import { registerGpuBake, unregisterGpuBake } from '../game/gpuBakes';
  * detail on an identical outline, and at the sizes portraits are actually drawn (five call
  * sites, from 0.32× to 1.16×) most of that detail was sub-pixel.
  *
- * Now each part is a real drawing shipped as an SVG source in `public/faces/`, packed into one
- * textured runtime atlas, and composed once per hero. Three consequences worth knowing:
+ * The default pack ships generated PNG components in `public/faces-dongho-v2/`; the original
+ * SVG pack in `public/faces/` remains selectable. Both use the same part IDs and design space,
+ * one runtime atlas, and one cached image per hero. Three consequences worth knowing:
  *
  *  - **Parts that carry a run-chosen colour are drawn white and tinted.** Six skin tones cost
- *    one file. Parts with a fixed colour — the black lacquer of a khăn vấn, a gold coronet —
+ *    one file. Parts with a fixed colour — the black lacquer of a khăn vấn —
  *    ship their colour and are never tinted.
- *  - **Positions come from the generator, not from here.** `scripts/build-faces.mjs` measures
- *    each part's real bounding box and writes its centre into `parts.generated.ts`, so a part
- *    can be redrawn or replaced by hand without anything in this file changing.
+ *  - **Positions come from the selected manifest.** V2 has complete garment assemblies and
+ *    revised anchors; earlier packs retain their original bounds. Saved part IDs stay valid.
  *  - **Runtime work is bounded.** The loader fetches one atlas instead of hundreds of SVGs and
  *    a composed hero becomes one cached Image instead of a dozen live clothing/hat layers.
  *
@@ -34,10 +38,14 @@ import { registerGpuBake, unregisterGpuBake } from '../game/gpuBakes';
  * `HERO_FACE_EXTENT` behave exactly as before, so the four calling scenes needed no edits.
  */
 
-/** One loader request and one GPU texture for the complete part library. */
-const FACE_ATLAS_TEXTURE_KEY = 'face:atlas';
+/** One image plus atlas metadata, and one GPU texture for the complete part library. */
+// A selection is fixed for this page load. Saved looks keep their original part IDs.
+const FACE_ART_PACK = ACTIVE_HERO_FACE_ART_PACK;
+const FACE_ATLAS_TEXTURE_KEY = FACE_ART_PACK.texture;
 
-const PART_BY_KEY = new Map<string, FacePartDef>(FACE_PART_DEFS.map((part) => [part.key, part]));
+const ACTIVE_PART_DEFS: readonly FacePartDef[] = FACE_ART_PACK.id === 'dongho-v2'
+  ? donghoV2Defs as FacePartDef[] : FACE_PART_DEFS;
+const PART_BY_KEY = new Map<string, FacePartDef>(ACTIVE_PART_DEFS.map((part) => [part.key, part]));
 
 /**
  * Visual extent of a portrait at scale 1, relative to its container origin.
@@ -47,7 +55,7 @@ const PART_BY_KEY = new Map<string, FacePartDef>(FACE_PART_DEFS.map((part) => [p
  * either changed. Callers sizing a portrait against a box must still use these rather than the
  * plate, because the tallest headwear overhangs it.
  */
-const bounds = FACE_PART_DEFS.reduce(
+const bounds = ACTIVE_PART_DEFS.reduce(
   (acc, part) => ({
     top: Math.min(acc.top, part.cy - part.h / 2),
     bottom: Math.max(acc.bottom, part.cy + part.h / 2),
@@ -113,7 +121,7 @@ function cartoucheInk(g: Phaser.GameObjects.Graphics, rank: number, k = 1): void
 export function preloadHeroFaces(scene: Phaser.Scene): void {
   const baseUrl = import.meta.env.BASE_URL;
   if (scene.textures.exists(FACE_ATLAS_TEXTURE_KEY)) return;
-  scene.load.atlas(FACE_ATLAS_TEXTURE_KEY, `${baseUrl}faces/atlas.svg`, `${baseUrl}faces/atlas.json`);
+  scene.load.atlas(FACE_ATLAS_TEXTURE_KEY, `${baseUrl}${FACE_ART_PACK.image}`, `${baseUrl}${FACE_ART_PACK.atlas}`);
 }
 
 /** True once the parts are in the texture manager — the portrait needs them to draw anything. */
@@ -150,7 +158,7 @@ export function heroFaceTextureKey(scene: Phaser.Scene, hero: Hero): string | un
     hash ^= identity.charCodeAt(i);
     hash = Math.imul(hash, 16777619);
   }
-  const key = `${BADGE_TEXTURE_PREFIX}${theme}:${hero.id}:${(hash >>> 0).toString(36)}`;
+  const key = `${BADGE_TEXTURE_PREFIX}${FACE_ART_PACK.id}:${theme}:${hero.id}:${(hash >>> 0).toString(36)}`;
   if (scene.textures.exists(key)) return key;
   if (!heroFacesReady(scene)) return undefined;
   const renderer = scene.game.renderer as Phaser.Renderer.WebGL.WebGLRenderer;
@@ -286,19 +294,32 @@ function buildLookLayers(scene: Phaser.Scene, source: HeroLook): Phaser.GameObje
   // the one part of the portrait that fights the page it now sits on. The face itself is right;
   // it just needs paper behind it instead of a colour swatch, so the plate is replaced with an
   // inked cartouche and rank is carried by the border weight.
-  const printed = getActiveMapTheme().id === 'dong-ho';
+  const dongho = FACE_ART_PACK.id !== 'legacy';
+  const printed = dongho || getActiveMapTheme().id === 'dong-ho';
   if (printed) {
     look.parts = look.parts.filter((part) => !/^plate-|^rank-/.test(part.key));
     root.add(drawCartouche(scene, look.rank));
   }
+  // The research does not support randomly assigning these cultural/religious markings.
+  // This is a presentation rule for the new pack; legacy art and saved looks stay intact.
+  // Generated heads already contain the bald scalp: the old highlight cap would overhang it.
+  if (dongho) {
+    look.parts = look.parts.filter(part => heroFaceHeadwearSupported(part.key)
+      && !/^(mark-tattoo(?:-|$)|mark-warpaint$|mark-brand$|scalp-dots(?:-|$)|scalp-shaven$)/.test(part.key));
+  }
+  if (!heroFacesReady(scene)) return root;
+  if (FACE_ART_PACK.id === 'dongho-v2') look.parts = donghoWardrobeParts(look);
+  const fittedHead = FACE_ART_PACK.id === 'dongho-v2' ? donghoHead(look.parts, PART_BY_KEY) : undefined;
 
   // Paint order comes from the manifest, not from the order the wardrobe happened to push
   // parts in — the throat is layer 25 and a collar is 35, and the wardrobe builds the garment
   // before the body it hangs on. Sorting here means `heroLook` can stay readable as a
   // description of a person rather than as a paint sequence.
   const stack = look.parts
-    .map((wanted) => ({ wanted, def: PART_BY_KEY.get(wanted.key) }))
-    .filter((entry): entry is { wanted: typeof entry.wanted; def: FacePartDef } => Boolean(entry.def))
+    .flatMap(wanted => {
+      const def = PART_BY_KEY.get(wanted.key);
+      return def ? fitDonghoPart(def, fittedHead).map(fit => ({ wanted, def: fit })) : [];
+    })
     .sort((a, b) => a.def.layer - b.def.layer);
 
   for (const { wanted, def } of stack) {
@@ -308,6 +329,10 @@ function buildLookLayers(scene: Phaser.Scene, source: HeroLook): Phaser.GameObje
 
     const image = scene.add.image(def.cx, def.cy, FACE_ATLAS_TEXTURE_KEY, def.key);
     image.setDisplaySize(def.w, def.h);
+    if (def.crop) {
+      const frame = image.frame;
+      image.setCrop(def.crop.left * frame.width, 0, (def.crop.right - def.crop.left) * frame.width, frame.height);
+    }
     if (wanted.tint !== 'none') image.setTint(look.palette[wanted.tint]);
     root.add(image);
   }

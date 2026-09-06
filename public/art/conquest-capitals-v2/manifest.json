@@ -1,0 +1,53 @@
+{
+  "version": 2,
+  "generator": "built-in ImageGen",
+  "research": "docs/research/capital-architecture-redesign.md",
+  "scale": "Uses the shared height and width ceilings in src/ui/conquestMapArt.ts",
+  "assets": [
+    {
+      "id": "settlement.citadel-ly",
+      "path": "public/art/conquest-capitals-v2/settlement/citadel-ly.png",
+      "sourceAlpha": false,
+      "removedSpecks": 0,
+      "sourceBounds": {
+        "left": 19,
+        "top": 274,
+        "width": 1209,
+        "height": 749
+      },
+      "width": 512,
+      "height": 330,
+      "inkFraction": 0.6117911833920275
+    },
+    {
+      "id": "settlement.citadel-le",
+      "path": "public/art/conquest-capitals-v2/settlement/citadel-le.png",
+      "sourceAlpha": false,
+      "removedSpecks": 0,
+      "sourceBounds": {
+        "left": 86,
+        "top": 291,
+        "width": 1079,
+        "height": 665
+      },
+      "width": 512,
+      "height": 328,
+      "inkFraction": 0.6496589016563652
+    },
+    {
+      "id": "settlement.citadel-nguyen",
+      "path": "public/art/conquest-capitals-v2/settlement/citadel-nguyen.png",
+      "sourceAlpha": false,
+      "removedSpecks": 0,
+      "sourceBounds": {
+        "left": 44,
+        "top": 205,
+        "width": 1175,
+        "height": 826
+      },
+      "width": 512,
+      "height": 370,
+      "inkFraction": 0.5868146927000154
+    }
+  ]
+}

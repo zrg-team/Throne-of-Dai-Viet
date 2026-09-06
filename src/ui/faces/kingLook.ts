@@ -13,6 +13,7 @@ import { dynastyRankRarity, type DynastyLook } from '../../state/dynasty';
 import { GIVEN_MAN, GIVEN_WOMAN, MIDDLE_MAN, MIDDLE_WOMAN } from '../../data/heroNames';
 import type { HeroEra } from '../../state/types';
 import type { DynastyFounder } from '../../state/dynasty';
+import { heroFaceHeadwearSupported } from './artPack';
 
 /**
  * The Coronation's model: a dozen numbers in, a finished king out.
@@ -98,11 +99,10 @@ export const ROYAL_HOUSES: readonly RoyalHouse[] = [
 export const BANNER_TRIMS: readonly number[] = [0xd8b45a, 0xf3e6c4, 0x2a2118, 0xaa3a2c, 0x6f8f64];
 
 /**
- * Emblems, from the glyph vocabulary the mode's cards already speak.
- *
- * Deliberately `CardIconId` values rather than new drawings: the zero-new-art contract is what
- * keeps this feature to a week, and a house mark that shares its shape with a card the player
- * already reads is a mark they can already read. The last two are earned — see `emblemLocked`.
+ * Stable saved emblem ids, now drawn by bannerEmblems rather than the tactical card glyphs.
+ * The legacy `crown` slot presents a bronze drum. Other card uses of crown are unchanged.
+ * These are freely chosen game motifs, not attributed historical coats of arms.
+ * The last two are earned — see `emblemLocked`.
  */
 export const BANNER_EMBLEMS = ['crown', 'banner', 'blade', 'grain', 'branch', 'tortoise'] as const;
 export type BannerEmblem = (typeof BANNER_EMBLEMS)[number];
@@ -152,7 +152,7 @@ export function kingRank(level: number): number {
 /** Headwear this identity may wear, jade held back until it is earned. */
 export function kingHatPool(choice: KingChoice, rank: number): string[] {
   const pool = headwearFor(choice.era, registerType(effectiveRegister(choice)), choice.sex === 'woman', rank)
-    .filter((key) => !(jadeLocked() && jadeHeld(key)));
+    .filter((key) => !(jadeLocked() && jadeHeld(key)) && heroFaceHeadwearSupported(key));
   // Every pool the wardrobe returns is weighted by repetition — a Le minister's list holds the
   // dragonfly cap twice because he wears it more often than anything else. Weighting is right
   // for a seed and wrong for a stepper: pressing the arrow twice to reach the same hat reads as
@@ -462,7 +462,7 @@ export function rollFounder(level: number, next: () => number = Math.random): Dy
       field: house.field,
       // Never the house's own colour: the trim list and the house fields share cinnabar, and a
       // rolled vermilion-on-vermilion banner has no visible border and no visible emblem. The
-      // drawing guards this too (`readableTrim`), but a skip should not lean on that guard —
+      // drawing guards this with contrasting seams, but a skip should not lean on that guard —
       // what it writes is what the Temple reopens on, and it should open on something good.
       trim: at(BANNER_TRIMS.filter((colour) => colour !== house.field),
         Math.floor(next() * BANNER_TRIMS.length)),

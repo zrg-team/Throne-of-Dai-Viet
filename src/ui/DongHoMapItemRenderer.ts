@@ -1,11 +1,10 @@
 import Phaser from 'phaser';
-import { marchPlanFacing, marksFor } from '../data/ascent/formations';
 import { InkMapItemRenderer } from './InkMapItemRenderer';
 import type { ProgressBadgeVariant } from './MapItemRenderer';
 import type { LandBuildingType } from '../state/types';
 import { UI_FONT } from './fonts';
 import { PIGMENT } from './ink/palette';
-import { armyAnchor, armyFootprint, armyShape, clashDevice, compositionFor, drawArmy, figure, marchInPlace, seal, HOST_STEP_KEY, type HostKit, RANK_PER_FILE } from './ink/devices';
+import { armyAnchor, armyFootprint, armyShape, clashDevice, compositionFor, drawArmy, figure, marchInPlace, marchOf, seal, HOST_STEP_KEY, type HostKit } from './ink/devices';
 import { drawFieldPlot } from './ink/settlements';
 import { citadel, drawnEra, GroundSpacer, hamlet, village } from './ink/settlements';
 import { hatchPoly, inkPath, mulberry32, printedShape, thickPath, washFill, type Pt } from './ink/stroke';
@@ -25,11 +24,15 @@ import { GROUND_SCALE } from './ink/proportion';
  * The battle screen passes its own `drawScale` and is left alone; it already has `BATTLE_HOST_SCALE`.
  */
 const MAP_HOST_SPREAD = 4.6 / (16 / 9.46);
+// A host on the road keeps the same room; `marchColumn` re-spends it — tight across the road and
+// open along it — rather than shrinking everything, which is what made a file of sixteen men read
+// as five. See `MARCH_ALONG` / `MARCH_ACROSS`.
 import { LABEL_KEEP_OUT } from './MapItemRenderer';
 import { createPlayerLandFlag } from './playerFlag';
 import { stampedArmy } from './ink/figureStamps';
 import { placeStamp, stamp, stampsEnabled } from './ink/stamp';
 import { conquestArtStamp } from './conquestMapArt';
+import { conquestTravelerArtId } from './conquestTravelerStyles';
 
 /**
  * Chains loose segments back into the loops they were cut from.
@@ -200,9 +203,7 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
       // **Hành quân.** A host between provinces closes up and files one block behind another;
       // standing, it keeps the doctrine's own spread arrangement. Same drawing either way — only
       // the geometry the blocks are laid out on changes.
-      kit?.marching && kit.column
-        ? marchPlanFacing(kit.marchHeading ?? 0, RANK_PER_FILE, marksFor(Math.max(1, total), kit.markCap))
-        : undefined,
+      marchOf(mapKit),
     );
     const at = armyAnchor(shape);
 
@@ -276,14 +277,29 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
     // which changed as the host bled and let two realms' hosts share a design. Every standard a
     // large host carries is the same standard: several of one banner reads as one realm.
     const seed = flagSeed ?? Math.round(total);
+    /**
+     * **The standard rides at the head of the column.**
+     *
+     * Standing, it is planted inside the block's left edge and that is fine — a host holding ground
+     * has no head. On the road it does: a banner at the *back* of a column marching east is the one
+     * detail that says the host is walking away from its own colours. So the pole follows the road,
+     * to whichever end of the drawn host is furthest along it, and the extra standards a large host
+     * carries step back down the column rather than always to the right.
+     *
+     * Only the x follows the heading. The foot stays on the front rank's ground line, because that
+     * is the line everything in this container is painted against — moving it up to the head of a
+     * north-bound column would put the cloth on top of the men standing nearer the viewer.
+     */
+    const lead = mapKit.marching ? Math.cos(mapKit.marchHeading ?? 0) : 0;
+    const flagX = at.x + shape.left + (lead > 0 ? shape.width : 0);
+    const flagStep = lead > 0.3 ? -FLAG_STEP : FLAG_STEP;
     // The battle screen plants standards at the field's edges instead — see `HostKit.standards`.
     if (mapKit.standards !== false) {
       for (let index = 0; index < standards; index += 1) {
         const flag = isPlayer
           ? createPlayerLandFlag(scene, false, seed)
           : createPlayerLandFlag(scene, false, seed, true);
-        // Inside the block's left edge, stepping right so several standards read as several.
-        flag.setPosition(at.x + shape.left + index * FLAG_STEP, frontRankY - FLAG_FOOT);
+        flag.setPosition(flagX + index * flagStep, frontRankY - FLAG_FOOT);
         flag.setScale(FLAG_SCALE);
         container.add(flag);
       }
@@ -821,8 +837,8 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
     return [g];
   }
 
-  /** A traveller on the road: a figure under a conical hat, and nothing else. */
-  override createTraveler(): Phaser.GameObjects.Container {
+  /** One stable civilian appearance, drawn from the road's shuffled set of styles. */
+  override createTraveler(appearanceSeed = 0, index = 0): Phaser.GameObjects.Container {
     const scene = this.scene as Phaser.Scene;
     const container = scene.add.container(0, 0);
     // Stamped: the roads keep a dozen of these walking, and as live Graphics each was ~80 path
@@ -835,7 +851,9 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
     // declared bounds while this call site gave it a box of its own — so the same asset came out
     // 8.22 px on a road and 6.47 in a village. Same asset, same bounds, same caller scale now.
     const box = { left: -13, right: 13, top: -24, bottom: 8 };
-    const st = conquestArtStamp(scene, 'life.traveler') ?? stamp(scene, 'world:traveler', box,
+    const artId = conquestTravelerArtId(appearanceSeed, index);
+    const st = conquestArtStamp(scene, artId) ?? conquestArtStamp(scene, 'life.traveler')
+      ?? stamp(scene, 'world:traveler', box,
       (g, x, y, raster) => {
         farmer(g, x + -2 * raster, y + 4 * raster, GROUND_SCALE * raster, 4711);
       }, { raster: 'super', pool: 'world', pad: 2 });
@@ -853,7 +871,9 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
     //
     // The road role keeps the shared human scale. Its authored sheet now carries wider readable
     // silhouettes, measured torso registration, and no independent bob/tilt competing with them.
-    container.add(livingSprite(scene, st, 0, 0, GROUND_SCALE));
+    container.setData('conquestTravelerStyle', artId);
+    container.add(livingSprite(scene, st, 0, 0, GROUND_SCALE)
+      .setData('conquestTravelerStyle', artId));
     return container;
   }
 

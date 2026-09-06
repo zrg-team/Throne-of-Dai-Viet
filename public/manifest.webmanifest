@@ -1,4 +1,5 @@
 {
+  "id": "./",
   "name": "Vạn Thắng — Ten Thousand Victories",
   "short_name": "Vạn Thắng",
   "description": "Vạn Thắng — a grand-strategy game of Vietnamese history, printed like a Đông Hồ woodblock.",
@@ -7,23 +8,26 @@
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#e9dfc2",
+  "background_color": "#201a12",
   "theme_color": "#2a2118",
   "icons": [
     {
-      "src": "./icon.svg",
-      "type": "image/svg+xml",
-      "sizes": "any"
-    },
-    {
       "src": "./icon-192.png",
       "type": "image/png",
-      "sizes": "192x192"
+      "sizes": "192x192",
+      "purpose": "any"
     },
     {
       "src": "./icon-512.png",
       "type": "image/png",
-      "sizes": "512x512"
+      "sizes": "512x512",
+      "purpose": "any"
+    },
+    {
+      "src": "./icon-maskable-192.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "maskable"
     },
     {
       "src": "./icon-maskable-512.png",

@@ -7,7 +7,7 @@
 # diagnostic screen.
 #
 # .easignore REPLACES .gitignore entirely for uploads — it is not additive. So this is a copy of
-# .gitignore with the five `assets/` lines removed. Keep the two in step when either changes.
+# .gitignore with all generated `assets/` lines removed. Keep the two in step when either changes.
 #
 # "`.gitignore`" there means **both** of them. The CLI walks from the repository root, not from
 # this folder, so everything the root file excludes has to be repeated here or it is uploaded:

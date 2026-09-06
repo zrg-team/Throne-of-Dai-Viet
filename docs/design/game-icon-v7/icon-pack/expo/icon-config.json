@@ -1,0 +1,16 @@
+{
+  "icon": "./icon.png",
+  "ios": {
+    "icon": {
+      "light": "./icon.png",
+      "tinted": "./icon-tinted.png"
+    }
+  },
+  "android": {
+    "adaptiveIcon": {
+      "foregroundImage": "./adaptive-icon.png",
+      "monochromeImage": "./monochrome-icon.png",
+      "backgroundColor": "#f6edd7"
+    }
+  }
+}

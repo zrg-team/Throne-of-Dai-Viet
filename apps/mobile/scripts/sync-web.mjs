@@ -78,10 +78,10 @@ console.log(`web.zip  ${(bytes / 1024 / 1024).toFixed(2)} MB  build ${build}`);
 /**
  * The launcher marks, cut rather than drawn again.
  *
- * `scripts/build-icon.mjs` in the repository root draws the drum once and rasterises it at any
- * size asked for, so the app icon has a source already and a second one would be a second thing
- * to keep in step. Its `--mobile` mode cuts the three marks this cabinet bundles, straight into
- * `assets/`, under the names `app.json` points at.
+ * `scripts/build-icon.mjs --mobile` exports the reviewed illustration committed at
+ * `branding/dongho-river-v7.png`, with transparent foreground and monochrome derivatives.
+ * It also builds the matching river splash. Outputs go straight into `assets/` under the names
+ * `app.json` points at, so every sync preserves the selected mobile icon.
  *
  * These used to be copies of the 512s out of `public/`. They are cut at 1024 now because Apple's
  * marketing slot is 1024x1024 and Expo's prebuild upscales a smaller source rather than refusing

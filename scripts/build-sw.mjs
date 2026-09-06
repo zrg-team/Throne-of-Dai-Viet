@@ -56,10 +56,13 @@ const BASE = (() => {
  * of files already at the root of `dist/` and nothing ever loaded from it, so it is gone.)
  */
 const skip = (rel) =>
-  rel === 'sw.js' || rel.startsWith('share/') || rel.split('/').some((part) => part.startsWith('.'));
+  rel === 'sw.js' || rel.startsWith('share/') || rel.split('/').some((part) => part.startsWith('.'))
+  // Portrait source PNGs are editable assets; runtime and offline play only need the atlas.
+  || /^faces-dongho-v\d+\/(parts\/|provenance\.json$)/.test(rel);
 
 /** The art: fetched by the Phaser loader at runtime, and survivable if one is missing. */
 const isOptional = (rel) => rel.startsWith('faces/')
+  || /^faces-dongho-v\d+\//.test(rel)
   || rel.startsWith('support/')
   // The battle music: 6.3 MB of it, fetched only when a fight opens and silent-by-design if it
   // never arrives. Install-critical it would be two thirds of everything a player waits for

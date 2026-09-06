@@ -1,0 +1,5933 @@
+{
+  "frames": {
+    "plate-common": {
+      "frame": {
+        "x": 2,
+        "y": 2,
+        "w": 272,
+        "h": 340
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 272,
+        "h": 340
+      },
+      "sourceSize": {
+        "w": 272,
+        "h": 340
+      }
+    },
+    "plate-epic": {
+      "frame": {
+        "x": 278,
+        "y": 2,
+        "w": 272,
+        "h": 340
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 272,
+        "h": 340
+      },
+      "sourceSize": {
+        "w": 272,
+        "h": 340
+      }
+    },
+    "plate-legendary": {
+      "frame": {
+        "x": 554,
+        "y": 2,
+        "w": 272,
+        "h": 340
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 272,
+        "h": 340
+      },
+      "sourceSize": {
+        "w": 272,
+        "h": 340
+      }
+    },
+    "plate-rare": {
+      "frame": {
+        "x": 830,
+        "y": 2,
+        "w": 272,
+        "h": 340
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 272,
+        "h": 340
+      },
+      "sourceSize": {
+        "w": 272,
+        "h": 340
+      }
+    },
+    "hair-woman-loose": {
+      "frame": {
+        "x": 1106,
+        "y": 2,
+        "w": 152,
+        "h": 198
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 152,
+        "h": 198
+      },
+      "sourceSize": {
+        "w": 152,
+        "h": 198
+      }
+    },
+    "head-long": {
+      "frame": {
+        "x": 1262,
+        "y": 2,
+        "w": 116,
+        "h": 180
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 116,
+        "h": 180
+      },
+      "sourceSize": {
+        "w": 116,
+        "h": 180
+      }
+    },
+    "hair-braid": {
+      "frame": {
+        "x": 1382,
+        "y": 2,
+        "w": 134,
+        "h": 178
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 134,
+        "h": 178
+      },
+      "sourceSize": {
+        "w": 134,
+        "h": 178
+      }
+    },
+    "hair-long-full": {
+      "frame": {
+        "x": 1520,
+        "y": 2,
+        "w": 148,
+        "h": 176
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 148,
+        "h": 176
+      },
+      "sourceSize": {
+        "w": 148,
+        "h": 176
+      }
+    },
+    "head-tapered": {
+      "frame": {
+        "x": 1672,
+        "y": 2,
+        "w": 128,
+        "h": 174
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 128,
+        "h": 174
+      },
+      "sourceSize": {
+        "w": 128,
+        "h": 174
+      }
+    },
+    "head-narrow": {
+      "frame": {
+        "x": 1804,
+        "y": 2,
+        "w": 112,
+        "h": 172
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 112,
+        "h": 172
+      },
+      "sourceSize": {
+        "w": 112,
+        "h": 172
+      }
+    },
+    "head-stern": {
+      "frame": {
+        "x": 1920,
+        "y": 2,
+        "w": 124,
+        "h": 172
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 124,
+        "h": 172
+      },
+      "sourceSize": {
+        "w": 124,
+        "h": 172
+      }
+    },
+    "head-angular": {
+      "frame": {
+        "x": 2,
+        "y": 346,
+        "w": 124,
+        "h": 170
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 124,
+        "h": 170
+      },
+      "sourceSize": {
+        "w": 124,
+        "h": 170
+      }
+    },
+    "head-slim": {
+      "frame": {
+        "x": 130,
+        "y": 346,
+        "w": 104,
+        "h": 170
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 104,
+        "h": 170
+      },
+      "sourceSize": {
+        "w": 104,
+        "h": 170
+      }
+    },
+    "hair-woman-short": {
+      "frame": {
+        "x": 238,
+        "y": 346,
+        "w": 144,
+        "h": 166
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 144,
+        "h": 166
+      },
+      "sourceSize": {
+        "w": 144,
+        "h": 166
+      }
+    },
+    "head-full": {
+      "frame": {
+        "x": 386,
+        "y": 346,
+        "w": 150,
+        "h": 166
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 150,
+        "h": 166
+      },
+      "sourceSize": {
+        "w": 150,
+        "h": 166
+      }
+    },
+    "head-heart": {
+      "frame": {
+        "x": 540,
+        "y": 346,
+        "w": 138,
+        "h": 166
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 138,
+        "h": 166
+      },
+      "sourceSize": {
+        "w": 138,
+        "h": 166
+      }
+    },
+    "head-fine": {
+      "frame": {
+        "x": 682,
+        "y": 346,
+        "w": 104,
+        "h": 164
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 104,
+        "h": 164
+      },
+      "sourceSize": {
+        "w": 104,
+        "h": 164
+      }
+    },
+    "head-oval": {
+      "frame": {
+        "x": 790,
+        "y": 346,
+        "w": 124,
+        "h": 164
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 124,
+        "h": 164
+      },
+      "sourceSize": {
+        "w": 124,
+        "h": 164
+      }
+    },
+    "head-square": {
+      "frame": {
+        "x": 918,
+        "y": 346,
+        "w": 136,
+        "h": 164
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 136,
+        "h": 164
+      },
+      "sourceSize": {
+        "w": 136,
+        "h": 164
+      }
+    },
+    "hair-long": {
+      "frame": {
+        "x": 1058,
+        "y": 346,
+        "w": 140,
+        "h": 162
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 140,
+        "h": 162
+      },
+      "sourceSize": {
+        "w": 140,
+        "h": 162
+      }
+    },
+    "head-soft": {
+      "frame": {
+        "x": 1202,
+        "y": 346,
+        "w": 120,
+        "h": 160
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 120,
+        "h": 160
+      },
+      "sourceSize": {
+        "w": 120,
+        "h": 160
+      }
+    },
+    "head-wide": {
+      "frame": {
+        "x": 1326,
+        "y": 346,
+        "w": 146,
+        "h": 160
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 146,
+        "h": 160
+      },
+      "sourceSize": {
+        "w": 146,
+        "h": 160
+      }
+    },
+    "head-broad": {
+      "frame": {
+        "x": 1476,
+        "y": 346,
+        "w": 138,
+        "h": 158
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 138,
+        "h": 158
+      },
+      "sourceSize": {
+        "w": 138,
+        "h": 158
+      }
+    },
+    "head-blunt": {
+      "frame": {
+        "x": 1618,
+        "y": 346,
+        "w": 146,
+        "h": 156
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 146,
+        "h": 156
+      },
+      "sourceSize": {
+        "w": 146,
+        "h": 156
+      }
+    },
+    "head-round": {
+      "frame": {
+        "x": 1768,
+        "y": 346,
+        "w": 136,
+        "h": 150
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 136,
+        "h": 150
+      },
+      "sourceSize": {
+        "w": 136,
+        "h": 150
+      }
+    },
+    "hair-woman-temple": {
+      "frame": {
+        "x": 2,
+        "y": 520,
+        "w": 142,
+        "h": 148
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 142,
+        "h": 148
+      },
+      "sourceSize": {
+        "w": 142,
+        "h": 148
+      }
+    },
+    "hat-helm-dinh": {
+      "frame": {
+        "x": 148,
+        "y": 520,
+        "w": 136,
+        "h": 144
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 136,
+        "h": 144
+      },
+      "sourceSize": {
+        "w": 136,
+        "h": 144
+      }
+    },
+    "hair-long-short": {
+      "frame": {
+        "x": 288,
+        "y": 520,
+        "w": 134,
+        "h": 142
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 134,
+        "h": 142
+      },
+      "sourceSize": {
+        "w": 134,
+        "h": 142
+      }
+    },
+    "hat-dinhtu-streamers": {
+      "frame": {
+        "x": 426,
+        "y": 520,
+        "w": 126,
+        "h": 138
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 126,
+        "h": 138
+      },
+      "sourceSize": {
+        "w": 126,
+        "h": 138
+      }
+    },
+    "hat-dinhtu": {
+      "frame": {
+        "x": 556,
+        "y": 520,
+        "w": 126,
+        "h": 124
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 126,
+        "h": 124
+      },
+      "sourceSize": {
+        "w": 126,
+        "h": 124
+      }
+    },
+    "robe-armour": {
+      "frame": {
+        "x": 686,
+        "y": 520,
+        "w": 208,
+        "h": 116
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 208,
+        "h": 116
+      },
+      "sourceSize": {
+        "w": 208,
+        "h": 116
+      }
+    },
+    "robe-armour-brigandine": {
+      "frame": {
+        "x": 898,
+        "y": 520,
+        "w": 208,
+        "h": 116
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 208,
+        "h": 116
+      },
+      "sourceSize": {
+        "w": 208,
+        "h": 116
+      }
+    },
+    "robe-armour-fanscale": {
+      "frame": {
+        "x": 1110,
+        "y": 520,
+        "w": 218,
+        "h": 116
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 218,
+        "h": 116
+      },
+      "sourceSize": {
+        "w": 218,
+        "h": 116
+      }
+    },
+    "robe-armour-lamellar": {
+      "frame": {
+        "x": 1332,
+        "y": 520,
+        "w": 208,
+        "h": 116
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 208,
+        "h": 116
+      },
+      "sourceSize": {
+        "w": 208,
+        "h": 116
+      }
+    },
+    "robe-armour-leather": {
+      "frame": {
+        "x": 1544,
+        "y": 520,
+        "w": 208,
+        "h": 116
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 208,
+        "h": 116
+      },
+      "sourceSize": {
+        "w": 208,
+        "h": 116
+      }
+    },
+    "robe-armour-scale": {
+      "frame": {
+        "x": 1756,
+        "y": 520,
+        "w": 208,
+        "h": 116
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 208,
+        "h": 116
+      },
+      "sourceSize": {
+        "w": 208,
+        "h": 116
+      }
+    },
+    "robe-body": {
+      "frame": {
+        "x": 2,
+        "y": 672,
+        "w": 192,
+        "h": 116
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 192,
+        "h": 116
+      },
+      "sourceSize": {
+        "w": 192,
+        "h": 116
+      }
+    },
+    "robe-broad": {
+      "frame": {
+        "x": 198,
+        "y": 672,
+        "w": 216,
+        "h": 116
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 216,
+        "h": 116
+      },
+      "sourceSize": {
+        "w": 216,
+        "h": 116
+      }
+    },
+    "robe-sheen": {
+      "frame": {
+        "x": 418,
+        "y": 672,
+        "w": 88,
+        "h": 116
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 88,
+        "h": 116
+      },
+      "sourceSize": {
+        "w": 88,
+        "h": 116
+      }
+    },
+    "robe-slim": {
+      "frame": {
+        "x": 510,
+        "y": 672,
+        "w": 168,
+        "h": 116
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 168,
+        "h": 116
+      },
+      "sourceSize": {
+        "w": 168,
+        "h": 116
+      }
+    },
+    "robe-sloped": {
+      "frame": {
+        "x": 682,
+        "y": 672,
+        "w": 184,
+        "h": 116
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 184,
+        "h": 116
+      },
+      "sourceSize": {
+        "w": 184,
+        "h": 116
+      }
+    },
+    "robe-square": {
+      "frame": {
+        "x": 870,
+        "y": 672,
+        "w": 208,
+        "h": 116
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 208,
+        "h": 116
+      },
+      "sourceSize": {
+        "w": 208,
+        "h": 116
+      }
+    },
+    "robe-sheen-soft": {
+      "frame": {
+        "x": 1082,
+        "y": 672,
+        "w": 72,
+        "h": 108
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 72,
+        "h": 108
+      },
+      "sourceSize": {
+        "w": 72,
+        "h": 108
+      }
+    },
+    "hat-helm-plume": {
+      "frame": {
+        "x": 1158,
+        "y": 672,
+        "w": 136,
+        "h": 106
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 136,
+        "h": 106
+      },
+      "sourceSize": {
+        "w": 136,
+        "h": 106
+      }
+    },
+    "collar-doikham": {
+      "frame": {
+        "x": 1298,
+        "y": 672,
+        "w": 32,
+        "h": 104
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 32,
+        "h": 104
+      },
+      "sourceSize": {
+        "w": 32,
+        "h": 104
+      }
+    },
+    "collar-doikham-over": {
+      "frame": {
+        "x": 1334,
+        "y": 672,
+        "w": 32,
+        "h": 104
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 32,
+        "h": 104
+      },
+      "sourceSize": {
+        "w": 32,
+        "h": 104
+      }
+    },
+    "hat-helm-daumau": {
+      "frame": {
+        "x": 1370,
+        "y": 672,
+        "w": 124,
+        "h": 102
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 124,
+        "h": 102
+      },
+      "sourceSize": {
+        "w": 124,
+        "h": 102
+      }
+    },
+    "hat-helm": {
+      "frame": {
+        "x": 1498,
+        "y": 672,
+        "w": 136,
+        "h": 100
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 136,
+        "h": 100
+      },
+      "sourceSize": {
+        "w": 136,
+        "h": 100
+      }
+    },
+    "collar-placket-square": {
+      "frame": {
+        "x": 1638,
+        "y": 672,
+        "w": 44,
+        "h": 98
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 44,
+        "h": 98
+      },
+      "sourceSize": {
+        "w": 44,
+        "h": 98
+      }
+    },
+    "hat-helm-cheeks": {
+      "frame": {
+        "x": 1686,
+        "y": 672,
+        "w": 138,
+        "h": 98
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 138,
+        "h": 98
+      },
+      "sourceSize": {
+        "w": 138,
+        "h": 98
+      }
+    },
+    "hat-helm-crest": {
+      "frame": {
+        "x": 1828,
+        "y": 672,
+        "w": 136,
+        "h": 98
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 136,
+        "h": 98
+      },
+      "sourceSize": {
+        "w": 136,
+        "h": 98
+      }
+    },
+    "hair-tail": {
+      "frame": {
+        "x": 2,
+        "y": 792,
+        "w": 136,
+        "h": 96
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 136,
+        "h": 96
+      },
+      "sourceSize": {
+        "w": 136,
+        "h": 96
+      }
+    },
+    "hat-non-quaithao": {
+      "frame": {
+        "x": 142,
+        "y": 792,
+        "w": 216,
+        "h": 92
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 216,
+        "h": 92
+      },
+      "sourceSize": {
+        "w": 216,
+        "h": 92
+      }
+    },
+    "collar-baba-front": {
+      "frame": {
+        "x": 362,
+        "y": 792,
+        "w": 18,
+        "h": 88
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 18,
+        "h": 88
+      },
+      "sourceSize": {
+        "w": 18,
+        "h": 88
+      }
+    },
+    "collar-nguthan-body": {
+      "frame": {
+        "x": 384,
+        "y": 792,
+        "w": 96,
+        "h": 84
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 96,
+        "h": 84
+      },
+      "sourceSize": {
+        "w": 96,
+        "h": 84
+      }
+    },
+    "hat-vanhday": {
+      "frame": {
+        "x": 484,
+        "y": 792,
+        "w": 144,
+        "h": 84
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 144,
+        "h": 84
+      },
+      "sourceSize": {
+        "w": 144,
+        "h": 84
+      }
+    },
+    "beard-forked": {
+      "frame": {
+        "x": 632,
+        "y": 792,
+        "w": 52,
+        "h": 82
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 52,
+        "h": 82
+      },
+      "sourceSize": {
+        "w": 52,
+        "h": 82
+      }
+    },
+    "hair-woman-center": {
+      "frame": {
+        "x": 688,
+        "y": 792,
+        "w": 130,
+        "h": 82
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 130,
+        "h": 82
+      },
+      "sourceSize": {
+        "w": 130,
+        "h": 82
+      }
+    },
+    "hair-woman-wrapped": {
+      "frame": {
+        "x": 822,
+        "y": 792,
+        "w": 130,
+        "h": 82
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 130,
+        "h": 82
+      },
+      "sourceSize": {
+        "w": 130,
+        "h": 82
+      }
+    },
+    "hat-helm-lamellar": {
+      "frame": {
+        "x": 956,
+        "y": 792,
+        "w": 136,
+        "h": 82
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 136,
+        "h": 82
+      },
+      "sourceSize": {
+        "w": 136,
+        "h": 82
+      }
+    },
+    "beard-patriarch": {
+      "frame": {
+        "x": 1096,
+        "y": 792,
+        "w": 60,
+        "h": 78
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 60,
+        "h": 78
+      },
+      "sourceSize": {
+        "w": 60,
+        "h": 78
+      }
+    },
+    "bun-snail-coil": {
+      "frame": {
+        "x": 1160,
+        "y": 792,
+        "w": 74,
+        "h": 78
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 74,
+        "h": 78
+      },
+      "sourceSize": {
+        "w": 74,
+        "h": 78
+      }
+    },
+    "hat-band-warrior": {
+      "frame": {
+        "x": 1238,
+        "y": 792,
+        "w": 148,
+        "h": 78
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 148,
+        "h": 78
+      },
+      "sourceSize": {
+        "w": 148,
+        "h": 78
+      }
+    },
+    "hat-khanvan-tall": {
+      "frame": {
+        "x": 1390,
+        "y": 792,
+        "w": 136,
+        "h": 78
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 136,
+        "h": 78
+      },
+      "sourceSize": {
+        "w": 136,
+        "h": 78
+      }
+    },
+    "hat-non-chop": {
+      "frame": {
+        "x": 1530,
+        "y": 792,
+        "w": 168,
+        "h": 78
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 168,
+        "h": 78
+      },
+      "sourceSize": {
+        "w": 168,
+        "h": 78
+      }
+    },
+    "hair-woman-tran-short": {
+      "frame": {
+        "x": 1702,
+        "y": 792,
+        "w": 126,
+        "h": 76
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 126,
+        "h": 76
+      },
+      "sourceSize": {
+        "w": 126,
+        "h": 76
+      }
+    },
+    "hat-band": {
+      "frame": {
+        "x": 1832,
+        "y": 792,
+        "w": 142,
+        "h": 76
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 142,
+        "h": 76
+      },
+      "sourceSize": {
+        "w": 142,
+        "h": 76
+      }
+    },
+    "hat-xungthien": {
+      "frame": {
+        "x": 2,
+        "y": 892,
+        "w": 132,
+        "h": 76
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 132,
+        "h": 76
+      },
+      "sourceSize": {
+        "w": 132,
+        "h": 76
+      }
+    },
+    "kesa": {
+      "frame": {
+        "x": 138,
+        "y": 892,
+        "w": 128,
+        "h": 76
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 128,
+        "h": 76
+      },
+      "sourceSize": {
+        "w": 128,
+        "h": 76
+      }
+    },
+    "kesa-grey": {
+      "frame": {
+        "x": 270,
+        "y": 892,
+        "w": 128,
+        "h": 76
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 128,
+        "h": 76
+      },
+      "sourceSize": {
+        "w": 128,
+        "h": 76
+      }
+    },
+    "kesa-red": {
+      "frame": {
+        "x": 402,
+        "y": 892,
+        "w": 128,
+        "h": 76
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 128,
+        "h": 76
+      },
+      "sourceSize": {
+        "w": 128,
+        "h": 76
+      }
+    },
+    "collar-nhatbinh": {
+      "frame": {
+        "x": 534,
+        "y": 892,
+        "w": 124,
+        "h": 74
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 124,
+        "h": 74
+      },
+      "sourceSize": {
+        "w": 124,
+        "h": 74
+      }
+    },
+    "collar-nhatbinh-trim": {
+      "frame": {
+        "x": 662,
+        "y": 892,
+        "w": 124,
+        "h": 74
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 124,
+        "h": 74
+      },
+      "sourceSize": {
+        "w": 124,
+        "h": 74
+      }
+    },
+    "collar-tuthan": {
+      "frame": {
+        "x": 790,
+        "y": 892,
+        "w": 48,
+        "h": 74
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 48,
+        "h": 74
+      },
+      "sourceSize": {
+        "w": 48,
+        "h": 74
+      }
+    },
+    "collar-tuthan-over": {
+      "frame": {
+        "x": 842,
+        "y": 892,
+        "w": 48,
+        "h": 74
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 48,
+        "h": 74
+      },
+      "sourceSize": {
+        "w": 48,
+        "h": 74
+      }
+    },
+    "hat-moqua-tied": {
+      "frame": {
+        "x": 894,
+        "y": 892,
+        "w": 142,
+        "h": 74
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 142,
+        "h": 74
+      },
+      "sourceSize": {
+        "w": 142,
+        "h": 74
+      }
+    },
+    "buttons-five": {
+      "frame": {
+        "x": 1040,
+        "y": 892,
+        "w": 16,
+        "h": 72
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 72
+      },
+      "sourceSize": {
+        "w": 16,
+        "h": 72
+      }
+    },
+    "buttons-jade": {
+      "frame": {
+        "x": 1060,
+        "y": 892,
+        "w": 16,
+        "h": 72
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 72
+      },
+      "sourceSize": {
+        "w": 16,
+        "h": 72
+      }
+    },
+    "collar-giaolinh": {
+      "frame": {
+        "x": 1080,
+        "y": 892,
+        "w": 76,
+        "h": 72
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 76,
+        "h": 72
+      },
+      "sourceSize": {
+        "w": 76,
+        "h": 72
+      }
+    },
+    "collar-giaolinh-over": {
+      "frame": {
+        "x": 1160,
+        "y": 892,
+        "w": 76,
+        "h": 72
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 76,
+        "h": 72
+      },
+      "sourceSize": {
+        "w": 76,
+        "h": 72
+      }
+    },
+    "collar-giaolinh-trim": {
+      "frame": {
+        "x": 1240,
+        "y": 892,
+        "w": 60,
+        "h": 72
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 60,
+        "h": 72
+      },
+      "sourceSize": {
+        "w": 60,
+        "h": 72
+      }
+    },
+    "collar-giaolinh-wide": {
+      "frame": {
+        "x": 1304,
+        "y": 892,
+        "w": 84,
+        "h": 72
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 84,
+        "h": 72
+      },
+      "sourceSize": {
+        "w": 84,
+        "h": 72
+      }
+    },
+    "collar-giaolinh-wide-over": {
+      "frame": {
+        "x": 1392,
+        "y": 892,
+        "w": 84,
+        "h": 72
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 84,
+        "h": 72
+      },
+      "sourceSize": {
+        "w": 84,
+        "h": 72
+      }
+    },
+    "hat-moqua": {
+      "frame": {
+        "x": 1480,
+        "y": 892,
+        "w": 142,
+        "h": 72
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 142,
+        "h": 72
+      },
+      "sourceSize": {
+        "w": 142,
+        "h": 72
+      }
+    },
+    "hat-moqua-brown": {
+      "frame": {
+        "x": 1626,
+        "y": 892,
+        "w": 142,
+        "h": 72
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 142,
+        "h": 72
+      },
+      "sourceSize": {
+        "w": 142,
+        "h": 72
+      }
+    },
+    "hat-phocdau-grand": {
+      "frame": {
+        "x": 1772,
+        "y": 892,
+        "w": 252,
+        "h": 72
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 252,
+        "h": 72
+      },
+      "sourceSize": {
+        "w": 252,
+        "h": 72
+      }
+    },
+    "hat-phocdau-long": {
+      "frame": {
+        "x": 2,
+        "y": 972,
+        "w": 220,
+        "h": 72
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 220,
+        "h": 72
+      },
+      "sourceSize": {
+        "w": 220,
+        "h": 72
+      }
+    },
+    "hat-phocdau-short": {
+      "frame": {
+        "x": 226,
+        "y": 972,
+        "w": 184,
+        "h": 72
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 184,
+        "h": 72
+      },
+      "sourceSize": {
+        "w": 184,
+        "h": 72
+      }
+    },
+    "guard-beastmask": {
+      "frame": {
+        "x": 414,
+        "y": 972,
+        "w": 210,
+        "h": 70
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 210,
+        "h": 70
+      },
+      "sourceSize": {
+        "w": 210,
+        "h": 70
+      }
+    },
+    "hat-tamson": {
+      "frame": {
+        "x": 628,
+        "y": 972,
+        "w": 116,
+        "h": 70
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 116,
+        "h": 70
+      },
+      "sourceSize": {
+        "w": 116,
+        "h": 70
+      }
+    },
+    "bun-fan-high": {
+      "frame": {
+        "x": 748,
+        "y": 972,
+        "w": 96,
+        "h": 68
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 96,
+        "h": 68
+      },
+      "sourceSize": {
+        "w": 96,
+        "h": 68
+      }
+    },
+    "ears-long": {
+      "frame": {
+        "x": 848,
+        "y": 972,
+        "w": 152,
+        "h": 68
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 152,
+        "h": 68
+      },
+      "sourceSize": {
+        "w": 152,
+        "h": 68
+      }
+    },
+    "hat-crown-phoenix": {
+      "frame": {
+        "x": 1004,
+        "y": 972,
+        "w": 108,
+        "h": 68
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 108,
+        "h": 68
+      },
+      "sourceSize": {
+        "w": 108,
+        "h": 68
+      }
+    },
+    "hat-veil": {
+      "frame": {
+        "x": 1116,
+        "y": 972,
+        "w": 146,
+        "h": 68
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 146,
+        "h": 68
+      },
+      "sourceSize": {
+        "w": 146,
+        "h": 68
+      }
+    },
+    "yem": {
+      "frame": {
+        "x": 1266,
+        "y": 972,
+        "w": 88,
+        "h": 68
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 88,
+        "h": 68
+      },
+      "sourceSize": {
+        "w": 88,
+        "h": 68
+      }
+    },
+    "yem-cream": {
+      "frame": {
+        "x": 1358,
+        "y": 972,
+        "w": 88,
+        "h": 68
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 88,
+        "h": 68
+      },
+      "sourceSize": {
+        "w": 88,
+        "h": 68
+      }
+    },
+    "yem-indigo": {
+      "frame": {
+        "x": 1450,
+        "y": 972,
+        "w": 88,
+        "h": 68
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 88,
+        "h": 68
+      },
+      "sourceSize": {
+        "w": 88,
+        "h": 68
+      }
+    },
+    "yem-jade": {
+      "frame": {
+        "x": 1542,
+        "y": 972,
+        "w": 88,
+        "h": 68
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 88,
+        "h": 68
+      },
+      "sourceSize": {
+        "w": 88,
+        "h": 68
+      }
+    },
+    "hat-non": {
+      "frame": {
+        "x": 1634,
+        "y": 972,
+        "w": 192,
+        "h": 66
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 192,
+        "h": 66
+      },
+      "sourceSize": {
+        "w": 192,
+        "h": 66
+      }
+    },
+    "bun-tall-fore": {
+      "frame": {
+        "x": 1830,
+        "y": 972,
+        "w": 46,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 46,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 46,
+        "h": 64
+      }
+    },
+    "buttons-knot": {
+      "frame": {
+        "x": 1880,
+        "y": 972,
+        "w": 20,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 20,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 20,
+        "h": 64
+      }
+    },
+    "collar-twoflap": {
+      "frame": {
+        "x": 1904,
+        "y": 972,
+        "w": 72,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 72,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 72,
+        "h": 64
+      }
+    },
+    "collar-twoflap-over": {
+      "frame": {
+        "x": 2,
+        "y": 1048,
+        "w": 72,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 72,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 72,
+        "h": 64
+      }
+    },
+    "guard-shoulder": {
+      "frame": {
+        "x": 78,
+        "y": 1048,
+        "w": 208,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 208,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 208,
+        "h": 64
+      }
+    },
+    "hat-band-cloth": {
+      "frame": {
+        "x": 290,
+        "y": 1048,
+        "w": 146,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 146,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 146,
+        "h": 64
+      }
+    },
+    "hat-osa": {
+      "frame": {
+        "x": 440,
+        "y": 1048,
+        "w": 104,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 104,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 104,
+        "h": 64
+      }
+    },
+    "hat-helm-horned": {
+      "frame": {
+        "x": 548,
+        "y": 1048,
+        "w": 192,
+        "h": 62
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 192,
+        "h": 62
+      },
+      "sourceSize": {
+        "w": 192,
+        "h": 62
+      }
+    },
+    "hat-khanvuong": {
+      "frame": {
+        "x": 744,
+        "y": 1048,
+        "w": 140,
+        "h": 62
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 140,
+        "h": 62
+      },
+      "sourceSize": {
+        "w": 140,
+        "h": 62
+      }
+    },
+    "hat-non-worker": {
+      "frame": {
+        "x": 888,
+        "y": 1048,
+        "w": 176,
+        "h": 62
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 176,
+        "h": 62
+      },
+      "sourceSize": {
+        "w": 176,
+        "h": 62
+      }
+    },
+    "neck": {
+      "frame": {
+        "x": 1068,
+        "y": 1048,
+        "w": 56,
+        "h": 62
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 56,
+        "h": 62
+      },
+      "sourceSize": {
+        "w": 56,
+        "h": 62
+      }
+    },
+    "neck-broad": {
+      "frame": {
+        "x": 1128,
+        "y": 1048,
+        "w": 62,
+        "h": 62
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 62,
+        "h": 62
+      },
+      "sourceSize": {
+        "w": 62,
+        "h": 62
+      }
+    },
+    "neck-slim": {
+      "frame": {
+        "x": 1194,
+        "y": 1048,
+        "w": 48,
+        "h": 62
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 48,
+        "h": 62
+      },
+      "sourceSize": {
+        "w": 48,
+        "h": 62
+      }
+    },
+    "collar-band-brocade": {
+      "frame": {
+        "x": 1246,
+        "y": 1048,
+        "w": 72,
+        "h": 60
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 72,
+        "h": 60
+      },
+      "sourceSize": {
+        "w": 72,
+        "h": 60
+      }
+    },
+    "collar-band-oxblood": {
+      "frame": {
+        "x": 1322,
+        "y": 1048,
+        "w": 72,
+        "h": 60
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 72,
+        "h": 60
+      },
+      "sourceSize": {
+        "w": 72,
+        "h": 60
+      }
+    },
+    "beard-wispy": {
+      "frame": {
+        "x": 1398,
+        "y": 1048,
+        "w": 40,
+        "h": 58
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 40,
+        "h": 58
+      },
+      "sourceSize": {
+        "w": 40,
+        "h": 58
+      }
+    },
+    "hat-binhdinh": {
+      "frame": {
+        "x": 1442,
+        "y": 1048,
+        "w": 100,
+        "h": 58
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 100,
+        "h": 58
+      },
+      "sourceSize": {
+        "w": 100,
+        "h": 58
+      }
+    },
+    "mark-age-deep": {
+      "frame": {
+        "x": 1546,
+        "y": 1048,
+        "w": 96,
+        "h": 58
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 96,
+        "h": 58
+      },
+      "sourceSize": {
+        "w": 96,
+        "h": 58
+      }
+    },
+    "beard-long": {
+      "frame": {
+        "x": 1646,
+        "y": 1048,
+        "w": 52,
+        "h": 56
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 52,
+        "h": 56
+      },
+      "sourceSize": {
+        "w": 52,
+        "h": 56
+      }
+    },
+    "bun-side-loops": {
+      "frame": {
+        "x": 1702,
+        "y": 1048,
+        "w": 156,
+        "h": 56
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 156,
+        "h": 56
+      },
+      "sourceSize": {
+        "w": 156,
+        "h": 56
+      }
+    },
+    "collar-yem-wrap": {
+      "frame": {
+        "x": 1862,
+        "y": 1048,
+        "w": 100,
+        "h": 56
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 100,
+        "h": 56
+      },
+      "sourceSize": {
+        "w": 100,
+        "h": 56
+      }
+    },
+    "hair-low": {
+      "frame": {
+        "x": 2,
+        "y": 1116,
+        "w": 130,
+        "h": 56
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 130,
+        "h": 56
+      },
+      "sourceSize": {
+        "w": 130,
+        "h": 56
+      }
+    },
+    "hair-thick": {
+      "frame": {
+        "x": 136,
+        "y": 1116,
+        "w": 130,
+        "h": 56
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 130,
+        "h": 56
+      },
+      "sourceSize": {
+        "w": 130,
+        "h": 56
+      }
+    },
+    "hat-crown-nhatbinh": {
+      "frame": {
+        "x": 270,
+        "y": 1116,
+        "w": 104,
+        "h": 56
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 104,
+        "h": 56
+      },
+      "sourceSize": {
+        "w": 104,
+        "h": 56
+      }
+    },
+    "hat-helm-leather": {
+      "frame": {
+        "x": 378,
+        "y": 1116,
+        "w": 136,
+        "h": 56
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 136,
+        "h": 56
+      },
+      "sourceSize": {
+        "w": 136,
+        "h": 56
+      }
+    },
+    "badge-crane": {
+      "frame": {
+        "x": 518,
+        "y": 1116,
+        "w": 52,
+        "h": 54
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 52,
+        "h": 54
+      },
+      "sourceSize": {
+        "w": 52,
+        "h": 54
+      }
+    },
+    "badge-peacock": {
+      "frame": {
+        "x": 574,
+        "y": 1116,
+        "w": 52,
+        "h": 54
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 52,
+        "h": 54
+      },
+      "sourceSize": {
+        "w": 52,
+        "h": 54
+      }
+    },
+    "beard-threepart": {
+      "frame": {
+        "x": 630,
+        "y": 1116,
+        "w": 68,
+        "h": 54
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 68,
+        "h": 54
+      },
+      "sourceSize": {
+        "w": 68,
+        "h": 54
+      }
+    },
+    "bun-tran-brush": {
+      "frame": {
+        "x": 702,
+        "y": 1116,
+        "w": 60,
+        "h": 54
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 60,
+        "h": 54
+      },
+      "sourceSize": {
+        "w": 60,
+        "h": 54
+      }
+    },
+    "hat-khanvan": {
+      "frame": {
+        "x": 766,
+        "y": 1116,
+        "w": 136,
+        "h": 54
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 136,
+        "h": 54
+      },
+      "sourceSize": {
+        "w": 136,
+        "h": 54
+      }
+    },
+    "hat-khanvan-brown": {
+      "frame": {
+        "x": 906,
+        "y": 1116,
+        "w": 136,
+        "h": 54
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 136,
+        "h": 54
+      },
+      "sourceSize": {
+        "w": 136,
+        "h": 54
+      }
+    },
+    "hat-khanvan-indigo": {
+      "frame": {
+        "x": 1046,
+        "y": 1116,
+        "w": 136,
+        "h": 54
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 136,
+        "h": 54
+      },
+      "sourceSize": {
+        "w": 136,
+        "h": 54
+      }
+    },
+    "hat-muni": {
+      "frame": {
+        "x": 1186,
+        "y": 1116,
+        "w": 134,
+        "h": 54
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 134,
+        "h": 54
+      },
+      "sourceSize": {
+        "w": 134,
+        "h": 54
+      }
+    },
+    "hat-non-dau": {
+      "frame": {
+        "x": 1324,
+        "y": 1116,
+        "w": 128,
+        "h": 54
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 128,
+        "h": 54
+      },
+      "sourceSize": {
+        "w": 128,
+        "h": 54
+      }
+    },
+    "badge-bear": {
+      "frame": {
+        "x": 1456,
+        "y": 1116,
+        "w": 54,
+        "h": 52
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 54,
+        "h": 52
+      },
+      "sourceSize": {
+        "w": 54,
+        "h": 52
+      }
+    },
+    "badge-dragon": {
+      "frame": {
+        "x": 1514,
+        "y": 1116,
+        "w": 52,
+        "h": 52
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 52,
+        "h": 52
+      },
+      "sourceSize": {
+        "w": 52,
+        "h": 52
+      }
+    },
+    "badge-lion": {
+      "frame": {
+        "x": 1570,
+        "y": 1116,
+        "w": 56,
+        "h": 52
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 56,
+        "h": 52
+      },
+      "sourceSize": {
+        "w": 56,
+        "h": 52
+      }
+    },
+    "badge-pheasant": {
+      "frame": {
+        "x": 1630,
+        "y": 1116,
+        "w": 52,
+        "h": 52
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 52,
+        "h": 52
+      },
+      "sourceSize": {
+        "w": 52,
+        "h": 52
+      }
+    },
+    "badge-rhino": {
+      "frame": {
+        "x": 1686,
+        "y": 1116,
+        "w": 54,
+        "h": 52
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 54,
+        "h": 52
+      },
+      "sourceSize": {
+        "w": 54,
+        "h": 52
+      }
+    },
+    "badge-tiger": {
+      "frame": {
+        "x": 1744,
+        "y": 1116,
+        "w": 52,
+        "h": 52
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 52,
+        "h": 52
+      },
+      "sourceSize": {
+        "w": 52,
+        "h": 52
+      }
+    },
+    "ears": {
+      "frame": {
+        "x": 1800,
+        "y": 1116,
+        "w": 150,
+        "h": 52
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 150,
+        "h": 52
+      },
+      "sourceSize": {
+        "w": 150,
+        "h": 52
+      }
+    },
+    "guard-shoulder-gilt": {
+      "frame": {
+        "x": 2,
+        "y": 1176,
+        "w": 208,
+        "h": 52
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 208,
+        "h": 52
+      },
+      "sourceSize": {
+        "w": 208,
+        "h": 52
+      }
+    },
+    "hair-peak": {
+      "frame": {
+        "x": 214,
+        "y": 1176,
+        "w": 130,
+        "h": 52
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 130,
+        "h": 52
+      },
+      "sourceSize": {
+        "w": 130,
+        "h": 52
+      }
+    },
+    "hat-coronet": {
+      "frame": {
+        "x": 348,
+        "y": 1176,
+        "w": 96,
+        "h": 52
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 96,
+        "h": 52
+      },
+      "sourceSize": {
+        "w": 96,
+        "h": 52
+      }
+    },
+    "hat-coronet-jade": {
+      "frame": {
+        "x": 448,
+        "y": 1176,
+        "w": 96,
+        "h": 52
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 96,
+        "h": 52
+      },
+      "sourceSize": {
+        "w": 96,
+        "h": 52
+      }
+    },
+    "kesa-patches": {
+      "frame": {
+        "x": 548,
+        "y": 1176,
+        "w": 80,
+        "h": 52
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 80,
+        "h": 52
+      },
+      "sourceSize": {
+        "w": 80,
+        "h": 52
+      }
+    },
+    "beard-full": {
+      "frame": {
+        "x": 632,
+        "y": 1176,
+        "w": 78,
+        "h": 50
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 78,
+        "h": 50
+      },
+      "sourceSize": {
+        "w": 78,
+        "h": 50
+      }
+    },
+    "hair-crown": {
+      "frame": {
+        "x": 714,
+        "y": 1176,
+        "w": 130,
+        "h": 50
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 130,
+        "h": 50
+      },
+      "sourceSize": {
+        "w": 130,
+        "h": 50
+      }
+    },
+    "hair-parted": {
+      "frame": {
+        "x": 848,
+        "y": 1176,
+        "w": 130,
+        "h": 50
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 130,
+        "h": 50
+      },
+      "sourceSize": {
+        "w": 130,
+        "h": 50
+      }
+    },
+    "hair-wavy": {
+      "frame": {
+        "x": 982,
+        "y": 1176,
+        "w": 130,
+        "h": 50
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 130,
+        "h": 50
+      },
+      "sourceSize": {
+        "w": 130,
+        "h": 50
+      }
+    },
+    "hat-fur": {
+      "frame": {
+        "x": 1116,
+        "y": 1176,
+        "w": 150,
+        "h": 50
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 150,
+        "h": 50
+      },
+      "sourceSize": {
+        "w": 150,
+        "h": 50
+      }
+    },
+    "hat-khanxep": {
+      "frame": {
+        "x": 1270,
+        "y": 1176,
+        "w": 142,
+        "h": 50
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 142,
+        "h": 50
+      },
+      "sourceSize": {
+        "w": 142,
+        "h": 50
+      }
+    },
+    "bun-high": {
+      "frame": {
+        "x": 1416,
+        "y": 1176,
+        "w": 68,
+        "h": 48
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 68,
+        "h": 48
+      },
+      "sourceSize": {
+        "w": 68,
+        "h": 48
+      }
+    },
+    "bun-wrapped": {
+      "frame": {
+        "x": 1488,
+        "y": 1176,
+        "w": 68,
+        "h": 48
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 68,
+        "h": 48
+      },
+      "sourceSize": {
+        "w": 68,
+        "h": 48
+      }
+    },
+    "hair-swept": {
+      "frame": {
+        "x": 1560,
+        "y": 1176,
+        "w": 130,
+        "h": 48
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 130,
+        "h": 48
+      },
+      "sourceSize": {
+        "w": 130,
+        "h": 48
+      }
+    },
+    "hat-khandong": {
+      "frame": {
+        "x": 1694,
+        "y": 1176,
+        "w": 140,
+        "h": 48
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 140,
+        "h": 48
+      },
+      "sourceSize": {
+        "w": 140,
+        "h": 48
+      }
+    },
+    "hat-khandong-gold": {
+      "frame": {
+        "x": 1838,
+        "y": 1176,
+        "w": 140,
+        "h": 48
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 140,
+        "h": 48
+      },
+      "sourceSize": {
+        "w": 140,
+        "h": 48
+      }
+    },
+    "hat-khandong-jewel": {
+      "frame": {
+        "x": 2,
+        "y": 1232,
+        "w": 140,
+        "h": 48
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 140,
+        "h": 48
+      },
+      "sourceSize": {
+        "w": 140,
+        "h": 48
+      }
+    },
+    "knot-nape": {
+      "frame": {
+        "x": 146,
+        "y": 1232,
+        "w": 46,
+        "h": 48
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 46,
+        "h": 48
+      },
+      "sourceSize": {
+        "w": 46,
+        "h": 48
+      }
+    },
+    "topknot-side": {
+      "frame": {
+        "x": 196,
+        "y": 1232,
+        "w": 52,
+        "h": 48
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 52,
+        "h": 48
+      },
+      "sourceSize": {
+        "w": 52,
+        "h": 48
+      }
+    },
+    "topknot-tall": {
+      "frame": {
+        "x": 252,
+        "y": 1232,
+        "w": 56,
+        "h": 48
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 56,
+        "h": 48
+      },
+      "sourceSize": {
+        "w": 56,
+        "h": 48
+      }
+    },
+    "collar-vienlinh": {
+      "frame": {
+        "x": 312,
+        "y": 1232,
+        "w": 68,
+        "h": 46
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 68,
+        "h": 46
+      },
+      "sourceSize": {
+        "w": 68,
+        "h": 46
+      }
+    },
+    "mark-age": {
+      "frame": {
+        "x": 384,
+        "y": 1232,
+        "w": 96,
+        "h": 46
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 96,
+        "h": 46
+      },
+      "sourceSize": {
+        "w": 96,
+        "h": 46
+      }
+    },
+    "beard-chinstrap": {
+      "frame": {
+        "x": 484,
+        "y": 1232,
+        "w": 86,
+        "h": 44
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 86,
+        "h": 44
+      },
+      "sourceSize": {
+        "w": 86,
+        "h": 44
+      }
+    },
+    "bun-coil": {
+      "frame": {
+        "x": 574,
+        "y": 1232,
+        "w": 64,
+        "h": 44
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 44
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 44
+      }
+    },
+    "bun-low": {
+      "frame": {
+        "x": 642,
+        "y": 1232,
+        "w": 60,
+        "h": 44
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 60,
+        "h": 44
+      },
+      "sourceSize": {
+        "w": 60,
+        "h": 44
+      }
+    },
+    "collar-nguthan-tall": {
+      "frame": {
+        "x": 706,
+        "y": 1232,
+        "w": 74,
+        "h": 44
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 74,
+        "h": 44
+      },
+      "sourceSize": {
+        "w": 74,
+        "h": 44
+      }
+    },
+    "hair-cropped": {
+      "frame": {
+        "x": 784,
+        "y": 1232,
+        "w": 130,
+        "h": 44
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 130,
+        "h": 44
+      },
+      "sourceSize": {
+        "w": 130,
+        "h": 44
+      }
+    },
+    "hat-khanvan-low": {
+      "frame": {
+        "x": 918,
+        "y": 1232,
+        "w": 136,
+        "h": 44
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 136,
+        "h": 44
+      },
+      "sourceSize": {
+        "w": 136,
+        "h": 44
+      }
+    },
+    "sash-cord": {
+      "frame": {
+        "x": 1058,
+        "y": 1232,
+        "w": 88,
+        "h": 44
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 88,
+        "h": 44
+      },
+      "sourceSize": {
+        "w": 88,
+        "h": 44
+      }
+    },
+    "topknot-wrapped": {
+      "frame": {
+        "x": 1150,
+        "y": 1232,
+        "w": 52,
+        "h": 44
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 52,
+        "h": 44
+      },
+      "sourceSize": {
+        "w": 52,
+        "h": 44
+      }
+    },
+    "bun-nape-left": {
+      "frame": {
+        "x": 1206,
+        "y": 1232,
+        "w": 38,
+        "h": 42
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 38,
+        "h": 42
+      },
+      "sourceSize": {
+        "w": 38,
+        "h": 42
+      }
+    },
+    "bun-nape-right": {
+      "frame": {
+        "x": 1248,
+        "y": 1232,
+        "w": 38,
+        "h": 42
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 38,
+        "h": 42
+      },
+      "sourceSize": {
+        "w": 38,
+        "h": 42
+      }
+    },
+    "ears-small": {
+      "frame": {
+        "x": 1290,
+        "y": 1232,
+        "w": 146,
+        "h": 42
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 146,
+        "h": 42
+      },
+      "sourceSize": {
+        "w": 146,
+        "h": 42
+      }
+    },
+    "hair-ribbon": {
+      "frame": {
+        "x": 1440,
+        "y": 1232,
+        "w": 86,
+        "h": 42
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 86,
+        "h": 42
+      },
+      "sourceSize": {
+        "w": 86,
+        "h": 42
+      }
+    },
+    "hat-crown-seven": {
+      "frame": {
+        "x": 1530,
+        "y": 1232,
+        "w": 108,
+        "h": 42
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 108,
+        "h": 42
+      },
+      "sourceSize": {
+        "w": 108,
+        "h": 42
+      }
+    },
+    "hat-duongcan": {
+      "frame": {
+        "x": 1642,
+        "y": 1232,
+        "w": 86,
+        "h": 42
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 86,
+        "h": 42
+      },
+      "sourceSize": {
+        "w": 86,
+        "h": 42
+      }
+    },
+    "scalp-shaven": {
+      "frame": {
+        "x": 1732,
+        "y": 1232,
+        "w": 122,
+        "h": 42
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 122,
+        "h": 42
+      },
+      "sourceSize": {
+        "w": 122,
+        "h": 42
+      }
+    },
+    "bun-double": {
+      "frame": {
+        "x": 1858,
+        "y": 1232,
+        "w": 96,
+        "h": 40
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 96,
+        "h": 40
+      },
+      "sourceSize": {
+        "w": 96,
+        "h": 40
+      }
+    },
+    "bun-wide": {
+      "frame": {
+        "x": 1958,
+        "y": 1232,
+        "w": 80,
+        "h": 40
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 80,
+        "h": 40
+      },
+      "sourceSize": {
+        "w": 80,
+        "h": 40
+      }
+    },
+    "hairpin-jade": {
+      "frame": {
+        "x": 2,
+        "y": 1284,
+        "w": 20,
+        "h": 40
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 20,
+        "h": 40
+      },
+      "sourceSize": {
+        "w": 20,
+        "h": 40
+      }
+    },
+    "mark-scar": {
+      "frame": {
+        "x": 26,
+        "y": 1284,
+        "w": 14,
+        "h": 40
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 40
+      },
+      "sourceSize": {
+        "w": 14,
+        "h": 40
+      }
+    },
+    "rank-epic": {
+      "frame": {
+        "x": 44,
+        "y": 1284,
+        "w": 40,
+        "h": 40
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 40,
+        "h": 40
+      },
+      "sourceSize": {
+        "w": 40,
+        "h": 40
+      }
+    },
+    "rank-legendary": {
+      "frame": {
+        "x": 88,
+        "y": 1284,
+        "w": 40,
+        "h": 40
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 40,
+        "h": 40
+      },
+      "sourceSize": {
+        "w": 40,
+        "h": 40
+      }
+    },
+    "rank-rare": {
+      "frame": {
+        "x": 132,
+        "y": 1284,
+        "w": 40,
+        "h": 40
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 40,
+        "h": 40
+      },
+      "sourceSize": {
+        "w": 40,
+        "h": 40
+      }
+    },
+    "scalp-dots-nine": {
+      "frame": {
+        "x": 176,
+        "y": 1284,
+        "w": 48,
+        "h": 40
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 48,
+        "h": 40
+      },
+      "sourceSize": {
+        "w": 48,
+        "h": 40
+      }
+    },
+    "topknot": {
+      "frame": {
+        "x": 228,
+        "y": 1284,
+        "w": 48,
+        "h": 40
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 48,
+        "h": 40
+      },
+      "sourceSize": {
+        "w": 48,
+        "h": 40
+      }
+    },
+    "hair-high": {
+      "frame": {
+        "x": 280,
+        "y": 1284,
+        "w": 130,
+        "h": 38
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 130,
+        "h": 38
+      },
+      "sourceSize": {
+        "w": 130,
+        "h": 38
+      }
+    },
+    "hat-non-batam": {
+      "frame": {
+        "x": 414,
+        "y": 1284,
+        "w": 208,
+        "h": 38
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 208,
+        "h": 38
+      },
+      "sourceSize": {
+        "w": 208,
+        "h": 38
+      }
+    },
+    "beard-full-short": {
+      "frame": {
+        "x": 626,
+        "y": 1284,
+        "w": 70,
+        "h": 36
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 70,
+        "h": 36
+      },
+      "sourceSize": {
+        "w": 70,
+        "h": 36
+      }
+    },
+    "beard-stubble": {
+      "frame": {
+        "x": 700,
+        "y": 1284,
+        "w": 74,
+        "h": 36
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 74,
+        "h": 36
+      },
+      "sourceSize": {
+        "w": 74,
+        "h": 36
+      }
+    },
+    "hair-receding": {
+      "frame": {
+        "x": 778,
+        "y": 1284,
+        "w": 130,
+        "h": 36
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 130,
+        "h": 36
+      },
+      "sourceSize": {
+        "w": 130,
+        "h": 36
+      }
+    },
+    "nose-aquiline": {
+      "frame": {
+        "x": 912,
+        "y": 1284,
+        "w": 18,
+        "h": 36
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 18,
+        "h": 36
+      },
+      "sourceSize": {
+        "w": 18,
+        "h": 36
+      }
+    },
+    "beard-goatee-long": {
+      "frame": {
+        "x": 934,
+        "y": 1284,
+        "w": 32,
+        "h": 34
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 32,
+        "h": 34
+      },
+      "sourceSize": {
+        "w": 32,
+        "h": 34
+      }
+    },
+    "belt-rope-coil": {
+      "frame": {
+        "x": 970,
+        "y": 1284,
+        "w": 120,
+        "h": 34
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 120,
+        "h": 34
+      },
+      "sourceSize": {
+        "w": 120,
+        "h": 34
+      }
+    },
+    "collar-nguthan": {
+      "frame": {
+        "x": 1094,
+        "y": 1284,
+        "w": 76,
+        "h": 34
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 76,
+        "h": 34
+      },
+      "sourceSize": {
+        "w": 76,
+        "h": 34
+      }
+    },
+    "collar-vienlinh-trim": {
+      "frame": {
+        "x": 1174,
+        "y": 1284,
+        "w": 68,
+        "h": 34
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 68,
+        "h": 34
+      },
+      "sourceSize": {
+        "w": 68,
+        "h": 34
+      }
+    },
+    "nose-long": {
+      "frame": {
+        "x": 1246,
+        "y": 1284,
+        "w": 20,
+        "h": 34
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 20,
+        "h": 34
+      },
+      "sourceSize": {
+        "w": 20,
+        "h": 34
+      }
+    },
+    "collar-nhatbinh-phoenix": {
+      "frame": {
+        "x": 1270,
+        "y": 1284,
+        "w": 32,
+        "h": 32
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 32,
+        "h": 32
+      },
+      "sourceSize": {
+        "w": 32,
+        "h": 32
+      }
+    },
+    "hair-flower": {
+      "frame": {
+        "x": 1306,
+        "y": 1284,
+        "w": 30,
+        "h": 32
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 30,
+        "h": 32
+      },
+      "sourceSize": {
+        "w": 30,
+        "h": 32
+      }
+    },
+    "hairpin": {
+      "frame": {
+        "x": 1340,
+        "y": 1284,
+        "w": 20,
+        "h": 32
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 20,
+        "h": 32
+      },
+      "sourceSize": {
+        "w": 20,
+        "h": 32
+      }
+    },
+    "mark-scar-cheek": {
+      "frame": {
+        "x": 1364,
+        "y": 1284,
+        "w": 16,
+        "h": 32
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 32
+      },
+      "sourceSize": {
+        "w": 16,
+        "h": 32
+      }
+    },
+    "mark-tattoo-wave": {
+      "frame": {
+        "x": 1384,
+        "y": 1284,
+        "w": 14,
+        "h": 32
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 32
+      },
+      "sourceSize": {
+        "w": 14,
+        "h": 32
+      }
+    },
+    "nose-fine": {
+      "frame": {
+        "x": 1402,
+        "y": 1284,
+        "w": 18,
+        "h": 32
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 18,
+        "h": 32
+      },
+      "sourceSize": {
+        "w": 18,
+        "h": 32
+      }
+    },
+    "nose-strong": {
+      "frame": {
+        "x": 1424,
+        "y": 1284,
+        "w": 20,
+        "h": 32
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 20,
+        "h": 32
+      },
+      "sourceSize": {
+        "w": 20,
+        "h": 32
+      }
+    },
+    "sash-baldric": {
+      "frame": {
+        "x": 1448,
+        "y": 1284,
+        "w": 144,
+        "h": 32
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 144,
+        "h": 32
+      },
+      "sourceSize": {
+        "w": 144,
+        "h": 32
+      }
+    },
+    "sash-baldric-red": {
+      "frame": {
+        "x": 1596,
+        "y": 1284,
+        "w": 144,
+        "h": 32
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 144,
+        "h": 32
+      },
+      "sourceSize": {
+        "w": 144,
+        "h": 32
+      }
+    },
+    "topknot-small": {
+      "frame": {
+        "x": 1744,
+        "y": 1284,
+        "w": 38,
+        "h": 32
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 38,
+        "h": 32
+      },
+      "sourceSize": {
+        "w": 38,
+        "h": 32
+      }
+    },
+    "collar-baba": {
+      "frame": {
+        "x": 1786,
+        "y": 1284,
+        "w": 70,
+        "h": 30
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 70,
+        "h": 30
+      },
+      "sourceSize": {
+        "w": 70,
+        "h": 30
+      }
+    },
+    "hair-comb": {
+      "frame": {
+        "x": 1860,
+        "y": 1284,
+        "w": 48,
+        "h": 30
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 48,
+        "h": 30
+      },
+      "sourceSize": {
+        "w": 48,
+        "h": 30
+      }
+    },
+    "nose-narrow": {
+      "frame": {
+        "x": 1912,
+        "y": 1284,
+        "w": 18,
+        "h": 30
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 18,
+        "h": 30
+      },
+      "sourceSize": {
+        "w": 18,
+        "h": 30
+      }
+    },
+    "earring-drop": {
+      "frame": {
+        "x": 2,
+        "y": 1328,
+        "w": 138,
+        "h": 28
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 138,
+        "h": 28
+      },
+      "sourceSize": {
+        "w": 138,
+        "h": 28
+      }
+    },
+    "nose-broad": {
+      "frame": {
+        "x": 144,
+        "y": 1328,
+        "w": 22,
+        "h": 28
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 22,
+        "h": 28
+      },
+      "sourceSize": {
+        "w": 22,
+        "h": 28
+      }
+    },
+    "nose-straight": {
+      "frame": {
+        "x": 170,
+        "y": 1328,
+        "w": 18,
+        "h": 28
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 18,
+        "h": 28
+      },
+      "sourceSize": {
+        "w": 18,
+        "h": 28
+      }
+    },
+    "hairpin-long": {
+      "frame": {
+        "x": 192,
+        "y": 1328,
+        "w": 78,
+        "h": 26
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 78,
+        "h": 26
+      },
+      "sourceSize": {
+        "w": 78,
+        "h": 26
+      }
+    },
+    "hairpin-nape-left": {
+      "frame": {
+        "x": 274,
+        "y": 1328,
+        "w": 40,
+        "h": 26
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 40,
+        "h": 26
+      },
+      "sourceSize": {
+        "w": 40,
+        "h": 26
+      }
+    },
+    "hairpin-nape-left-jade": {
+      "frame": {
+        "x": 318,
+        "y": 1328,
+        "w": 42,
+        "h": 26
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 42,
+        "h": 26
+      },
+      "sourceSize": {
+        "w": 42,
+        "h": 26
+      }
+    },
+    "hairpin-nape-right": {
+      "frame": {
+        "x": 364,
+        "y": 1328,
+        "w": 40,
+        "h": 26
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 40,
+        "h": 26
+      },
+      "sourceSize": {
+        "w": 40,
+        "h": 26
+      }
+    },
+    "hairpin-nape-right-jade": {
+      "frame": {
+        "x": 408,
+        "y": 1328,
+        "w": 42,
+        "h": 26
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 42,
+        "h": 26
+      },
+      "sourceSize": {
+        "w": 42,
+        "h": 26
+      }
+    },
+    "hat-band-gold": {
+      "frame": {
+        "x": 454,
+        "y": 1328,
+        "w": 136,
+        "h": 26
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 136,
+        "h": 26
+      },
+      "sourceSize": {
+        "w": 136,
+        "h": 26
+      }
+    },
+    "mark-freckles": {
+      "frame": {
+        "x": 594,
+        "y": 1328,
+        "w": 62,
+        "h": 26
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 62,
+        "h": 26
+      },
+      "sourceSize": {
+        "w": 62,
+        "h": 26
+      }
+    },
+    "nose-round": {
+      "frame": {
+        "x": 660,
+        "y": 1328,
+        "w": 20,
+        "h": 26
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 20,
+        "h": 26
+      },
+      "sourceSize": {
+        "w": 20,
+        "h": 26
+      }
+    },
+    "belt-gold": {
+      "frame": {
+        "x": 684,
+        "y": 1328,
+        "w": 144,
+        "h": 24
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 144,
+        "h": 24
+      },
+      "sourceSize": {
+        "w": 144,
+        "h": 24
+      }
+    },
+    "belt-jade": {
+      "frame": {
+        "x": 832,
+        "y": 1328,
+        "w": 144,
+        "h": 24
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 144,
+        "h": 24
+      },
+      "sourceSize": {
+        "w": 144,
+        "h": 24
+      }
+    },
+    "mark-tattoo": {
+      "frame": {
+        "x": 980,
+        "y": 1328,
+        "w": 12,
+        "h": 24
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 24
+      },
+      "sourceSize": {
+        "w": 12,
+        "h": 24
+      }
+    },
+    "nose-flat": {
+      "frame": {
+        "x": 996,
+        "y": 1328,
+        "w": 20,
+        "h": 24
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 20,
+        "h": 24
+      },
+      "sourceSize": {
+        "w": 20,
+        "h": 24
+      }
+    },
+    "nose-soft": {
+      "frame": {
+        "x": 1020,
+        "y": 1328,
+        "w": 18,
+        "h": 24
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 18,
+        "h": 24
+      },
+      "sourceSize": {
+        "w": 18,
+        "h": 24
+      }
+    },
+    "beard-goatee": {
+      "frame": {
+        "x": 1042,
+        "y": 1328,
+        "w": 36,
+        "h": 22
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 36,
+        "h": 22
+      },
+      "sourceSize": {
+        "w": 36,
+        "h": 22
+      }
+    },
+    "collar-tuthan-knot": {
+      "frame": {
+        "x": 1082,
+        "y": 1328,
+        "w": 36,
+        "h": 22
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 36,
+        "h": 22
+      },
+      "sourceSize": {
+        "w": 36,
+        "h": 22
+      }
+    },
+    "eyes-almond": {
+      "frame": {
+        "x": 1122,
+        "y": 1328,
+        "w": 92,
+        "h": 22
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 92,
+        "h": 22
+      },
+      "sourceSize": {
+        "w": 92,
+        "h": 22
+      }
+    },
+    "eyes-bright": {
+      "frame": {
+        "x": 1218,
+        "y": 1328,
+        "w": 92,
+        "h": 22
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 92,
+        "h": 22
+      },
+      "sourceSize": {
+        "w": 92,
+        "h": 22
+      }
+    },
+    "eyes-crescent": {
+      "frame": {
+        "x": 1314,
+        "y": 1328,
+        "w": 92,
+        "h": 22
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 92,
+        "h": 22
+      },
+      "sourceSize": {
+        "w": 92,
+        "h": 22
+      }
+    },
+    "eyes-deepset": {
+      "frame": {
+        "x": 1410,
+        "y": 1328,
+        "w": 92,
+        "h": 22
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 92,
+        "h": 22
+      },
+      "sourceSize": {
+        "w": 92,
+        "h": 22
+      }
+    },
+    "eyes-downturned": {
+      "frame": {
+        "x": 1506,
+        "y": 1328,
+        "w": 92,
+        "h": 22
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 92,
+        "h": 22
+      },
+      "sourceSize": {
+        "w": 92,
+        "h": 22
+      }
+    },
+    "eyes-gentle": {
+      "frame": {
+        "x": 1602,
+        "y": 1328,
+        "w": 92,
+        "h": 22
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 92,
+        "h": 22
+      },
+      "sourceSize": {
+        "w": 92,
+        "h": 22
+      }
+    },
+    "eyes-hooded": {
+      "frame": {
+        "x": 1698,
+        "y": 1328,
+        "w": 92,
+        "h": 22
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 92,
+        "h": 22
+      },
+      "sourceSize": {
+        "w": 92,
+        "h": 22
+      }
+    },
+    "eyes-keen": {
+      "frame": {
+        "x": 1794,
+        "y": 1328,
+        "w": 92,
+        "h": 22
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 92,
+        "h": 22
+      },
+      "sourceSize": {
+        "w": 92,
+        "h": 22
+      }
+    },
+    "eyes-narrow": {
+      "frame": {
+        "x": 1890,
+        "y": 1328,
+        "w": 92,
+        "h": 22
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 92,
+        "h": 22
+      },
+      "sourceSize": {
+        "w": 92,
+        "h": 22
+      }
+    },
+    "eyes-sharp": {
+      "frame": {
+        "x": 2,
+        "y": 1360,
+        "w": 92,
+        "h": 22
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 92,
+        "h": 22
+      },
+      "sourceSize": {
+        "w": 92,
+        "h": 22
+      }
+    },
+    "eyes-tired": {
+      "frame": {
+        "x": 98,
+        "y": 1360,
+        "w": 92,
+        "h": 22
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 92,
+        "h": 22
+      },
+      "sourceSize": {
+        "w": 92,
+        "h": 22
+      }
+    },
+    "eyes-upturned": {
+      "frame": {
+        "x": 194,
+        "y": 1360,
+        "w": 92,
+        "h": 22
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 92,
+        "h": 22
+      },
+      "sourceSize": {
+        "w": 92,
+        "h": 22
+      }
+    },
+    "hairpin-plain": {
+      "frame": {
+        "x": 290,
+        "y": 1360,
+        "w": 84,
+        "h": 22
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 84,
+        "h": 22
+      },
+      "sourceSize": {
+        "w": 84,
+        "h": 22
+      }
+    },
+    "mark-tattoo-drum": {
+      "frame": {
+        "x": 378,
+        "y": 1360,
+        "w": 22,
+        "h": 22
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 22,
+        "h": 22
+      },
+      "sourceSize": {
+        "w": 22,
+        "h": 22
+      }
+    },
+    "nose-short": {
+      "frame": {
+        "x": 404,
+        "y": 1360,
+        "w": 18,
+        "h": 22
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 18,
+        "h": 22
+      },
+      "sourceSize": {
+        "w": 18,
+        "h": 22
+      }
+    },
+    "nose-snub": {
+      "frame": {
+        "x": 426,
+        "y": 1360,
+        "w": 20,
+        "h": 22
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 20,
+        "h": 22
+      },
+      "sourceSize": {
+        "w": 20,
+        "h": 22
+      }
+    },
+    "beard-moustache-wide": {
+      "frame": {
+        "x": 450,
+        "y": 1360,
+        "w": 68,
+        "h": 20
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 68,
+        "h": 20
+      },
+      "sourceSize": {
+        "w": 68,
+        "h": 20
+      }
+    },
+    "earring-gold": {
+      "frame": {
+        "x": 522,
+        "y": 1360,
+        "w": 140,
+        "h": 20
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 140,
+        "h": 20
+      },
+      "sourceSize": {
+        "w": 140,
+        "h": 20
+      }
+    },
+    "eyes-round": {
+      "frame": {
+        "x": 666,
+        "y": 1360,
+        "w": 92,
+        "h": 20
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 92,
+        "h": 20
+      },
+      "sourceSize": {
+        "w": 92,
+        "h": 20
+      }
+    },
+    "eyes-wide": {
+      "frame": {
+        "x": 762,
+        "y": 1360,
+        "w": 92,
+        "h": 20
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 92,
+        "h": 20
+      },
+      "sourceSize": {
+        "w": 92,
+        "h": 20
+      }
+    },
+    "mark-brand": {
+      "frame": {
+        "x": 858,
+        "y": 1360,
+        "w": 20,
+        "h": 20
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 20,
+        "h": 20
+      },
+      "sourceSize": {
+        "w": 20,
+        "h": 20
+      }
+    },
+    "sash-silk": {
+      "frame": {
+        "x": 882,
+        "y": 1360,
+        "w": 128,
+        "h": 20
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 128,
+        "h": 20
+      },
+      "sourceSize": {
+        "w": 128,
+        "h": 20
+      }
+    },
+    "beard-moustache": {
+      "frame": {
+        "x": 1014,
+        "y": 1360,
+        "w": 52,
+        "h": 18
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 52,
+        "h": 18
+      },
+      "sourceSize": {
+        "w": 52,
+        "h": 18
+      }
+    },
+    "brow-arched": {
+      "frame": {
+        "x": 1070,
+        "y": 1360,
+        "w": 98,
+        "h": 18
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 98,
+        "h": 18
+      },
+      "sourceSize": {
+        "w": 98,
+        "h": 18
+      }
+    },
+    "brow-raised": {
+      "frame": {
+        "x": 1172,
+        "y": 1360,
+        "w": 98,
+        "h": 18
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 98,
+        "h": 18
+      },
+      "sourceSize": {
+        "w": 98,
+        "h": 18
+      }
+    },
+    "brow-soft": {
+      "frame": {
+        "x": 1274,
+        "y": 1360,
+        "w": 98,
+        "h": 18
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 98,
+        "h": 18
+      },
+      "sourceSize": {
+        "w": 98,
+        "h": 18
+      }
+    },
+    "earring-jade": {
+      "frame": {
+        "x": 1376,
+        "y": 1360,
+        "w": 138,
+        "h": 18
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 138,
+        "h": 18
+      },
+      "sourceSize": {
+        "w": 138,
+        "h": 18
+      }
+    },
+    "earring-pearl": {
+      "frame": {
+        "x": 1518,
+        "y": 1360,
+        "w": 138,
+        "h": 18
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 138,
+        "h": 18
+      },
+      "sourceSize": {
+        "w": 138,
+        "h": 18
+      }
+    },
+    "mark-dimples": {
+      "frame": {
+        "x": 1660,
+        "y": 1360,
+        "w": 66,
+        "h": 18
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 66,
+        "h": 18
+      },
+      "sourceSize": {
+        "w": 66,
+        "h": 18
+      }
+    },
+    "mark-scar-brow": {
+      "frame": {
+        "x": 1730,
+        "y": 1360,
+        "w": 22,
+        "h": 18
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 22,
+        "h": 18
+      },
+      "sourceSize": {
+        "w": 22,
+        "h": 18
+      }
+    },
+    "mark-tattoo-court": {
+      "frame": {
+        "x": 1756,
+        "y": 1360,
+        "w": 18,
+        "h": 18
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 18,
+        "h": 18
+      },
+      "sourceSize": {
+        "w": 18,
+        "h": 18
+      }
+    },
+    "robe-hem-dark": {
+      "frame": {
+        "x": 1778,
+        "y": 1360,
+        "w": 200,
+        "h": 18
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 200,
+        "h": 18
+      },
+      "sourceSize": {
+        "w": 200,
+        "h": 18
+      }
+    },
+    "sash-ochre": {
+      "frame": {
+        "x": 2,
+        "y": 1386,
+        "w": 104,
+        "h": 18
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 104,
+        "h": 18
+      },
+      "sourceSize": {
+        "w": 104,
+        "h": 18
+      }
+    },
+    "sash-waist": {
+      "frame": {
+        "x": 110,
+        "y": 1386,
+        "w": 96,
+        "h": 18
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 96,
+        "h": 18
+      },
+      "sourceSize": {
+        "w": 96,
+        "h": 18
+      }
+    },
+    "sash-waist-red": {
+      "frame": {
+        "x": 210,
+        "y": 1386,
+        "w": 96,
+        "h": 18
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 96,
+        "h": 18
+      },
+      "sourceSize": {
+        "w": 96,
+        "h": 18
+      }
+    },
+    "beard-moustache-thin": {
+      "frame": {
+        "x": 310,
+        "y": 1386,
+        "w": 48,
+        "h": 16
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 48,
+        "h": 16
+      },
+      "sourceSize": {
+        "w": 48,
+        "h": 16
+      }
+    },
+    "brow-bushy": {
+      "frame": {
+        "x": 362,
+        "y": 1386,
+        "w": 98,
+        "h": 16
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 98,
+        "h": 16
+      },
+      "sourceSize": {
+        "w": 98,
+        "h": 16
+      }
+    },
+    "brow-flat": {
+      "frame": {
+        "x": 464,
+        "y": 1386,
+        "w": 98,
+        "h": 16
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 98,
+        "h": 16
+      },
+      "sourceSize": {
+        "w": 98,
+        "h": 16
+      }
+    },
+    "brow-short": {
+      "frame": {
+        "x": 566,
+        "y": 1386,
+        "w": 98,
+        "h": 16
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 98,
+        "h": 16
+      },
+      "sourceSize": {
+        "w": 98,
+        "h": 16
+      }
+    },
+    "brow-thick": {
+      "frame": {
+        "x": 668,
+        "y": 1386,
+        "w": 98,
+        "h": 16
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 98,
+        "h": 16
+      },
+      "sourceSize": {
+        "w": 98,
+        "h": 16
+      }
+    },
+    "brow-thin": {
+      "frame": {
+        "x": 770,
+        "y": 1386,
+        "w": 98,
+        "h": 16
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 98,
+        "h": 16
+      },
+      "sourceSize": {
+        "w": 98,
+        "h": 16
+      }
+    },
+    "mouth-lacquered-smile": {
+      "frame": {
+        "x": 872,
+        "y": 1386,
+        "w": 46,
+        "h": 16
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 46,
+        "h": 16
+      },
+      "sourceSize": {
+        "w": 46,
+        "h": 16
+      }
+    },
+    "robe-hem-gold": {
+      "frame": {
+        "x": 922,
+        "y": 1386,
+        "w": 200,
+        "h": 16
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 200,
+        "h": 16
+      },
+      "sourceSize": {
+        "w": 200,
+        "h": 16
+      }
+    },
+    "scalp-dots": {
+      "frame": {
+        "x": 1126,
+        "y": 1386,
+        "w": 48,
+        "h": 16
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 48,
+        "h": 16
+      },
+      "sourceSize": {
+        "w": 48,
+        "h": 16
+      }
+    },
+    "brow-angled": {
+      "frame": {
+        "x": 1178,
+        "y": 1386,
+        "w": 98,
+        "h": 14
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 98,
+        "h": 14
+      },
+      "sourceSize": {
+        "w": 98,
+        "h": 14
+      }
+    },
+    "brow-heavy": {
+      "frame": {
+        "x": 1280,
+        "y": 1386,
+        "w": 98,
+        "h": 14
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 98,
+        "h": 14
+      },
+      "sourceSize": {
+        "w": 98,
+        "h": 14
+      }
+    },
+    "brow-low": {
+      "frame": {
+        "x": 1382,
+        "y": 1386,
+        "w": 98,
+        "h": 14
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 98,
+        "h": 14
+      },
+      "sourceSize": {
+        "w": 98,
+        "h": 14
+      }
+    },
+    "brow-sparse": {
+      "frame": {
+        "x": 1484,
+        "y": 1386,
+        "w": 98,
+        "h": 14
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 98,
+        "h": 14
+      },
+      "sourceSize": {
+        "w": 98,
+        "h": 14
+      }
+    },
+    "hair-cord": {
+      "frame": {
+        "x": 1586,
+        "y": 1386,
+        "w": 72,
+        "h": 14
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 72,
+        "h": 14
+      },
+      "sourceSize": {
+        "w": 72,
+        "h": 14
+      }
+    },
+    "mark-mole": {
+      "frame": {
+        "x": 1662,
+        "y": 1386,
+        "w": 14,
+        "h": 14
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 14
+      },
+      "sourceSize": {
+        "w": 14,
+        "h": 14
+      }
+    },
+    "mouth-betel": {
+      "frame": {
+        "x": 1680,
+        "y": 1386,
+        "w": 34,
+        "h": 14
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 34,
+        "h": 14
+      },
+      "sourceSize": {
+        "w": 34,
+        "h": 14
+      }
+    },
+    "mouth-broad-smile": {
+      "frame": {
+        "x": 1718,
+        "y": 1386,
+        "w": 44,
+        "h": 14
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 44,
+        "h": 14
+      },
+      "sourceSize": {
+        "w": 44,
+        "h": 14
+      }
+    },
+    "mouth-lacquered": {
+      "frame": {
+        "x": 1766,
+        "y": 1386,
+        "w": 40,
+        "h": 14
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 40,
+        "h": 14
+      },
+      "sourceSize": {
+        "w": 40,
+        "h": 14
+      }
+    },
+    "brow-sharp": {
+      "frame": {
+        "x": 1810,
+        "y": 1386,
+        "w": 98,
+        "h": 12
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 98,
+        "h": 12
+      },
+      "sourceSize": {
+        "w": 98,
+        "h": 12
+      }
+    },
+    "brow-straight": {
+      "frame": {
+        "x": 1912,
+        "y": 1386,
+        "w": 98,
+        "h": 12
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 98,
+        "h": 12
+      },
+      "sourceSize": {
+        "w": 98,
+        "h": 12
+      }
+    },
+    "mouth-downturned": {
+      "frame": {
+        "x": 2014,
+        "y": 1386,
+        "w": 32,
+        "h": 12
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 32,
+        "h": 12
+      },
+      "sourceSize": {
+        "w": 32,
+        "h": 12
+      }
+    },
+    "mouth-full": {
+      "frame": {
+        "x": 2,
+        "y": 1408,
+        "w": 32,
+        "h": 12
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 32,
+        "h": 12
+      },
+      "sourceSize": {
+        "w": 32,
+        "h": 12
+      }
+    },
+    "mouth-lacquered-firm": {
+      "frame": {
+        "x": 38,
+        "y": 1408,
+        "w": 44,
+        "h": 12
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 44,
+        "h": 12
+      },
+      "sourceSize": {
+        "w": 44,
+        "h": 12
+      }
+    },
+    "mouth-pursed": {
+      "frame": {
+        "x": 86,
+        "y": 1408,
+        "w": 24,
+        "h": 12
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 12
+      },
+      "sourceSize": {
+        "w": 24,
+        "h": 12
+      }
+    },
+    "mouth-smile": {
+      "frame": {
+        "x": 114,
+        "y": 1408,
+        "w": 34,
+        "h": 12
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 34,
+        "h": 12
+      },
+      "sourceSize": {
+        "w": 34,
+        "h": 12
+      }
+    },
+    "mouth-soft": {
+      "frame": {
+        "x": 152,
+        "y": 1408,
+        "w": 30,
+        "h": 12
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 30,
+        "h": 12
+      },
+      "sourceSize": {
+        "w": 30,
+        "h": 12
+      }
+    },
+    "mouth-wide": {
+      "frame": {
+        "x": 186,
+        "y": 1408,
+        "w": 42,
+        "h": 12
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 42,
+        "h": 12
+      },
+      "sourceSize": {
+        "w": 42,
+        "h": 12
+      }
+    },
+    "mouth-firm": {
+      "frame": {
+        "x": 232,
+        "y": 1408,
+        "w": 34,
+        "h": 10
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 34,
+        "h": 10
+      },
+      "sourceSize": {
+        "w": 34,
+        "h": 10
+      }
+    },
+    "mouth-grim": {
+      "frame": {
+        "x": 270,
+        "y": 1408,
+        "w": 38,
+        "h": 10
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 38,
+        "h": 10
+      },
+      "sourceSize": {
+        "w": 38,
+        "h": 10
+      }
+    },
+    "mouth-neutral": {
+      "frame": {
+        "x": 312,
+        "y": 1408,
+        "w": 28,
+        "h": 10
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 28,
+        "h": 10
+      },
+      "sourceSize": {
+        "w": 28,
+        "h": 10
+      }
+    },
+    "mouth-small": {
+      "frame": {
+        "x": 344,
+        "y": 1408,
+        "w": 24,
+        "h": 10
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 10
+      },
+      "sourceSize": {
+        "w": 24,
+        "h": 10
+      }
+    },
+    "mouth-thin": {
+      "frame": {
+        "x": 372,
+        "y": 1408,
+        "w": 34,
+        "h": 10
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 34,
+        "h": 10
+      },
+      "sourceSize": {
+        "w": 34,
+        "h": 10
+      }
+    },
+    "mark-warpaint": {
+      "frame": {
+        "x": 410,
+        "y": 1408,
+        "w": 94,
+        "h": 8
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 94,
+        "h": 8
+      },
+      "sourceSize": {
+        "w": 94,
+        "h": 8
+      }
+    }
+  },
+  "meta": {
+    "image": "atlas.png",
+    "format": "RGBA8888",
+    "size": {
+      "w": 2048,
+      "h": 1422
+    },
+    "scale": "1"
+  }
+}

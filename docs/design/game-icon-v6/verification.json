@@ -1,0 +1,63 @@
+{
+  "date": "2026-09-06",
+  "outputs": [
+    {
+      "path": "apps/mobile/assets/icon.png",
+      "width": 1024,
+      "height": 1024,
+      "bitDepth": 8,
+      "colorType": 2,
+      "sha256": "60875b580ca8584832e1d95ab9d78d109cece281ef4081549808c42dd774f7d1"
+    },
+    {
+      "path": "apps/mobile/assets/adaptive-icon.png",
+      "width": 1024,
+      "height": 1024,
+      "bitDepth": 8,
+      "colorType": 2,
+      "sha256": "64dcf1f94c58927b4cc06731a164a40aa3b3531fba7439be2c5a99e9e2a1a196"
+    },
+    {
+      "path": "apps/mobile/store/ios/icon/app-store-icon-1024.png",
+      "width": 1024,
+      "height": 1024,
+      "bitDepth": 8,
+      "colorType": 2,
+      "sha256": "60875b580ca8584832e1d95ab9d78d109cece281ef4081549808c42dd774f7d1"
+    },
+    {
+      "path": "apps/mobile/store/android/icon/play-store-icon-512.png",
+      "width": 512,
+      "height": 512,
+      "bitDepth": 8,
+      "colorType": 6,
+      "sha256": "686a1e9095e357d829caae9e523f51aea6ea643cbaf55b15cb7c8a7e7d80a640"
+    }
+  ],
+  "expo": {
+    "icon": "./assets/icon.png",
+    "adaptiveIcon": {
+      "foregroundImage": "./assets/adaptive-icon.png",
+      "backgroundColor": "#f6edd7"
+    }
+  },
+  "checks": {
+    "reproducibleMobileExports": true,
+    "syntax": true,
+    "scopedDiffWhitespace": true,
+    "reviewedSizes": [
+      256,
+      64,
+      48,
+      32
+    ],
+    "reviewedMasks": [
+      "rounded approximation",
+      "Android circular 72/108 viewport"
+    ]
+  },
+  "limits": [
+    "No native build or physical-device test in this design pass.",
+    "The user approved the style; this new subject awaits their feedback."
+  ]
+}
