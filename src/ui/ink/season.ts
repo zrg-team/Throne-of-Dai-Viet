@@ -114,6 +114,7 @@ export interface SeasonPalette {
    * The mountain drawings are shared between all four seasons instead of shipping four copies of
    * five large transparent textures. The live scenery repaint applies this pigment to the authored
    * image, while procedural fallback rock runs its colours through the same multiplier.
+   * Keep the cast subtle so the shared stone palette stays quiet in every season.
    */
   mountainTint: number;
   /** The crop standing in the paddy: young green, full green, ripe gold, or bare mud. */
@@ -143,11 +144,11 @@ export const SEASON_PALETTES: Record<Season, SeasonPalette> = {
    */
   Spring: {
     wash: { colour: PIGMENT.diepHi, alpha: 0 },
-    ground: PIGMENT.tramPale,
+    ground: PIGMENT.diepWarm,
     groundRelief: PIGMENT.diepLo,
     // Nothing: the ground is baked in this season already (`BAKE_SEASON`), and laying spring's own
     // tone over spring's own fill would only darken ground it agrees with.
-    groundCast: { colour: PIGMENT.tramPale, alpha: 0 },
+    groundCast: { colour: PIGMENT.diepWarm, alpha: 0 },
     foliage: mixPigment(PIGMENT.tram, PIGMENT.tramPale, 0.5),
     foliagePale: mixPigment(PIGMENT.tramPale, PIGMENT.diepHi, 0.28),
     evergreen: PIGMENT.tram,
@@ -168,9 +169,13 @@ export const SEASON_PALETTES: Record<Season, SeasonPalette> = {
   /** Full canopy and standing water: the country at its greenest and its darkest. */
   Summer: {
     wash: { colour: PIGMENT.tram, alpha: 0 },
-    ground: mixPigment(PIGMENT.tramPale, PIGMENT.tram, 0.62),
-    groundRelief: mixPigment(PIGMENT.diepLo, PIGMENT.tram, 0.3),
-    groundCast: { colour: PIGMENT.tram, alpha: 0.14 },
+    ground: mixPigment(PIGMENT.diepWarm, PIGMENT.tramPale, 0.3),
+    groundRelief: mixPigment(PIGMENT.diepLo, PIGMENT.tram, 0.15),
+    // A whisper, not a re-lighting. At 0.14 the ten overlapping rings per cell compounded into a
+    // #bbcc99 ground at 70% lightness — the same value as the limestone highlights, so the karst
+    // lost its edge and the whole owned country went grey-sage. Measured on the summer capture;
+    // 0.05 keeps the sheet above 80%.
+    groundCast: { colour: PIGMENT.tram, alpha: 0.05 },
     foliage: shadePigment(PIGMENT.tram, 0.78),
     // Deliberately not a pale tone at all: summer's lighter trees are still solidly green, or the
     // third of the wood that takes this reads as a wood already half turned.
@@ -182,7 +187,7 @@ export const SEASON_PALETTES: Record<Season, SeasonPalette> = {
     blossomAlt: PIGMENT.diepHi,
     litter: PIGMENT.hoePale,
     snow: false,
-    mountainTint: mixPigment(0xffffff, PIGMENT.tram, 0.35),
+    mountainTint: mixPigment(0xffffff, PIGMENT.tram, 0.12),
     paddy: PIGMENT.tram,
     paddyAlpha: 0.62,
     labelInk: '#1f2a16',
@@ -194,9 +199,12 @@ export const SEASON_PALETTES: Record<Season, SeasonPalette> = {
    */
   Autumn: {
     wash: { colour: PIGMENT.hoe, alpha: 0 },
-    ground: PIGMENT.hoePale,
-    groundRelief: mixPigment(PIGMENT.diepLo, PIGMENT.hoe, 0.4),
-    groundCast: { colour: PIGMENT.hoe, alpha: 0.15 },
+    ground: mixPigment(PIGMENT.diepWarm, PIGMENT.hoePale, 0.35),
+    groundRelief: mixPigment(PIGMENT.diepLo, PIGMENT.hoe, 0.2),
+    // The one cast with a precedent — a hòe-tinted sheet is a real Đông Hồ ground — and still the
+    // lightest of touches. At 0.15 the owned ground compounded to #ddbb88: 70% lightness, and the
+    // exact hue of the roof ochre (36°), so the tiled roofs and the karst both sank into sand.
+    groundCast: { colour: PIGMENT.hoe, alpha: 0.06 },
     foliage: mixPigment(PIGMENT.tram, PIGMENT.hoe, 0.82),
     foliagePale: PIGMENT.hoePale,
     evergreen: mixPigment(PIGMENT.tram, PIGMENT.hoe, 0.28),
@@ -206,7 +214,7 @@ export const SEASON_PALETTES: Record<Season, SeasonPalette> = {
     blossomAlt: PIGMENT.hoe,
     litter: mixPigment(PIGMENT.hoe, PIGMENT.nau, 0.3),
     snow: false,
-    mountainTint: mixPigment(0xffffff, PIGMENT.hoe, 0.35),
+    mountainTint: mixPigment(0xffffff, PIGMENT.hoe, 0.12),
     paddy: PIGMENT.hoe,
     paddyAlpha: 0.7,
     labelInk: '#5c3a10',
@@ -219,7 +227,7 @@ export const SEASON_PALETTES: Record<Season, SeasonPalette> = {
     // Lighter than it was, because the ground now carries its own pale cast underneath the ink and
     // the two used to stack into a washed-out sheet.
     wash: { colour: PIGMENT.diepHi, alpha: 0.13 },
-    ground: mixPigment(PIGMENT.diepLo, PIGMENT.mucFaint, 0.16),
+    ground: mixPigment(PIGMENT.diepWarm, PIGMENT.mucFaint, 0.12),
     groundRelief: PIGMENT.diepDeep,
     groundCast: { colour: PIGMENT.diepHi, alpha: 0.2 },
     foliage: mutePigment(PIGMENT.tram, 0.62),
@@ -233,7 +241,7 @@ export const SEASON_PALETTES: Record<Season, SeasonPalette> = {
     blossomAlt: PIGMENT.diepHi,
     litter: PIGMENT.mucFaint,
     snow: true,
-    mountainTint: mixPigment(0xffffff, PIGMENT.chamPale, 0.35),
+    mountainTint: mixPigment(0xffffff, PIGMENT.chamPale, 0.12),
     paddy: PIGMENT.diepDeep,
     paddyAlpha: 0.5,
     labelInk: '#3d4348',
@@ -336,7 +344,9 @@ export function groundCast(terrain: HexTerrainType): { colour: number; alpha: nu
   switch (terrain) {
     case 'riceFields':
     case 'fields':
-      return { colour: palette.paddy, alpha: palette.paddyAlpha * 0.55 };
+      // 0.55 of the paddy alpha stacked with the plates on top into the loudest thing on the sheet;
+      // 0.4 still turns the cropland with the calendar and leaves the plates to carry the colour.
+      return { colour: palette.paddy, alpha: palette.paddyAlpha * 0.4 };
     case 'plains':
     case 'forest':
     case 'hills':

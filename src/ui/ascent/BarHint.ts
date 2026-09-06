@@ -89,7 +89,8 @@ export class BarHint {
     }
     if (!this.up) return;
 
-    const text = t(advice.line, advice.params);
+    // The top strip carries the event. This short signpost only names the lane to press.
+    const text = t(`action.${advice.lane}` as Parameters<typeof t>[0]);
     const centreX = slot.x + slot.width / 2;
     const key = `${text}|${Math.round(centreX)}`;
     if (key === this.drawnKey) return;

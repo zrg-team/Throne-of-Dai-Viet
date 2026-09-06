@@ -1,0 +1,46 @@
+{
+  "mode": "built-in ImageGen",
+  "date": "2026-09-06",
+  "jobs": [
+    {
+      "id": "ground",
+      "target": "public/art/menu-layer-ground-v4.png",
+      "prompt": "Use case: style-transfer. This is a production layer of a Vietnamese history game menu. Image 1 is the edit target: preserve its subject placement, exact 3:2 full canvas, empty areas and composition. Images 2 and 3 are approved Đông Hồ woodblock style references only; do not copy their people or buildings into this layer. Replace the faded sepia fine-etched rendering with the references' bold warm-black carved contours, broad flat opaque natural pigment blocks, sparse purposeful carved marks, very light print grain. Confident simple folk-art shapes legible on a 390px phone. Natural restrained colour, not rainbow, not neon, not monochrome. No brown aging veil, no photoreal shading, no gradients or dense engraving. No text, frames, logos or interface. GROUND LAYER ONLY: retain the winding S-shaped river in exactly the existing position, distant river mouth at approximately (0.49,0.45), bend left at (0.27,0.58), bend rightward toward (0.62,0.94), rice paddies occupying the right bank lower half. Upper 44% is EMPTY pale cream shell-paper sky, solid near #f3ecd8 with very subtle grain, not mottled yellow. Flat soft indigo-blue river with a few cream horizontal water marks, broad alternating moss green and pale harvest ochre paddies with dark warm-black bank contours and sparse expressive rice tuft patterns. Left foreground open river; do NOT add lotus, mountains, bamboo, people, houses or animals, they are separate layers. Keep the existing river and field boundaries for animation registration. Opaque full-canvas background. Output 1536x1024.",
+      "refs": [
+        "C:/Users/zerg/Projects/personal/grand-rts-game/public/art/menu-layer-ground-v4.png",
+        "C:/Users/zerg/Projects/personal/grand-rts-game/public/art/story-prints/harvest-v1.webp",
+        "C:/Users/zerg/Projects/personal/grand-rts-game/public/art/story-prints/village-muster-v1.webp"
+      ]
+    },
+    {
+      "id": "mountains",
+      "target": "public/art/menu-layer-mountains-v1.png",
+      "prompt": "Use case: style-transfer. This is a production layer of a Vietnamese history game menu. Image 1 is the edit target: preserve its subject placement, exact 3:2 full canvas, empty areas and composition. Images 2 and 3 are approved Đông Hồ woodblock style references only; do not copy their people or buildings into this layer. Replace the faded sepia fine-etched rendering with the references' bold warm-black carved contours, broad flat opaque natural pigment blocks, sparse purposeful carved marks, very light print grain. Confident simple folk-art shapes legible on a 390px phone. Natural restrained colour, not rainbow, not neon, not monochrome. No brown aging veil, no photoreal shading, no gradients or dense engraving. No text, frames, logos or interface. MOUNTAIN LAYER ONLY: retain the EXACT arrangement and footprints of the two karst groups across the UPPER half of the target, tallest left peak at (0.30,0.09), tallest right peak (0.78,0.13), foothills finishing around y0.47; LOWER HALF COMPLETELY EMPTY TRANSPARENT. Natural limestone in flat warm cream/ochre rock faces, muted moss slopes, limited slate-indigo shaded faces, decisive dark carved contours, sparse simple rock strata. Two or three natural colours per mountain, not a rainbow and not black-and-white. Remove the mass of fine grey scratches. True transparent alpha everywhere outside the mountain silhouettes; no paper rectangle, no shadow, no checkerboard painted into image. Preserve the original full 1536x1024 registration canvas, do not center or enlarge the mountains. Output a transparent PNG.",
+      "refs": [
+        "C:/Users/zerg/Projects/personal/grand-rts-game/public/art/menu-layer-mountains-v1.png",
+        "C:/Users/zerg/Projects/personal/grand-rts-game/public/art/story-prints/harvest-v1.webp",
+        "C:/Users/zerg/Projects/personal/grand-rts-game/public/art/story-prints/village-muster-v1.webp"
+      ]
+    },
+    {
+      "id": "lotus",
+      "target": "public/art/menu-layer-lotus-v1.png",
+      "prompt": "Use case: style-transfer. This is a production layer of a Vietnamese history game menu. Image 1 is the edit target: preserve its subject placement, exact 3:2 full canvas, empty areas and composition. Images 2 and 3 are approved Đông Hồ woodblock style references only; do not copy their people or buildings into this layer. Replace the faded sepia fine-etched rendering with the references' bold warm-black carved contours, broad flat opaque natural pigment blocks, sparse purposeful carved marks, very light print grain. Confident simple folk-art shapes legible on a 390px phone. Natural restrained colour, not rainbow, not neon, not monochrome. No brown aging veil, no photoreal shading, no gradients or dense engraving. No text, frames, logos or interface. LOTUS LAYER ONLY: retain EXACT placement at LOWER LEFT, one main open flower centered near (0.24,0.62), one smaller bud near (0.37,0.70), three large round leaves and long stems ending at y0.92. Preserve full-size 1536x1024 registration canvas and huge transparent upper half/right side. Flower petals flat muted vermilion with shell-cream interiors and warm-black outline, ochre seed center; large leaves broad clear moss/leaf green with a few cream carved veins, dark stems. Replace brown-grey leaves with living green. Strong decorative Đông Hồ lotus, sparse carved texture, not botanical engraving. Actual transparent alpha outside the plant, no paper ground, no matte halo, no black or checkered background. Output transparent PNG.",
+      "refs": [
+        "C:/Users/zerg/Projects/personal/grand-rts-game/public/art/menu-layer-lotus-v1.png",
+        "C:/Users/zerg/Projects/personal/grand-rts-game/public/art/story-prints/harvest-v1.webp",
+        "C:/Users/zerg/Projects/personal/grand-rts-game/public/art/story-prints/village-muster-v1.webp"
+      ]
+    },
+    {
+      "id": "bamboo",
+      "target": "public/art/menu-layer-bamboo-v1.png",
+      "prompt": "Use case: style-transfer. This is a production layer of a Vietnamese history game menu. Image 1 is the edit target: preserve its subject placement, exact 3:2 full canvas, empty areas and composition. Images 2 and 3 are approved Đông Hồ woodblock style references only; do not copy their people or buildings into this layer. Replace the faded sepia fine-etched rendering with the references' bold warm-black carved contours, broad flat opaque natural pigment blocks, sparse purposeful carved marks, very light print grain. Confident simple folk-art shapes legible on a 390px phone. Natural restrained colour, not rainbow, not neon, not monochrome. No brown aging veil, no photoreal shading, no gradients or dense engraving. No text, frames, logos or interface. BAMBOO LAYER ONLY: retain EXACT placement and silhouette of bamboo grove in LOWER RIGHT, bounding approximately x590..1494 y448..970 within original 1536x1024 canvas. Preserve the large empty transparent upper half and left side; do not center or enlarge. Around fourteen jointed stalks, bold calligraphic blade leaves, flat living moss-green and ochre culms, warm-black contours, sparse pale node cuts. Strong decorative Đông Hồ leaf clusters, no fine botanical crosshatch or faded grey. Actual transparent alpha outside plant shapes, no paper rectangle, no matte halo, no black or checkered background. Output transparent PNG.",
+      "refs": [
+        "C:/Users/zerg/Projects/personal/grand-rts-game/public/art/menu-layer-bamboo-v1.png",
+        "C:/Users/zerg/Projects/personal/grand-rts-game/public/art/story-prints/harvest-v1.webp",
+        "C:/Users/zerg/Projects/personal/grand-rts-game/public/art/story-prints/village-muster-v1.webp"
+      ]
+    }
+  ]
+}

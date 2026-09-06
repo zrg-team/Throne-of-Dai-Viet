@@ -3,12 +3,11 @@
 import fs from 'node:fs/promises';
 import { chromium } from 'playwright';
 
-const FILES = {
-  farmer: 'public/art/conquest-dongho/life/farmer-walk.png',
-  traveler: 'public/art/conquest-dongho/life/traveler-walk.png',
-  buffalo: 'public/art/conquest-dongho/life/buffalo-walk.png',
-  cart: 'public/art/conquest-dongho/life/ox-cart-walk.png',
-};
+const reviewed=JSON.parse(await fs.readFile('src/ui/conquestDongHoV4Walks.json','utf8'));
+const FILES=Object.fromEntries(['farmer','traveler','buffalo','ox-cart'].map(role=>[
+  role==='ox-cart'?'cart':role,
+  `public/${reviewed[`life.${role}-walk`]?.path??`art/conquest-dongho/life/${role}-walk.png`}`,
+]));
 
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage();

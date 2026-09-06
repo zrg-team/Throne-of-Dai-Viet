@@ -3,7 +3,7 @@
  * wander along them. Pairs with selected environment and item renderers.
  */
 import Phaser from 'phaser';
-import { buildRoadCurve } from '../../map/roadCurve';
+import { drawnRoadBetween } from '../../map/roadCurve';
 import { axialToPixel } from '../../map/hex';
 import {
   addNaturalTravelMotion,
@@ -432,20 +432,17 @@ export class TrafficRenderer {
     for (const land of state.lands) {
       for (const neighborId of land.neighbors) {
         const neighbor = state.lands.find((candidate) => candidate.id === neighborId);
-        if (
-          !neighbor ||
-          land.id > neighbor.id ||
-          !land.isVisible ||
-          !neighbor.isVisible ||
-          !this.hasSettlement(land) ||
-          !this.hasSettlement(neighbor)
-        ) {
+        // Each pair once, from the lower id: the orientation its meander is seeded on, and the
+        // one `drawnRoadBetween` reproduces for everything that walks it — carts, travellers
+        // and marching hosts alike.
+        if (!neighbor || land.id > neighbor.id) {
           continue;
         }
-
-        const from = getAnchor(land, neighbor);
-        const to = getAnchor(neighbor, land);
-        const curve = buildRoadCurve(state, from, to, `${land.id}|${neighbor.id}`, wx, wy, 11);
+        const road = drawnRoadBetween(state, land, neighbor, getAnchor, wx, wy);
+        if (!road) {
+          continue;
+        }
+        const { curve } = road;
         this.drawRoad(graphics, curve, this.roadWidth(land), this.roadWidth(neighbor));
         crossings.push({ curve, width: Math.max(this.roadWidth(land), this.roadWidth(neighbor)) });
       }
@@ -493,9 +490,14 @@ export class TrafficRenderer {
           continue;
         }
 
-        const from = getAnchor(land, neighbor);
-        const to = getAnchor(neighbor, land);
-        const curve = buildRoadCurve(state, from, to, key, wx, wy, 11);
+        // The road as it is drawn, not one of the cart's own. Keyed `farm|city`, this rebuilt the
+        // spline with its ends swapped whenever the farm's id sorted after the city's, and a
+        // swapped seed bows the meander to the other side — so half the carts rode the verge.
+        const road = drawnRoadBetween(state, land, neighbor, getAnchor, wx, wy);
+        if (!road) {
+          continue;
+        }
+        const { curve } = road;
         this.recordSpan(key, curve);
 
         const cart = this.mapItems.createCart();
@@ -538,9 +540,11 @@ export class TrafficRenderer {
           continue;
         }
 
-        const from = getAnchor(land, neighbor);
-        const to = getAnchor(neighbor, land);
-        const curve = buildRoadCurve(state, from, to, key, wx, wy, 11);
+        const road = drawnRoadBetween(state, land, neighbor, getAnchor, wx, wy);
+        if (!road) {
+          continue;
+        }
+        const { curve } = road;
         this.recordSpan(key, curve);
         const travelers: TrafficMover[] = [];
 

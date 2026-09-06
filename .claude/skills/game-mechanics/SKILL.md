@@ -52,6 +52,10 @@ director → defeat check → drain prompts.
 Deliberately **not** called in ascent: `runBotTurns`, `tickCampaignEvents`, `tickForeignAffairs`,
 `tickSpySystem`, `progressDirectives`, `checkVictory`.
 
+Both scenes write `state.tickPhase` (how far through the current tick the clock is, 0..1) every frame
+and just past each boundary; a fresh march starts its tick count at `-tickPhase` (`WarSystem.marchStartProgress`)
+so x seasons of march take x seasons of wall time. Headless the field is absent and counts start at 0.
+
 Pausing: `drainAscentPrompts` sets `isPaused` whenever a prompt is live and clears it when the
 queue empties. `isStrategyPause` is set by UI lane screens.
 
@@ -71,7 +75,7 @@ Per-land output stacks: terrain bonuses (water, rice, mountain) + roads + buildi
 Realm rates then subtract, in order: building upkeep, population food, army food/supplies
 pressure, hero payroll, army gold upkeep — and in **ascent only** a per-host burden, a per-province
 demand that ramps over the first 24 ticks, a gold soft cap above 500 (`500 + excess^0.82`) and
-6%/tick graft above 4000. `state.ascentLedger` records gross/demand/net per resource, which is
+6%/tick graft above max(4000, 12 seasons of gross). Every routine price (buildings, claims, musters, refits, rerolls, wonders) wears `realmPriceScale` = income scale × per-store wealth factor (`src/systems/ascent/priceScale.ts`); grain and goods prices wear their own store's hoard (`storePriceScale`), and the war/rival/envoy cards quote a share of the treasury as a floor. `state.ascentLedger` records gross/demand/net per resource, which is
 what `verify-economy.mjs` asserts against.
 
 Seasons move food: Spring ×1.1, Summer ×1.0, Autumn ×1.25, Winter ×0.8.

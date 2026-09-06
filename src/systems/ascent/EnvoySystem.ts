@@ -1,6 +1,8 @@
 import { PLAYER_KINGDOM_ID } from '../../game/constants';
 import {
   ALLY_AID_MIN_RELATIONS, BUYOFF_MIN_RELATIONS,
+  GIFT_TREASURY_SHARE,
+  PACT_TREASURY_SHARE,
 } from '../../game/ascentConfig';
 import { getEmpirePower, getFear, giftCost, giftOpinionGain, hasPact, proposePact } from '../DiplomacySystem';
 import {
@@ -76,8 +78,11 @@ function bestAmbassador(state: GameState): Hero | undefined {
  * with their price so the player learns what a warmer relationship would have cost.
  */
 export function buildEnvoyOptions(state: GameState, kingdom: Kingdom): EnvoyOption[] {
-  const gift = Math.ceil(giftCost(kingdom, state) * GIFT_TIERS.standard.mult);
-  const lavish = Math.ceil(giftCost(kingdom, state) * GIFT_TIERS.lavish.mult);
+  // Two seasons of income, or a slice of the treasury, whichever is more: a gift from a rich
+  // court that cost it nothing would not be one. See `GIFT_TREASURY_SHARE`.
+  const giftBase = Math.max(giftCost(kingdom, state), state.resources.gold * GIFT_TREASURY_SHARE);
+  const gift = Math.ceil(giftBase * GIFT_TIERS.standard.mult);
+  const lavish = Math.ceil(giftBase * GIFT_TIERS.lavish.mult);
   const ambassador = bestAmbassador(state);
   const alreadyPosted = Boolean(kingdom.ambassadorHeroId);
   const relations = kingdom.relations ?? 50;
@@ -132,7 +137,7 @@ export function buildEnvoyOptions(state: GameState, kingdom: Kingdom): EnvoyOpti
     // `hasPact` branch on this very card was permanently false.
     {
       id: 'pact',
-      cost: { gold: Math.round(Math.max(0, state.resourceRates.gold) * 12) },
+      cost: { gold: Math.round(Math.max(Math.max(0, state.resourceRates.gold) * 12, state.resources.gold * PACT_TREASURY_SHARE)) },
       affordable: relations >= 60 && !hasPact(kingdom)
         && state.court.influence >= TRADE_INFLUENCE_COST,
       blockedBy: relations >= 60 ? undefined : 'standing',

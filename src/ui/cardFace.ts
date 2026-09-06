@@ -8,6 +8,7 @@ import { getLanguage, t } from '../i18n';
 import { TITLE_FONT, UI_FONT } from './fonts';
 import type { AscentRarity } from '../state/types';
 import { registerGpuBake, unregisterGpuBake } from '../game/gpuBakes';
+import { addStoryPrint, powerStoryPrint } from './storyPrint';
 
 /**
  * The card face, baked. One RenderTexture per `(cardId, level, language)`, drawn once and
@@ -114,9 +115,11 @@ function buildCardFace(scene: Phaser.Scene, cardId: string, level: 1 | 2 | 3): P
   motifBox.lineStyle(0.9, INK_UI.brush, 0.3);
   motifBox.strokeRoundedRect(18, 28, W - 36, 92, 6);
   container.add(motifBox);
+  const print = addStoryPrint(scene, container, powerStoryPrint(cardId),
+    {x:18, y:28, width:W - 36, height:92});
   const glyph = drawCardIcon(scene, cardMotif(cardId), colour);
-  glyph.setPosition(W / 2, 28 + 46);
-  glyph.setScale((92 - 18) / CARD_ICON_SIZE / 2.1);
+  glyph.setPosition(print ? 20 : W / 2, print ? H - 30 : 28 + 46);
+  glyph.setScale((print ? 13 : (92 - 18) / 2.1) / CARD_ICON_SIZE);
   container.add(glyph);
 
   const band = scene.add.graphics();

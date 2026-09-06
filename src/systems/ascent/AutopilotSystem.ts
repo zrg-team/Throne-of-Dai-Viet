@@ -64,7 +64,7 @@ import { pushToast } from '../empire/notifications';
 import { t } from '../../i18n';
 import { enqueueAscentPrompt, standingHostCount } from './AscentState';
 import { defaultMusterPlan, musterBlockedReason } from './MusterSystem';
-import { realmPriceScale } from './priceScale';
+import { realmIncomeScale } from './priceScale';
 import { autoSellWaste } from './GranarySystem';
 import { getMusterEstimate } from '../WarSystem';
 import type { GameState, Land, LandBuildingType } from '../../state/types';
@@ -817,7 +817,9 @@ export function tickAscentAutopilot(state: GameState): void {
   const wageBill = heroPayroll(state) + ascentArmyUpkeep(state).gold + getTotalArmyGoldUpkeepAscent(state);
   // The flat reserve is a minimum host at the founding's prices; it wears the realm's price
   // scale so a rich realm's autopilot does not build down to a float that no longer buys one.
-  const buildReserve = Math.max(AUTOBUILD_GOLD_RESERVE * realmPriceScale(state), -state.resourceRates.gold * 8, wageBill * 4);
+  // The income scale alone: a reserve that grew with the hoard would be the hoard defending
+  // itself against being spent.
+  const buildReserve = Math.max(AUTOBUILD_GOLD_RESERVE * realmIncomeScale(state), -state.resourceRates.gold * 8, wageBill * 4);
   /**
    * **Nothing is bought while a muster card is standing.**
    *

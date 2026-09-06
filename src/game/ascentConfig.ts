@@ -711,7 +711,24 @@ export const MERCENARY_POWER_SHARE = 0.45;
  * a realm that hoarded for it can consider. Coin still buys survival — it stops buying an
  * unbounded amount of it.
  */
-export const WAR_PURCHASE_ESCALATION = 1.4;
+export const WAR_PURCHASE_ESCALATION = 1.3;
+
+// ── A rich crown pays a rich crown's price ───────────────────────────────────
+/**
+ * The share of the treasury a card's gold price is never below. Every price on the response and
+ * envoy cards was pegged to income, which a hoard leaves untouched: a realm holding sixty seasons
+ * of income was quoted the same wall as one holding four, bought it as a rounding error or
+ * refused it as pointless, and kept the pile either way. Quoting a share of what is held is what
+ * "a price that scales with my resources" means for the decisions that already cost thousands —
+ * and it is why the per-purchase escalation could ease from 1.4 to 1.3: the wealth, not the
+ * count, now does most of the work of keeping survival from being a win button.
+ */
+export const FORTIFY_TREASURY_SHARE = 0.18;
+export const MERCENARY_TREASURY_SHARE = 0.28;
+export const BUYOFF_TREASURY_SHARE = 0.35;
+export const TRIBUTE_TREASURY_SHARE = 0.3;
+export const PACT_TREASURY_SHARE = 0.25;
+export const GIFT_TREASURY_SHARE = 0.05;
 
 /**
  * Loyalty a newly-taken province regains per season. At 1.2 a bribed province (68) reaches full
@@ -753,12 +770,15 @@ export const TREASURY_GRAFT_FROM = 4000;
 export const TREASURY_GRAFT_RATE = 0.06;
 /**
  * Seasons of gross income a treasury may hold before graft begins, once that is more than the
- * flat floor above. Twenty-five, the same figure `GOLD_GLUT_SEASONS` calls a glut: the flat
- * 4,000 was set against a realm grossing a few hundred a season, and a realm grossing more is
- * saving toward things — a mercenary company is nine seasons of income, a fifth wall purchase
- * runs to several thousand — that the old floor taxed it for holding. See `treasuryGraftFrom`.
+ * flat floor above. The flat 4,000 was set against a realm grossing a few hundred a season, and
+ * a realm grossing more is saving toward things — a mercenary company is nine seasons of income —
+ * that the old floor taxed it for holding. Twelve, down from twenty-five: at twenty-five the
+ * careful driver ended holding fifty-nine seasons untouched, because with the response cards
+ * refused nothing else in the mode costs thousands. Twelve still clears the company and a
+ * buy-off, and past it a hoard is a decision the player is being asked to make. See
+ * `treasuryGraftFrom`.
  */
-export const TREASURY_GRAFT_SEASONS = 25;
+export const TREASURY_GRAFT_SEASONS = 12;
 
 // ── The scaled purse: routine prices grow with the realm ────────────────────
 /**
@@ -783,6 +803,33 @@ export const PRICE_SCALE_MAX = 6;
 /** Share of the gap to the live figure the smoothed scale closes each season (~2 seasons to halve). */
 export const PRICE_SCALE_SMOOTHING = 0.3;
 
+// ── The wealth factor: a hoard makes everything dearer ──────────────────────
+/**
+ * The income scale above was measured after it shipped (eight seeds, three drivers, 600
+ * seasons) and the treasury still piled: the naive spender peaked holding fifteen seasons of
+ * income, the land-reading player ended holding fourteen, and the careful one ended holding
+ * fifty-nine — 23,800 gold at a gross of 789 — because every routine price was tens to hundreds
+ * of coin against a pile in the thousands, and the only four-figure sinks were war cards that
+ * escalate until they are refused. Grain and goods had no scale at all: a soldier ate the same
+ * whatever the granary held. Reported as *"in the end my remaining gold, food and goods are a
+ * lot"*.
+ *
+ * So each store carries a factor of its own, multiplied onto the income scale: the seasons of the
+ * realm's own income (gold) or use (grain, goods) the store holds above the free seasons, to the
+ * half power, capped. A working balance pays nothing extra; a hoard pays for being one; and the
+ * grain a muster asks for grows with the granary the way its coin grows with the purse. Sub-linear
+ * and free for the first seasons so that saving toward a mercenary company — nine seasons of
+ * income — is a plan and not a treadmill: holding nine costs half again on the routine prices,
+ * holding sixty costs four times. Smoothed like the income scale, so a quoted price holds.
+ */
+export const PRICE_WEALTH_FREE_SEASONS = 4;
+export const PRICE_WEALTH_EXPONENT = 0.5;
+export const PRICE_WEALTH_MAX = 4;
+/** Grain or goods a realm may hold before any of it counts as a hoard: the founding's stores, twice. */
+export const PRICE_WEALTH_STORE_FLOOR = 600;
+/** A season's use below which a store's hoard is measured against this instead, so an empty ledger cannot divide by nothing. */
+export const PRICE_WEALTH_STORE_USE_FLOOR = 20;
+
 // ── The stores: grain rots, goods spoil, the markets sell ───────────────────
 /**
  * Seasons of the realm's own use a store may hold before the excess wastes, and the share of that
@@ -794,7 +841,7 @@ export const PRICE_SCALE_SMOOTHING = 0.3;
  * five percent of the excess a season lands the equilibrium near a dozen seasons of surplus
  * rather than a hundred, which is the same landing the treasury's graft was tuned to.
  */
-export const STORE_WASTE_SEASONS = 20;
+export const STORE_WASTE_SEASONS = 12;
 export const STORE_WASTE_RATE = 0.05;
 /** The founding realm's granary, so a district's first harvests are never taxed for being full. */
 export const STORE_WASTE_FLOOR = 600;

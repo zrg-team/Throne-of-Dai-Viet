@@ -355,16 +355,22 @@ export function bush(g: G, x: number, y: number, scale: number, seed: number): v
   }
   outline.push({ x: x + half, y });
   printedShape(g, outline, palette.evergreen, seed + 1, {
-    width: 0.55 * s,
-    alpha: 0.58,
+    width: 0.7 * s,
+    alpha: 0.85,
     wobble: 0.12 * s,
     step: 3,
-    fillAlpha: 0.78,
+    fillAlpha: 0.94,
   });
 
-  // One shaded lower lobe gives the tiny mark volume without growing it into a canopy.
-  g.fillStyle(shadePigment(palette.evergreen, 0.76), 0.42);
-  g.fillEllipse(x + half * 0.12, y - height * 0.24, half * 1.25, height * 0.42);
+  // A few carved leaf marks keep the shrub flat, like the neighbouring printed foliage.
+  for (const side of [-1, 0, 1]) {
+    const leafX = x + side * half * 0.48;
+    inkPath(g, [
+      { x: leafX - half * 0.12, y: y - height * 0.22 },
+      { x: leafX, y: y - height * 0.48 },
+      { x: leafX + half * 0.18, y: y - height * 0.57 },
+    ], seed + 10 + side, { width: 0.45 * s, alpha: 0.65, wobble: 0.08 * s, step: 3 });
+  }
   if (palette.snow) {
     g.fillStyle(PIGMENT.diepHi, 0.72);
     g.fillEllipse(x - half * 0.12, y - height * 0.72, half * 1.28, height * 0.26);
@@ -1421,7 +1427,7 @@ export interface ReliefPlan {
  * Đồi — low earth hills. Rounded, overlapping, with a ridgeline falling off each summit.
  * Karst is a mountain form; using it for hills gives a row of teeth.
  */
-export function planSoftRidge(x0: number, x1: number, baseY: number, height: number, seed: number): ReliefPlan {
+export function planSoftRidge(x0: number, x1: number, baseY: number, height: number, seed: number, fill = PIGMENT.diepLo): ReliefPlan {
   const rand = mulberry32(seed);
   const outline: Pt[] = [{ x: x0, y: baseY }];
   const peaks: Array<{ x: number; y: number; h: number; w: number; ridge: [number, number] }> = [];
@@ -1472,7 +1478,7 @@ export function planSoftRidge(x0: number, x1: number, baseY: number, height: num
       }
       return false;
     },
-    draw: (g: G) => drawSoftRidge(g, x0, x1, baseY, seed, outline, peaks),
+    draw: (g: G) => drawSoftRidge(g, x0, x1, baseY, seed, outline, peaks, fill),
   };
 }
 
@@ -1484,8 +1490,9 @@ function drawSoftRidge(
   seed: number,
   outline: Pt[],
   peaks: Array<{ x: number; y: number; h: number; w: number; ridge: [number, number] }>,
+  fill: number,
 ): void {
-  washFill(g, [...outline, { x: x1, y: baseY + 6 }, { x: x0, y: baseY + 6 }], PIGMENT.diepLo, seed, 1);
+  washFill(g, [...outline, { x: x1, y: baseY + 6 }, { x: x0, y: baseY + 6 }], fill, seed, 1);
   inkPath(g, outline, seed + 3, { width: 1.2, alpha: 0.8, wobble: 0.55, step: 10 });
 
   for (const peak of peaks) {
@@ -1521,8 +1528,8 @@ function drawSoftRidge(
 }
 
 /** Plans and inks in one go, for callers with no use for the order — the menu's horizon. */
-export function softRidge(g: G, x0: number, x1: number, baseY: number, height: number, seed: number): void {
-  planSoftRidge(x0, x1, baseY, height, seed).draw(g);
+export function softRidge(g: G, x0: number, x1: number, baseY: number, height: number, seed: number, fill = PIGMENT.diepLo): void {
+  planSoftRidge(x0, x1, baseY, height, seed, fill).draw(g);
 }
 
 /**

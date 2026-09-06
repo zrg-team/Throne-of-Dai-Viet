@@ -16,6 +16,13 @@ export const PIGMENT = {
   diepHi: 0xf3ecd8,
   diepLo: 0xd8c9a4,
   diepDeep: 0xc9b78c,
+  /**
+   * Điệp warmed three tenths of the way toward hoa hòe — the "vàng cái" sheet a printer makes by
+   * stirring hòe water into the shell paste. The fill under open ground and cropland in every
+   * season, because on a print that ground *is* the sheet and the calendar is stated by what
+   * stands in it. A mix of two pigments already here, not a new hue: `mixPigment(diep, hoePale, 0.3)`.
+   */
+  diepWarm: 0xe5d5ae,
 
   /** Mực nho — burnt bamboo-leaf soot. Warm, never blue-black. */
   muc: 0x2a2118,

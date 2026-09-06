@@ -10,6 +10,7 @@
  * sheet and returns — no card, no button.
  */
 import Phaser from 'phaser';
+import { storyPrintHeader } from '../../../ui/storyPrint';
 import { GAME_HEIGHT } from '../../../game/constants';
 import { isHeroUnlocked } from '../../../state/codex';
 import { doctrineBlurb, doctrineName } from '../../../systems/ascent/RealmDoctrineSystem';
@@ -157,7 +158,7 @@ export function showDecreeOffer(self: ConquestUIScene, prompt: Extract<AscentPro
       : instrument === 'sac' ? INK_UI.jade : INK_UI.softBrush;
 
   const cards: Phaser.GameObjects.Container[] = [];
-  let used = 0;
+  let used = storyPrintHeader(self, body, instrument === 'hich' ? 'muster' : instrument === 'le' ? 'harvest' : 'petition', bodyWidth);
   const addCard = (opts: { title: string; bodyText: string; note?: string; badge?: string; onTap: () => void }) => {
     const card = self.optionCard(
       { x: 0, y: used, width: bodyWidth, height: 76 },
@@ -242,7 +243,7 @@ export function showLawChoice(self: ConquestUIScene, prompt: Extract<AscentPromp
 
   const rowHeight = 80;
   const cards: Phaser.GameObjects.Container[] = [];
-  let cursor = 0;
+  let cursor = storyPrintHeader(self, body, 'petition', bodyWidth);
 
   prompt.projectIds.forEach((projectId) => {
     const view = lawCardView(self.state, projectId);

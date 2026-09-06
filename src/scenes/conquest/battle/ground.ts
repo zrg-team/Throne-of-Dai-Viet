@@ -148,7 +148,7 @@ export function buildBattleGround(self: ConquestUIScene, battle: AscentBattle): 
   // Three layers, in the order a print is built: distance, then the ground over its feet, then
   // everything standing on the ground.
   const far = self.add.graphics();
-  far.setAlpha(0.5);
+  far.setAlpha(0.72);
   field.add(far);
   clip.apply(far);
   const ground = self.add.graphics();
@@ -164,7 +164,7 @@ export function buildBattleGround(self: ConquestUIScene, battle: AscentBattle): 
   // The authored scenery rides above the ink of its own band, at the ink's own weight, and inside
   // the same clip and the same bake. A container rather than loose children so paint order inside
   // the band stays the order these are called in.
-  const props = self.add.container(0, 0).setAlpha(0.5);
+  const props = self.add.container(0, 0).setAlpha(0.72);
   field.add(props);
   clip.apply(props);
   const season = fieldSeason();
@@ -190,8 +190,8 @@ export function buildBattleGround(self: ConquestUIScene, battle: AscentBattle): 
   // a contour and a treeline and become the horizon. See the ground band below.
   // Run past the frame on purpose: the mask ends them, so the range reads as continuing behind
   // the border rather than as a row of hills that happens to stop at it.
-  softRidge(far, x0 - 20, x1 + 20, horizon + 8, ui.fieldHeight * 0.13, seed + 5);
-  softRidge(far, x0 - 20, x1 + 20, horizon + 8, ui.fieldHeight * 0.07, seed + 41);
+  softRidge(far, x0 - 20, x1 + 20, horizon + 8, ui.fieldHeight * 0.13, seed + 5, PIGMENT.chamPale);
+  softRidge(far, x0 - 20, x1 + 20, horizon + 8, ui.fieldHeight * 0.07, seed + 41, PIGMENT.tramPale);
 
   // ── 1. the ground ──────────────────────────────────────────────────────
   //
@@ -437,7 +437,7 @@ export function buildBattleForeground(self: ConquestUIScene, battle: AscentBattl
   g.setAlpha(0.5);
   field.add(g);
   clip.apply(g);
-  const props = self.add.container(0, 0).setAlpha(0.5);
+  const props = self.add.container(0, 0).setAlpha(0.72);
   field.add(props);
   clip.apply(props);
   clip.end(field);

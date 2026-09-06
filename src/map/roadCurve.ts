@@ -5,9 +5,51 @@
 import Phaser from 'phaser';
 import { createRng } from './random';
 import { hashString } from '../utils/math';
-import type { GameState } from '../state/types';
+import type { GameState, Land } from '../state/types';
 
 type WorldTransform = (value: number) => number;
+
+/** Where a road leaves a settlement toward a neighbour, in map units (`SettlementRenderer.getRoadEntrance`). */
+export type RoadAnchor = (land: Land, toward: Land) => { x: number; y: number };
+
+/** The runway every drawn road leaves its gates with — see `gateExit`. */
+export const ROAD_RUNWAY = 11;
+
+/**
+ * The road the map draws between two neighbouring provinces — the one and only one.
+ *
+ * `TrafficRenderer.drawConnections` draws a road for every settled, visible pair, from the lower
+ * id to the higher and keyed on that sorted pair. Anything that wants to *walk* the drawn road has
+ * to build precisely the same spline — same gates, same key, same runway — and walk it backwards
+ * when it is going from the higher id to the lower, because the meander is seeded on the sorted
+ * orientation and rebuilding with the ends swapped bows it to the other side of the road.
+ *
+ * Marching armies used to build a curve of their own, keyed `army|from|to` between seat centres,
+ * which is why a host cut across country beside the road it should have been on; and carts keyed
+ * `farm|city` unsorted, so every cart whose farm sorted after its city rode the verge.
+ *
+ * `undefined` when no road is drawn there: one end is wilderness, or has not been seen yet.
+ */
+export function drawnRoadBetween(
+  state: GameState,
+  from: Land,
+  to: Land,
+  roadAnchor: RoadAnchor,
+  wx: WorldTransform,
+  wy: WorldTransform,
+): { curve: Phaser.Curves.Spline; reversed: boolean } | undefined {
+  if (!from.hasVillage || !to.hasVillage || !from.isVisible || !to.isVisible) {
+    return undefined;
+  }
+  if (!from.neighbors.includes(to.id)) {
+    return undefined;
+  }
+  const reversed = from.id > to.id;
+  const lo = reversed ? to : from;
+  const hi = reversed ? from : to;
+  const curve = buildRoadCurve(state, roadAnchor(lo, hi), roadAnchor(hi, lo), `${lo.id}|${hi.id}`, wx, wy, ROAD_RUNWAY);
+  return { curve, reversed };
+}
 
 /**
  * A gently winding spline between two settlements: a couple of waypoints are nudged

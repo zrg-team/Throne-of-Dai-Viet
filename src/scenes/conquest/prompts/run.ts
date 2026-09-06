@@ -21,6 +21,7 @@ import { sawtoothBand, seal } from '../../../ui/ink/devices';
 import { THRONE_HALL_HEIGHT, throneHallDiorama } from '../../../ui/ascent/throneHall';
 import { CARD_STACK_PEEK, CardStack } from '../../../ui/ascent/CardStack';
 import { drawCardIcon, iconForOption } from '../../../ui/CardIcons';
+import { addStoryPrint, powerStoryPrint } from '../../../ui/storyPrint';
 import { staggerIn } from '../../../ui/animations';
 import { captureScreen } from '../../../ui/captureScreen';
 import { TITLE_FONT, UI_FONT } from '../../../ui/fonts';
@@ -122,12 +123,13 @@ export function showMandate(self: ConquestUIScene, prompt: Extract<AscentPrompt,
 
   const GAP = 8;
   const column = Math.floor((bodyWidth - GAP * 2) / 3);
+  const titleY = 70;
 
   // Pass one: build the text, keep it, and remember the tallest.
   const built = prompt.options.map((cardId, index) => {
     const view = powerCardView(self.state, cardId);
     const x = index * (column + GAP);
-    const title = self.ui.label(x + 10, 44, view?.name ?? cardId, 'label', {
+    const title = self.ui.label(x + 10, titleY, view?.name ?? cardId, 'label', {
       fontSize: '11.5px', align: 'center', wordWrap: { width: column - 20 },
     }).setFixedSize(column - 20, 0);
     const desc = self.add.text(x + 10, 0, view?.description ?? '', {
@@ -136,7 +138,7 @@ export function showMandate(self: ConquestUIScene, prompt: Extract<AscentPrompt,
     }).setFixedSize(column - 20, 0);
     return { cardId, x, title, desc };
   });
-  const headHeight = 44 + Math.max(...built.map((b) => b.title.height)) + 6;
+  const headHeight = titleY + Math.max(...built.map((b) => b.title.height)) + 6;
   const height = headHeight + Math.max(...built.map((b) => b.desc.height)) + 12;
 
   // The hands-on rule row, measured before the hall is drawn: the hall gets what the cards and the
@@ -148,7 +150,7 @@ export function showMandate(self: ConquestUIScene, prompt: Extract<AscentPrompt,
   // Pass two: surfaces behind the measured text, every column the same height.
   const cards = built.map(({ cardId, x, title, desc }) => {
     const card = self.add.container(x, top);
-    title.setPosition(10, 44);
+    title.setPosition(10, titleY);
     desc.setPosition(10, headHeight);
     const surface = self.ui.panel({ x: 0, y: 0, width: column, height },
       { border: INK_UI.brush, borderWidth: 1.2, borderAlpha: 0.52 });
@@ -157,9 +159,13 @@ export function showMandate(self: ConquestUIScene, prompt: Extract<AscentPrompt,
     wash.fillStyle(INK_UI.gold, 0.09);
     wash.fillRoundedRect(2, 2, column - 4, height - 4, 8);
     card.add(wash);
-    const glyph = drawCardIcon(self, iconForOption(cardId) ?? 'crown', INK_UI.gold);
-    glyph.setPosition(column / 2, 26);
-    card.add(glyph);
+    const print = addStoryPrint(self, card, powerStoryPrint(cardId),
+      { x: 6, y: 8, width: column - 12, height: 56 });
+    if (!print) {
+      const glyph = drawCardIcon(self, iconForOption(cardId) ?? 'crown', INK_UI.gold);
+      glyph.setPosition(column / 2, 36);
+      card.add(glyph);
+    }
     card.add(title);
     card.add(desc);
     const zone = self.add.zone(0, 0, column, height).setOrigin(0, 0).setInteractive({ useHandCursor: true });

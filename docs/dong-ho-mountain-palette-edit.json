@@ -1,0 +1,20 @@
+{
+  "generator": "built-in ImageGen",
+  "date": "2026-09-06",
+  "prompt": "Use case: precise-object-edit.\nAsset type: seven transparent Vietnamese historical RTS mountain and ridge sprites in one master sheet.\nInput image 1 is the EDIT TARGET. Change the colours only. Preserve its seven complete drawings, placement, sizes, peak counts, contours, every existing carved interior mark, ridge/rock/foliage boundaries, empty gutters and exact 3-column by 3-row reading order, with the last two cells empty. Preserve the Đông Hồ woodblock style and flat opaque pigment shapes.\nPrimary request: the mountains are too colourful. Make all seven quiet, low-saturation limestone mountains using one coherent restrained palette: dominant warm limestone greige (around #BAB39F), secondary muted slate grey (around #747977), and only a small amount of dusty grey-sage (around #7A816F) for the existing vegetation. Retain dark warm charcoal outlines (around #332E29). Replace every bright yellow, orange, rust-red, saturated blue and strong green patch with these subdued related stone tones. No orange/red accents or gold faces anywhere. The result should feel calm and earthy, almost monochrome, while the strong black contours and sparse carved curves still read as Đông Hồ. Keep clear separation between overlapping stone faces through restrained value differences, not many different hues.\nDo not redesign, reshape, move or simplify the drawings. Do not add gradients, realistic shading, fine hatch texture, snow, sky, mist, shadows, terrain, labels or a paper rectangle. Preserve all silhouettes and wide clear margins.\nOutput landscape 1536x1024. Genuine transparent alpha outside the objects if possible. If alpha cannot be produced, replace the existing painted checkerboard with one perfectly uniform exact #FF00FF production matte, including any empty holes. Do not paint a checkerboard, grey or white background. Never use magenta inside the subjects.",
+  "editTarget": "output/dongho-map-v4/masters/mountains-before-muted-palette.png",
+  "generatedFile": "exec-64d19084-5286-4fc8-8c39-beaa2f08bc6e.png",
+  "savedMaster": "output/dongho-map-v4/masters/mountains-grey-rejected.png",
+  "status": "Superseded at the user's request: this edit was too close to black and white.",
+  "supersededBy": "dong-ho-mountain-natural-colour-edit.json",
+  "runtimeDirectory": "public/art/conquest-dongho-v4/terrain",
+  "affectedAssets": [
+    "karst-range",
+    "soft-ridge",
+    "karst-classic",
+    "karst-three-spire",
+    "karst-seven-spire",
+    "karst-stepped",
+    "karst-tower"
+  ]
+}

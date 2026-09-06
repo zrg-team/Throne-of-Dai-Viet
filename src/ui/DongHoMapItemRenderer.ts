@@ -13,7 +13,6 @@ import { areca, bamboo, banyan, buffalo, farmer, groundShadow, hayStack, house, 
 import { grazeInSmallArea, livingSprite, setNativeFacing } from './ink/life';
 import { bakedBuffalo } from './ink/sprites';
 import { GROUND_SCALE } from './ink/proportion';
-import { BASE_SCALE_KEY } from './ink/stamp';
 
 /**
  * How much room the map gives a formation, against the plate geometry it inherits.
@@ -201,7 +200,7 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
       // **Hành quân.** A host between provinces closes up and files one block behind another;
       // standing, it keeps the doctrine's own spread arrangement. Same drawing either way — only
       // the geometry the blocks are laid out on changes.
-      kit?.marching
+      kit?.marching && kit.column
         ? marchPlanFacing(kit.marchHeading ?? 0, RANK_PER_FILE, marksFor(Math.max(1, total), kit.markCap))
         : undefined,
     );
@@ -1075,9 +1074,7 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
     // `scale: 1.09` discarded that fit and expanded a 20 px battle seal back to its 180 px source
     // size. Every scale animation is relative to the placed stamp's own scale. The glyph's world
     // position is deliberately never animated: progress badges are map pins, not wandering life.
-    const base = mark instanceof Phaser.GameObjects.Image
-      ? (mark.getData(BASE_SCALE_KEY) as number | undefined) ?? mark.scaleY
-      : 1;
+    const base = mark.scaleY;
     const spec = variant === 'acquisition'
       // A cash coin hung on its string, turning edge-on and back.
       ? { scaleX: base * 0.30, duration: 1500, ease: 'Sine.easeInOut' }
@@ -1107,38 +1104,36 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
     const g = scene.add.graphics();
     const ratio = Math.max(0, Math.min(1, progress / Math.max(1, required)));
     const urgent = variant === 'acquisition' || variant === 'siege' || variant === 'battle';
-    const w = 30;
-    const plate: Pt[] = [{ x: -w / 2, y: -9 }, { x: w / 2, y: -9 }, { x: w / 2, y: 5 }, { x: -w / 2, y: 5 }];
-    washFill(g, plate, PIGMENT.diepHi, 501, 0.92, 1);
-    inkPath(g, plate, 502, { width: 0.9, alpha: 0.55, wobble: 0.4, step: 8, closed: true });
-    inkPath(g, [{ x: -w / 2 + 3, y: 2 }, { x: w / 2 - 3, y: 2 }], 503, { width: 2, alpha: 0.18, wobble: 0.2, step: 8 });
+    const w = 60;
+    const plate: Pt[] = [{ x: -w / 2, y: -12 }, { x: w / 2, y: -12 }, { x: w / 2, y: 12 }, { x: -w / 2, y: 12 }];
+    washFill(g, plate, PIGMENT.diepHi, 501, 0.98, 0.25);
+    inkPath(g, plate, 502, { width: 0.9, alpha: 0.78, colour: urgent ? PIGMENT.son : PIGMENT.muc,
+      wobble: 0.2, step: 15, closed: true, bleed: 0.1 });
+    g.fillStyle(PIGMENT.muc, 0.12).fillRect(-5, 7, 29, 2);
     if (ratio > 0) {
-      inkPath(g, [{ x: -w / 2 + 3, y: 2 }, { x: -w / 2 + 3 + (w - 6) * ratio, y: 2 }], 504, {
-        width: 2, alpha: 0.85, colour: urgent ? PIGMENT.son : PIGMENT.giDong, wobble: 0.3, step: 7,
-      });
+      g.fillStyle(urgent ? PIGMENT.son : PIGMENT.tram, 0.9).fillRect(-5, 7, 29 * ratio, 2);
     }
-    // Every variant says what it is, above the scrap. The siege glyph in particular used to be
-    // nothing at all here, and a red ring with two straight strokes in the sibling renderer -
-    // which at this size reads as a cancel badge, not as swords.
-    // Drawn at its own origin and *placed*, rather than drawn at an offset. A glyph that carries
-    // its own y cannot be tweened: rotating or bobbing it would swing it about the badge's centre
-    // twenty-seven points below, which is a wheel and not a hammer falling.
+    // The glyph occupies its own cell beside the count, with its pivot at the cell centre.
     const generated = conquestArtStamp(scene, `marker.${variant}`, {
-      left: -12, right: 12, top: -12, bottom: 12,
+      left: -10, right: 10, top: -10, bottom: 10,
     });
     const mark = generated
-      ? placeStamp(scene, generated, 0, GLYPH_Y)
-      : scene.add.graphics().setPosition(0, GLYPH_Y);
-    if (mark instanceof Phaser.GameObjects.Graphics) this.orderGlyph(mark, variant, 0);
+      ? placeStamp(scene, generated, -17, 0).setOrigin(0.5)
+      : scene.add.graphics().setPosition(-17, 0);
+    if (mark instanceof Phaser.GameObjects.Graphics) {
+      this.orderGlyph(mark, variant, 0);
+      mark.setScale(variant === 'siege' || variant === 'battle' ? 0.55 : 0.82);
+    }
+    container.add(g);
     container.add(mark);
     this.animateOrderGlyph(container, mark, variant);
 
-    container.add(g);
     // Rounded, always. `order.progress` is a running fractional total, and printed raw it put
     // `9.31294468968111/100` across the middle of the map.
-    container.add(scene.add.text(0, -8, `${Math.round(progress)}/${Math.round(required)}`, {
+    container.add(scene.add.text(10, -8, `${Math.round(progress)}/${Math.round(required)}`, {
       color: '#2a2118', fontFamily: UI_FONT, fontSize: '9px', fontStyle: '700',
-    }).setOrigin(0.5, 0));
+    }).setOrigin(0.5, 0).setResolution(4));
+    container.setSize(w, 24).setData('mapAnnotation', 'progress');
     return container;
   }
 }

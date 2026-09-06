@@ -2911,6 +2911,11 @@ export interface AscentState {
    * save written before it existed loads at 1 and steps toward the live figure.
    */
   priceScale?: number;
+  /**
+   * The smoothed wealth factor of each store (`priceScale.ts`): what a hoard adds to the price
+   * of the things that store buys. Optional for the same save reason as `priceScale`.
+   */
+  wealthScale?: { gold: number; food: number; supplies: number };
   /** The opening's "what is the seat for?" card has been offered; it is asked once. */
   setupOrderOffered?: boolean;
   /** Lots of each store sold through the markets this season (`SALE_LOTS_PER_SEASON`), by turn. */
@@ -3023,6 +3028,17 @@ export interface GameState {
    */
   seasonTick?: number;
   realtimeSeconds: number;
+  /**
+   * How far through the current economy tick the world's clock is, 0..1 — written by the scene
+   * every frame, absent when the state runs headless.
+   *
+   * An order's ticks are banked at tick boundaries, so a march given late in a tick used to be
+   * most of a tick's progress ahead of the clock the moment it was given: a one-season march
+   * ordered two thirds of the way through a season arrived a third of a season later. A fresh
+   * march reads this to start that far *behind* zero, so a march of x seasons takes x seasons of
+   * wall time and resolves on the boundary after them — which is also what the map draws.
+   */
+  tickPhase?: number;
   ordersRemaining: number;
   resources: ResourceBag;
   resourceRates: ResourceBag;

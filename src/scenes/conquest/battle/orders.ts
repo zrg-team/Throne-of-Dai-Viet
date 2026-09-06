@@ -25,6 +25,7 @@ import { INK_UI, INK_UI_HEX, scrollGestureConsumedTap, type UIBounds } from '../
 import { writeText } from '../../../ui/textWrite';
 import { formationTier, FORMATION_RING } from '../../../data/ascent/formations';
 import { CARD_ICON_SIZE, drawCardIcon } from '../../../ui/CardIcons';
+import { PIGMENT } from '../../../ui/ink/palette';
 import { t } from '../../../i18n';
 import type { AscentBattle, FieldStance } from '../../../state/types';
 import {
@@ -168,7 +169,9 @@ export function buildBattleOrders(self: ConquestUIScene, battle: AscentBattle): 
     // No stance is ever refused, and no stance touches stamina: this dial is the trade and only
     // the trade — the lever a player reaches for while they wait for a pip.
     const chosen = (battle.stancePending ?? battle.stance) === id;
-    const tile = self.ui.crayonTile(bounds, { selected: chosen });
+    const tile = self.ui.crayonTile(bounds, {
+      selected: chosen, fill: chosen ? PIGMENT.hoePale : PIGMENT.diepHi,
+    });
     orders.add(tile);
     if (id === 'defend') {
       // The glow that answers "stuck with no pip in a beaten shape" is a *reading*, not part of
@@ -176,15 +179,20 @@ export function buildBattleOrders(self: ConquestUIScene, battle: AscentBattle): 
       dock.defendBounds = bounds;
       dock.defendChosen = chosen;
     }
-    orders.add(self.ui.label(
-      x + segW / 2, stanceY + BATTLE_STANCE_HEIGHT / 2,
+    const stanceIcon = drawCardIcon(self, id === 'defend' ? 'shield' : id === 'press' ? 'blade' : 'balance',
+      chosen ? PIGMENT.sonDeep : PIGMENT.muc);
+    orders.add(stanceIcon.setPosition(x + 13, stanceY + BATTLE_STANCE_HEIGHT / 2).setScale(15 / CARD_ICON_SIZE));
+    const stanceLabel = self.ui.label(
+      x + segW / 2 + 9, stanceY + BATTLE_STANCE_HEIGHT / 2,
       t(`ascent.stance.${id}` as Parameters<typeof t>[0]), 'label',
       {
         fontSize: '10.5px',
         align: 'center',
         color: chosen ? cssHex(INK_UI.cinnabar) : INK_UI_HEX.inkText,
       },
-    ).setOrigin(0.5));
+    ).setOrigin(0.5);
+    if (stanceLabel.width > segW - 29) stanceLabel.setScale((segW - 29) / stanceLabel.width);
+    orders.add(stanceLabel);
     const hit = self.add.zone(x, stanceY, segW, BATTLE_STANCE_HEIGHT).setOrigin(0, 0)
       .setInteractive({ useHandCursor: true });
     hit.on('pointerup', (pointer: Phaser.Input.Pointer) => {
@@ -237,12 +245,14 @@ export function buildBattleOrders(self: ConquestUIScene, battle: AscentBattle): 
     const held = battle.ourFormation === id && !reforming;
     const walking = reforming && battle.formationTarget === id;
 
-    const tile = self.ui.crayonTile(bounds, { selected: held || walking });
+    const tile = self.ui.crayonTile(bounds, {
+      selected: held || walking, fill: held || walking ? PIGMENT.hoePale : PIGMENT.diepHi,
+    });
     orders.add(tile);
 
-    // Four readings, no text: filled = held, full jade rim = the STRONG answer to their shape,
-    // faint jade = the soft answer at half tilt, red rim = loses to it. Easy and normal only —
-    // on hard and nightmare the rims are gone and the player has to find the answer by trying,
+    // Ochre + tick = held; green/up = advantage, red/down = disadvantage. Two marks mean
+    // the strong matchup; one is the softer effect. Easy and normal only —
+    // on hard and nightmare the hints are gone and the player has to find the answer by trying,
     // two pips at a time. That inference is the game; see `battleRimsShown`.
     let rim = 0;
     let rimAlpha = 0.95;
@@ -259,7 +269,20 @@ export function buildBattleOrders(self: ConquestUIScene, battle: AscentBattle): 
     if (rim) {
       const edge = self.add.graphics();
       edge.lineStyle(2, rim, rimAlpha);
-      edge.strokeRoundedRect(x + 1, formY + 1, chipW - 2, BATTLE_FORMATION_HEIGHT - 2, 6);
+      // A short printed rule leaves the selected contour distinct from the matchup cue.
+      edge.lineBetween(x + 5, formY + BATTLE_FORMATION_HEIGHT - 2, x + chipW - 5, formY + BATTLE_FORMATION_HEIGHT - 2);
+      if (!walking && !(held && battle.committed)) {
+        const tier = formationTier(id, answering!);
+        const cy = formY + BATTLE_FORMATION_HEIGHT - 9;
+        const cx = x + chipW - 12;
+        for (let mark = 0; mark < Math.abs(tier); mark += 1) {
+          const yy = cy - mark * 4;
+          const direction = tier > 0 ? -1 : 1;
+          edge.lineBetween(cx - 3, yy, cx, yy + direction * 2.5);
+          edge.lineBetween(cx, yy + direction * 2.5, cx + 3, yy);
+        }
+      }
+      edge.setData('battleMatchup', { id, tier: formationTier(id, answering!) });
       orders.add(edge);
     }
     // Dồn sức stands on the chip it was wagered on: a second rim inside the first, the mark of
@@ -293,7 +316,7 @@ export function buildBattleOrders(self: ConquestUIScene, battle: AscentBattle): 
      * structural — a re-form starting or landing changes the signature — so the glyph's band is
      * fixed for the life of this build; only the countdown's *text* moves per beat.
      */
-    const GLYPH = 15;
+    const GLYPH = 23;
     const verb = self.ui.label(
       0, 0, t(`ascent.formation.${id}.verb` as Parameters<typeof t>[0]), 'label',
       {
@@ -329,6 +352,14 @@ export function buildBattleOrders(self: ConquestUIScene, battle: AscentBattle): 
     const glyph = drawCardIcon(self, FORMATION_ICON[id], baseInk);
     glyph.setPosition(glyphX, glyphY).setScale(glyphScale);
     orders.add(glyph);
+    if (held && !committedHere) {
+      const check = self.add.graphics().setData('battleSelected', id);
+      check.lineStyle(2, PIGMENT.sonDeep, 1);
+      const cy = formY + BATTLE_FORMATION_HEIGHT - 9;
+      check.lineBetween(x + 7, cy, x + 10, cy + 3);
+      check.lineBetween(x + 10, cy + 3, x + 16, cy - 3);
+      orders.add(check);
+    }
 
     if (noteLabel) {
       noteLabel.setPosition(x + chipW / 2, formY + BATTLE_FORMATION_HEIGHT - 3 - noteLabel.height);

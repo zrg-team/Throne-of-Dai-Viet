@@ -1,0 +1,302 @@
+{
+  "checks": [
+    {
+      "pass": true,
+      "label": "vi-620: opening drum hides matchup hints"
+    },
+    {
+      "pass": true,
+      "label": "vi-620: all five large glyphs fit between labels and state notes",
+      "detail": {
+        "count": 5,
+        "fits": true,
+        "icons": [
+          "person",
+          "heart",
+          "person",
+          "heart"
+        ],
+        "selected": true,
+        "hints": [
+          {
+            "id": "chong",
+            "tier": -2
+          },
+          {
+            "id": "xung",
+            "tier": -1
+          },
+          {
+            "id": "tan",
+            "tier": 1
+          },
+          {
+            "id": "quy",
+            "tier": 2
+          }
+        ],
+        "bars": true,
+        "live": true
+      }
+    },
+    {
+      "pass": true,
+      "label": "vi-620: both armies show troop and morale gauges"
+    },
+    {
+      "pass": true,
+      "label": "vi-620: a live fight has a visible current-shape checkmark"
+    },
+    {
+      "pass": true,
+      "label": "vi-620: normal difficulty shows advantage and disadvantage",
+      "detail": [
+        {
+          "id": "chong",
+          "tier": -2
+        },
+        {
+          "id": "xung",
+          "tier": -1
+        },
+        {
+          "id": "tan",
+          "tier": 1
+        },
+        {
+          "id": "quy",
+          "tier": 2
+        }
+      ]
+    },
+    {
+      "pass": true,
+      "label": "vi-620: hard difficulty reveals no matchup hints"
+    },
+    {
+      "pass": true,
+      "label": "vi-844: opening drum hides matchup hints"
+    },
+    {
+      "pass": true,
+      "label": "vi-844: all five large glyphs fit between labels and state notes",
+      "detail": {
+        "count": 5,
+        "fits": true,
+        "icons": [
+          "person",
+          "heart",
+          "person",
+          "heart"
+        ],
+        "selected": true,
+        "hints": [
+          {
+            "id": "chong",
+            "tier": -2
+          },
+          {
+            "id": "xung",
+            "tier": -1
+          },
+          {
+            "id": "tan",
+            "tier": 1
+          },
+          {
+            "id": "quy",
+            "tier": 2
+          }
+        ],
+        "bars": true,
+        "live": true
+      }
+    },
+    {
+      "pass": true,
+      "label": "vi-844: both armies show troop and morale gauges"
+    },
+    {
+      "pass": true,
+      "label": "vi-844: a live fight has a visible current-shape checkmark"
+    },
+    {
+      "pass": true,
+      "label": "vi-844: normal difficulty shows advantage and disadvantage",
+      "detail": [
+        {
+          "id": "chong",
+          "tier": -2
+        },
+        {
+          "id": "xung",
+          "tier": -1
+        },
+        {
+          "id": "tan",
+          "tier": 1
+        },
+        {
+          "id": "quy",
+          "tier": 2
+        }
+      ]
+    },
+    {
+      "pass": true,
+      "label": "vi-844: hard difficulty reveals no matchup hints"
+    },
+    {
+      "pass": true,
+      "label": "en-620: opening drum hides matchup hints"
+    },
+    {
+      "pass": true,
+      "label": "en-620: all five large glyphs fit between labels and state notes",
+      "detail": {
+        "count": 5,
+        "fits": true,
+        "icons": [
+          "person",
+          "heart",
+          "person",
+          "heart"
+        ],
+        "selected": true,
+        "hints": [
+          {
+            "id": "chong",
+            "tier": -2
+          },
+          {
+            "id": "xung",
+            "tier": -1
+          },
+          {
+            "id": "tan",
+            "tier": 1
+          },
+          {
+            "id": "quy",
+            "tier": 2
+          }
+        ],
+        "bars": true,
+        "live": true
+      }
+    },
+    {
+      "pass": true,
+      "label": "en-620: both armies show troop and morale gauges"
+    },
+    {
+      "pass": true,
+      "label": "en-620: a live fight has a visible current-shape checkmark"
+    },
+    {
+      "pass": true,
+      "label": "en-620: normal difficulty shows advantage and disadvantage",
+      "detail": [
+        {
+          "id": "chong",
+          "tier": -2
+        },
+        {
+          "id": "xung",
+          "tier": -1
+        },
+        {
+          "id": "tan",
+          "tier": 1
+        },
+        {
+          "id": "quy",
+          "tier": 2
+        }
+      ]
+    },
+    {
+      "pass": true,
+      "label": "en-620: hard difficulty reveals no matchup hints"
+    },
+    {
+      "pass": true,
+      "label": "en-844: opening drum hides matchup hints"
+    },
+    {
+      "pass": true,
+      "label": "en-844: all five large glyphs fit between labels and state notes",
+      "detail": {
+        "count": 5,
+        "fits": true,
+        "icons": [
+          "person",
+          "heart",
+          "person",
+          "heart"
+        ],
+        "selected": true,
+        "hints": [
+          {
+            "id": "chong",
+            "tier": -2
+          },
+          {
+            "id": "xung",
+            "tier": -1
+          },
+          {
+            "id": "tan",
+            "tier": 1
+          },
+          {
+            "id": "quy",
+            "tier": 2
+          }
+        ],
+        "bars": true,
+        "live": true
+      }
+    },
+    {
+      "pass": true,
+      "label": "en-844: both armies show troop and morale gauges"
+    },
+    {
+      "pass": true,
+      "label": "en-844: a live fight has a visible current-shape checkmark"
+    },
+    {
+      "pass": true,
+      "label": "en-844: normal difficulty shows advantage and disadvantage",
+      "detail": [
+        {
+          "id": "chong",
+          "tier": -2
+        },
+        {
+          "id": "xung",
+          "tier": -1
+        },
+        {
+          "id": "tan",
+          "tier": 1
+        },
+        {
+          "id": "quy",
+          "tier": 2
+        }
+      ]
+    },
+    {
+      "pass": true,
+      "label": "en-844: hard difficulty reveals no matchup hints"
+    },
+    {
+      "pass": true,
+      "label": "no browser errors",
+      "detail": []
+    }
+  ],
+  "errors": []
+}

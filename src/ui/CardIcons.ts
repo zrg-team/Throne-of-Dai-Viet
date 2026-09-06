@@ -1,13 +1,11 @@
 import Phaser from 'phaser';
-import { INK } from './inkTheme';
+import { PIGMENT } from './ink/palette';
 
 /**
  * Small hand-inked glyphs for the prompt cards.
  *
- * Drawn in code rather than loaded as art, for the same reason the map's seals, flags and
- * soldiers are: this game's whole visual identity is procedural ink, and a folder of SVGs would
- * need its own palette maintained in parallel with `inkTheme`. These inherit it for free, cost
- * no load time, and stay legible at the one size the cards use them.
+ * Code-native symbols share the print palette with the illustrated cards and map assets.
+ * Broad silhouettes, flat pigment and warm-black contours stay readable at phone size.
  *
  * They also replace the emoji that had been hardcoded *inside* the wave-response card's
  * translated strings (`"⚔ Send {hero} and raise a host"`) — icons in translated text is the
@@ -23,7 +21,7 @@ export type CardIconId =
   | 'hourglass' | 'book' | 'skull' | 'cup' | 'hammer' | 'gear' | 'globe' | 'phone' | 'install'
   // The world clock's two faces. Not the hourglass: its crossed strokes are mud at the exits
   // row's 14-unit scale, and pause/play are the two glyphs nobody has ever had to learn.
-  | 'pause' | 'play'
+  | 'pause' | 'play' | 'heart' | 'balance'
   // The five shapes of the fight screen's fast dial. `shield` and `blade` are spoken for
   // elsewhere, and a formation chip that shared a glyph with a conquest method would read as
   // the same thing twice, so these are their own.
@@ -157,18 +155,21 @@ export function iconForOption(optionId: string): CardIconId | undefined {
 export function drawCardIcon(
   scene: Phaser.Scene,
   id: CardIconId,
-  color: number = INK.ink,
+  color: number = PIGMENT.muc,
 ): Phaser.GameObjects.Container {
   const container = scene.add.container(0, 0);
   const g = scene.add.graphics();
   const line = (w: number): void => { g.lineStyle(w, color, 0.95); };
   const fill = (alpha = 0.9): void => { g.fillStyle(color, alpha); };
   const r = CARD_ICON_SIZE / 2;
+  container.setData('cardIcon', id);
 
   switch (id) {
     case 'coin':
-      line(2); g.strokeCircle(0, 0, r - 4);
-      line(1.4); g.strokeCircle(0, 0, r - 9);
+      g.fillStyle(PIGMENT.hoePale, 1); g.fillCircle(0, 0, r - 3);
+      line(2); g.strokeCircle(0, 0, r - 3);
+      g.fillStyle(PIGMENT.diepHi, 1); g.fillRect(-3, -3, 6, 6);
+      line(1.8); g.strokeRect(-3, -3, 6, 6);
       break;
 
     case 'purse':
@@ -185,18 +186,35 @@ export function drawCardIcon(
       break;
 
     case 'blade':
-      // Blade, then crossguard, then pommel — without the last two it read as a tick mark.
-      line(2.4); g.lineBetween(-5, 7, 7, -9);
-      line(2); g.lineBetween(-8, 0, -1, 7);
-      line(2.2); g.lineBetween(-9, 8, -4, 3);
+      g.fillStyle(PIGMENT.hoePale, 1);
+      g.fillTriangle(-4, 2, 8, -10, 2, 6);
+      line(2); g.strokeTriangle(-4, 2, 8, -10, 2, 6);
+      line(2.5); g.lineBetween(-7, 0, 2, 8);
+      line(3); g.lineBetween(-3, 5, -8, 10);
       break;
 
     case 'shield':
+      g.fillStyle(PIGMENT.hoePale, 1);
       line(2);
       g.beginPath();
       g.moveTo(0, -10); g.lineTo(9, -6); g.lineTo(9, 3);
       g.lineTo(0, 11); g.lineTo(-9, 3); g.lineTo(-9, -6);
-      g.closePath(); g.strokePath();
+      g.closePath(); g.fillPath(); g.strokePath();
+      line(1.5); g.lineBetween(0, -6, 0, 6);
+      break;
+
+    case 'heart':
+      fill(1);
+      g.fillCircle(-4.5, -3.5, 5.5); g.fillCircle(4.5, -3.5, 5.5);
+      g.fillTriangle(-9, 0, 9, 0, 0, 10);
+      break;
+
+    case 'balance':
+      // Two equal weights: the neutral posture between shelter and attack.
+      line(2.2); g.lineBetween(0, -10, 0, 10); g.lineBetween(-7, 10, 7, 10);
+      g.lineBetween(-9, -5, 9, -5);
+      line(1.6); g.lineBetween(-8, -5, -8, 2); g.lineBetween(8, -5, 8, 2);
+      fill(); g.fillTriangle(-12, 2, -4, 2, -8, 6); g.fillTriangle(4, 2, 12, 2, 8, 6);
       break;
 
     case 'wall':
@@ -211,54 +229,50 @@ export function drawCardIcon(
 
     // ── the five shapes ──────────────────────────────────────────────────
     //
-    // Drawn at 16px on the chip, so the silhouette is the entire job: whatever survives being
-    // squinted at is the icon, and anything finer is a smudge. Each one is the *arrangement*
-    // the shape puts its men in, seen from above — the same reading the field gives, small.
+    // Formation commands use the same symbols in the dock, the speech bubbles and the guide.
+    // A weapon or a direction states the action; no fine pattern is needed to tell them apart.
 
     case 'spears':
-      // A hedge: one rank across the front, points levelled over it.
-      line(2); g.lineBetween(-11, 4, 11, 4);
-      line(1.8);
-      for (let x = -9; x <= 9; x += 6) g.lineBetween(x, 2, x, -9);
+      // Three broad spearheads survive a phone-sized chip.
+      line(2.2);
+      for (const x of [-8, 0, 8]) {
+        g.lineBetween(x, 9, x, -5);
+        fill(1); g.fillTriangle(x, -12, x - 3, -4, x + 3, -4);
+      }
+      g.lineBetween(-11, 7, 11, 7);
       break;
 
     case 'horse':
-      // A wedge, in ranks of one, two, three. The point is what the shape is for.
-      fill();
-      g.fillTriangle(0, -10, -3.2, -3.4, 3.2, -3.4);
-      g.fillCircle(-4.6, 1.6, 2.1); g.fillCircle(4.6, 1.6, 2.1);
-      g.fillCircle(-8.4, 7, 2.1); g.fillCircle(0, 7, 2.1); g.fillCircle(8.4, 7, 2.1);
+      // A forward wedge, not a cavalry promise: every army can charge.
+      fill(1); g.fillTriangle(0, -12, -8, -2, 8, -2);
+      line(3); g.lineBetween(0, -3, 0, 8);
+      line(2.5); g.lineBetween(-10, 9, -6, 3); g.lineBetween(10, 9, 6, 3);
       break;
 
     case 'skirmish':
-      // Scattered: no rank, no file, nothing solid to hit. The gaps carry the meaning, so the
-      // dots are deliberately off any grid a viewer could infer one from.
-      fill();
-      g.fillCircle(-9, -6, 2); g.fillCircle(-1, -9, 2); g.fillCircle(7, -4, 2);
-      g.fillCircle(-6, 2, 2); g.fillCircle(2, 0, 2); g.fillCircle(10, 4, 2);
-      g.fillCircle(-9, 9, 2); g.fillCircle(1, 8, 2);
+      // Outward arrows show dispersal; three separate men keep the gaps visible.
+      line(2.2); g.lineBetween(-2, -1, -10, -9); g.lineBetween(2, -1, 10, -9);
+      g.lineBetween(-10, -9, -4, -9); g.lineBetween(-10, -9, -10, -3);
+      g.lineBetween(10, -9, 4, -9); g.lineBetween(10, -9, 10, -3);
+      fill(1); g.fillCircle(-9, 7, 2.8); g.fillCircle(0, 3, 2.8); g.fillCircle(9, 7, 2.8);
       break;
 
     case 'tortoise':
-      // Closed up: a packed block behind one unbroken face. Drawn as an outline with the ranks
-      // inside it, because what a player has to see is that there are no gaps.
-      line(2.2); g.strokeRect(-8, -8, 16, 16);
-      line(1.4);
-      g.lineBetween(-8, -2.7, 8, -2.7);
-      g.lineBetween(-8, 2.7, 8, 2.7);
-      g.lineBetween(-2.7, -8, -2.7, 8);
-      g.lineBetween(2.7, -8, 2.7, 8);
+      // Overlapping shields, instead of an abstract nine-cell grid.
+      for (const x of [-5, 5]) {
+        g.fillStyle(PIGMENT.hoePale, 1); line(2);
+        g.beginPath(); g.moveTo(x - 5, -9); g.lineTo(x + 5, -9);
+        g.lineTo(x + 5, 3); g.lineTo(x, 10); g.lineTo(x - 5, 3);
+        g.closePath(); g.fillPath(); g.strokePath();
+        line(1.5); g.lineBetween(x, -5, x, 3);
+      }
       break;
 
     case 'bows':
-      // Shot in the air: three arrows falling, and the rank they were loosed from.
-      line(1.8);
-      for (let x = -7; x <= 7; x += 7) {
-        g.lineBetween(x, -10, x, -1);
-        g.lineBetween(x - 2.4, -3.6, x, -1);
-        g.lineBetween(x + 2.4, -3.6, x, -1);
-      }
-      line(2.2); g.lineBetween(-11, 6, 11, 6);
+      line(2.8); g.beginPath(); g.arc(-6, 0, 10, -Math.PI / 2, Math.PI / 2); g.strokePath();
+      line(1.6); g.lineBetween(-6, -10, -6, 10);
+      line(2.2); g.lineBetween(-10, 0, 11, 0);
+      g.lineBetween(11, 0, 6, -4); g.lineBetween(11, 0, 6, 4);
       break;
 
     case 'hut':

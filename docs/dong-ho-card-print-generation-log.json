@@ -1,0 +1,505 @@
+{
+  "mode": "built-in ImageGen",
+  "assets": [
+    {
+      "id": "iron-levy",
+      "generatedSource": "C:\\Users\\zerg\\.codex\\generated_images\\01a071d8-5271-7a63-9aee-2621213d96a4\\exec-ef2456b3-2b16-47f5-b317-60500d0d38a0.png",
+      "master": "output/dongho-card-prints/masters/iron-levy.png",
+      "runtime": "public/art/story-prints/iron-levy-v1.webp",
+      "width": 576,
+      "height": 384,
+      "bytes": 68040,
+      "prompt": "docs/dong-ho-card-print-prompts.json#iron-levy"
+    },
+    {
+      "id": "rice-tribute",
+      "generatedSource": "C:\\Users\\zerg\\.codex\\generated_images\\01a071d8-5271-7a63-9aee-2621213d96a4\\exec-b63e4800-9774-42e6-87d8-2ef070e1ca68.png",
+      "master": "output/dongho-card-prints/masters/rice-tribute.png",
+      "runtime": "public/art/story-prints/rice-tribute-v1.webp",
+      "width": 576,
+      "height": 384,
+      "bytes": 65932,
+      "prompt": "docs/dong-ho-card-print-prompts.json#rice-tribute"
+    },
+    {
+      "id": "salt-roads",
+      "generatedSource": "C:\\Users\\zerg\\.codex\\generated_images\\01a071d8-5271-7a63-9aee-2621213d96a4\\exec-5adbfa48-095d-40a1-82bb-cfd5babd62e8.png",
+      "master": "output/dongho-card-prints/masters/salt-roads.png",
+      "runtime": "public/art/story-prints/salt-roads-v1.webp",
+      "width": 576,
+      "height": 384,
+      "bytes": 73898,
+      "prompt": "docs/dong-ho-card-print-prompts.json#salt-roads"
+    },
+    {
+      "id": "feigned-retreat",
+      "generatedSource": "C:\\Users\\zerg\\.codex\\generated_images\\01a071d8-5271-7a63-9aee-2621213d96a4\\exec-9adba454-a6f0-4e18-930f-68aba3853ee9.png",
+      "master": "output/dongho-card-prints/masters/feigned-retreat.png",
+      "runtime": "public/art/story-prints/feigned-retreat-v1.webp",
+      "width": 576,
+      "height": 384,
+      "bytes": 70776,
+      "prompt": "docs/dong-ho-card-print-prompts.json#feigned-retreat"
+    },
+    {
+      "id": "village-muster",
+      "generatedSource": "C:\\Users\\zerg\\.codex\\generated_images\\01a071d8-5271-7a63-9aee-2621213d96a4\\exec-0a3df535-111b-4ba0-9e21-3df792711e2e.png",
+      "master": "output/dongho-card-prints/masters/village-muster.png",
+      "runtime": "public/art/story-prints/village-muster-v1.webp",
+      "width": 576,
+      "height": 384,
+      "bytes": 78050,
+      "prompt": "docs/dong-ho-card-print-prompts.json#village-muster"
+    },
+    {
+      "id": "bronze-drums",
+      "generatedSource": "C:\\Users\\zerg\\.codex\\generated_images\\01a071d8-5271-7a63-9aee-2621213d96a4\\exec-31ffc8f1-0fc6-4122-9af4-ef4f6c092478.png",
+      "master": "output/dongho-card-prints/masters/bronze-drums.png",
+      "runtime": "public/art/story-prints/bronze-drums-v1.webp",
+      "width": 576,
+      "height": 384,
+      "bytes": 56586,
+      "prompt": "docs/dong-ho-card-print-prompts.json#bronze-drums"
+    },
+    {
+      "id": "corvee-labour",
+      "generatedSource": "C:\\Users\\zerg\\.codex\\generated_images\\01a071d8-5271-7a63-9aee-2621213d96a4\\exec-ccb2fd3e-89be-4a2e-95f7-97fc66a57b7b.png",
+      "master": "output/dongho-card-prints/masters/corvee-labour.png",
+      "runtime": "public/art/story-prints/corvee-labour-v1.webp",
+      "width": 576,
+      "height": 384,
+      "bytes": 62400,
+      "prompt": "docs/dong-ho-card-print-prompts.json#corvee-labour"
+    },
+    {
+      "id": "granary-edict",
+      "generatedSource": "C:\\Users\\zerg\\.codex\\generated_images\\01a071d8-5271-7a63-9aee-2621213d96a4\\exec-07227b05-07c3-457f-8318-693d2797d6b3.png",
+      "master": "output/dongho-card-prints/masters/granary-edict.png",
+      "runtime": "public/art/story-prints/granary-edict-v1.webp",
+      "width": 576,
+      "height": 384,
+      "bytes": 71212,
+      "prompt": "docs/dong-ho-card-print-prompts.json#granary-edict"
+    },
+    {
+      "id": "earthen-ramparts",
+      "generatedSource": "C:\\Users\\zerg\\.codex\\generated_images\\01a071d8-5271-7a63-9aee-2621213d96a4\\exec-3f022b62-6811-4457-b773-bec3e1292287.png",
+      "master": "output/dongho-card-prints/masters/earthen-ramparts.png",
+      "runtime": "public/art/story-prints/earthen-ramparts-v1.webp",
+      "width": 576,
+      "height": 384,
+      "bytes": 75012,
+      "prompt": "docs/dong-ho-card-print-prompts.json#earthen-ramparts"
+    },
+    {
+      "id": "bamboo-palisade",
+      "generatedSource": "C:\\Users\\zerg\\.codex\\generated_images\\01a071d8-5271-7a63-9aee-2621213d96a4\\exec-e762a497-7b15-45ef-8b47-20c86f1f534d.png",
+      "master": "output/dongho-card-prints/masters/bamboo-palisade.png",
+      "runtime": "public/art/story-prints/bamboo-palisade-v1.webp",
+      "width": 576,
+      "height": 384,
+      "bytes": 72508,
+      "prompt": "docs/dong-ho-card-print-prompts.json#bamboo-palisade"
+    },
+    {
+      "id": "mountain-pass",
+      "generatedSource": "C:\\Users\\zerg\\.codex\\generated_images\\01a071d8-5271-7a63-9aee-2621213d96a4\\exec-6dca456b-7a57-4f7d-91af-e7821eff731b.png",
+      "master": "output/dongho-card-prints/masters/mountain-pass.png",
+      "runtime": "public/art/story-prints/mountain-pass-v1.webp",
+      "width": 576,
+      "height": 384,
+      "bytes": 83150,
+      "prompt": "docs/dong-ho-card-print-prompts.json#mountain-pass"
+    },
+    {
+      "id": "surveyors-corps",
+      "generatedSource": "C:\\Users\\zerg\\.codex\\generated_images\\01a071d8-5271-7a63-9aee-2621213d96a4\\exec-8f1effd1-93fb-447e-ba6a-bfd582f0afe2.png",
+      "master": "output/dongho-card-prints/masters/surveyors-corps.png",
+      "runtime": "public/art/story-prints/surveyors-corps-v1.webp",
+      "width": 576,
+      "height": 384,
+      "bytes": 83146,
+      "prompt": "docs/dong-ho-card-print-prompts.json#surveyors-corps"
+    },
+    {
+      "id": "bronze-drum",
+      "generatedSource": "C:\\Users\\zerg\\.codex\\generated_images\\01a071d8-5271-7a63-9aee-2621213d96a4\\exec-0d3c33a6-a9e8-447a-bf89-3c72a8b20f89.png",
+      "master": "output/dongho-card-prints/masters/bronze-drum.png",
+      "runtime": "public/art/story-prints/bronze-drum-v1.webp",
+      "width": 576,
+      "height": 384,
+      "bytes": 69402,
+      "prompt": "docs/dong-ho-card-print-prompts.json#bronze-drum"
+    },
+    {
+      "id": "royal-guard",
+      "generatedSource": "C:\\Users\\zerg\\.codex\\generated_images\\01a071d8-5271-7a63-9aee-2621213d96a4\\exec-a0fa711e-34a1-4ed6-8355-6de060514e3c.png",
+      "master": "output/dongho-card-prints/masters/royal-guard.png",
+      "runtime": "public/art/story-prints/royal-guard-v1.webp",
+      "width": 576,
+      "height": 384,
+      "bytes": 74454,
+      "prompt": "docs/dong-ho-card-print-prompts.json#royal-guard"
+    },
+    {
+      "id": "fire-arrows",
+      "generatedSource": "C:\\Users\\zerg\\.codex\\generated_images\\01a071d8-5271-7a63-9aee-2621213d96a4\\exec-81fcc43c-e038-4672-9d6e-ac345557b745.png",
+      "master": "output/dongho-card-prints/masters/fire-arrows.png",
+      "runtime": "public/art/story-prints/fire-arrows-v1.webp",
+      "width": 576,
+      "height": 384,
+      "bytes": 64022,
+      "prompt": "docs/dong-ho-card-print-prompts.json#fire-arrows"
+    },
+    {
+      "id": "twice-born",
+      "generatedSource": "C:\\Users\\zerg\\.codex\\generated_images\\01a071d8-5271-7a63-9aee-2621213d96a4\\exec-165a817a-b49e-486e-bb5b-8bc8d2d8e881.png",
+      "master": "output/dongho-card-prints/masters/twice-born.png",
+      "runtime": "public/art/story-prints/twice-born-v1.webp",
+      "width": 576,
+      "height": 384,
+      "bytes": 59888,
+      "prompt": "docs/dong-ho-card-print-prompts.json#twice-born"
+    },
+    {
+      "id": "mandarin-academy",
+      "generatedSource": "C:\\Users\\zerg\\.codex\\generated_images\\01a071d8-5271-7a63-9aee-2621213d96a4\\exec-d199d432-6c7a-415c-b7e1-2f9c182b5d8c.png",
+      "master": "output/dongho-card-prints/masters/mandarin-academy.png",
+      "runtime": "public/art/story-prints/mandarin-academy-v1.webp",
+      "width": 576,
+      "height": 384,
+      "bytes": 66666,
+      "prompt": "docs/dong-ho-card-print-prompts.json#mandarin-academy"
+    },
+    {
+      "id": "war-drums",
+      "generatedSource": "C:\\Users\\zerg\\.codex\\generated_images\\01a071d8-5271-7a63-9aee-2621213d96a4\\exec-965ece26-5aa8-45ca-8d64-eca8bbaa0b27.png",
+      "master": "output/dongho-card-prints/masters/war-drums.png",
+      "runtime": "public/art/story-prints/war-drums-v1.webp",
+      "width": 576,
+      "height": 384,
+      "bytes": 67852,
+      "prompt": "docs/dong-ho-card-print-prompts.json#war-drums"
+    },
+    {
+      "id": "dragon-standard",
+      "generatedSource": "C:\\Users\\zerg\\.codex\\generated_images\\01a071d8-5271-7a63-9aee-2621213d96a4\\exec-43d9096f-913e-4b65-b711-dbd816c810ad.png",
+      "master": "output/dongho-card-prints/masters/dragon-standard.png",
+      "runtime": "public/art/story-prints/dragon-standard-v1.webp",
+      "width": 576,
+      "height": 384,
+      "bytes": 61620,
+      "prompt": "docs/dong-ho-card-print-prompts.json#dragon-standard"
+    },
+    {
+      "id": "heavenly-mandate",
+      "generatedSource": "C:\\Users\\zerg\\.codex\\generated_images\\01a071d8-5271-7a63-9aee-2621213d96a4\\exec-190fc8d5-35c6-4259-84ce-543a42b3d08f.png",
+      "master": "output/dongho-card-prints/masters/heavenly-mandate.png",
+      "runtime": "public/art/story-prints/heavenly-mandate-v1.webp",
+      "width": 576,
+      "height": 384,
+      "bytes": 73182,
+      "prompt": "docs/dong-ho-card-print-prompts.json#heavenly-mandate"
+    },
+    {
+      "id": "dai-cao",
+      "generatedSource": "C:\\Users\\zerg\\.codex\\generated_images\\01a071d8-5271-7a63-9aee-2621213d96a4\\exec-aef57647-f3c5-4ce9-8fd4-0eab3e116f84.png",
+      "master": "output/dongho-card-prints/masters/dai-cao.png",
+      "runtime": "public/art/story-prints/dai-cao-v1.webp",
+      "width": 576,
+      "height": 384,
+      "bytes": 63036,
+      "prompt": "docs/dong-ho-card-print-prompts.json#dai-cao"
+    },
+    {
+      "id": "pha-cuong-dich",
+      "generatedSource": "C:\\Users\\zerg\\.codex\\generated_images\\01a071d8-5271-7a63-9aee-2621213d96a4\\exec-5d32bea7-0a53-4c6b-9da6-58cbeee91913.png",
+      "master": "output/dongho-card-prints/masters/pha-cuong-dich.png",
+      "runtime": "public/art/story-prints/pha-cuong-dich-v1.webp",
+      "width": 576,
+      "height": 384,
+      "bytes": 63020,
+      "prompt": "docs/dong-ho-card-print-prompts.json#pha-cuong-dich"
+    },
+    {
+      "id": "tho-than",
+      "generatedSource": "C:\\Users\\zerg\\.codex\\generated_images\\01a071d8-5271-7a63-9aee-2621213d96a4\\exec-a44930e6-f14a-4640-a198-dc83d947d569.png",
+      "master": "output/dongho-card-prints/masters/tho-than.png",
+      "runtime": "public/art/story-prints/tho-than-v1.webp",
+      "width": 576,
+      "height": 384,
+      "bytes": 77848,
+      "prompt": "docs/dong-ho-card-print-prompts.json#tho-than"
+    },
+    {
+      "id": "hich-van",
+      "generatedSource": "C:\\Users\\zerg\\.codex\\generated_images\\01a071d8-5271-7a63-9aee-2621213d96a4\\exec-04c5433d-607b-4348-a678-90de84dd3409.png",
+      "master": "output/dongho-card-prints/masters/hich-van.png",
+      "runtime": "public/art/story-prints/hich-van-v1.webp",
+      "width": 576,
+      "height": 384,
+      "bytes": 69080,
+      "prompt": "docs/dong-ho-card-print-prompts.json#hich-van"
+    },
+    {
+      "id": "than-toc",
+      "generatedSource": "C:\\Users\\zerg\\.codex\\generated_images\\01a071d8-5271-7a63-9aee-2621213d96a4\\exec-0da7fe38-0e6f-4fad-a1aa-18c91e579c32.png",
+      "master": "output/dongho-card-prints/masters/than-toc.png",
+      "runtime": "public/art/story-prints/than-toc-v1.webp",
+      "width": 576,
+      "height": 384,
+      "bytes": 66980,
+      "prompt": "docs/dong-ho-card-print-prompts.json#than-toc"
+    },
+    {
+      "id": "chieu-doi-do",
+      "generatedSource": "C:\\Users\\zerg\\.codex\\generated_images\\01a071d8-5271-7a63-9aee-2621213d96a4\\exec-325fdc5d-ea2d-4fd8-a84c-9581df0cdbe1.png",
+      "master": "output/dongho-card-prints/masters/chieu-doi-do.png",
+      "runtime": "public/art/story-prints/chieu-doi-do-v1.webp",
+      "width": 576,
+      "height": 384,
+      "bytes": 73700,
+      "prompt": "docs/dong-ho-card-print-prompts.json#chieu-doi-do"
+    },
+    {
+      "id": "chi-lang",
+      "generatedSource": "C:\\Users\\zerg\\.codex\\generated_images\\01a071d8-5271-7a63-9aee-2621213d96a4\\exec-53b409b5-3215-4f6f-aadd-10ca13602b7c.png",
+      "master": "output/dongho-card-prints/masters/chi-lang.png",
+      "runtime": "public/art/story-prints/chi-lang-v1.webp",
+      "width": 576,
+      "height": 384,
+      "bytes": 90788,
+      "prompt": "docs/dong-ho-card-print-prompts.json#chi-lang"
+    },
+    {
+      "id": "tien-phat",
+      "generatedSource": "C:\\Users\\zerg\\.codex\\generated_images\\01a071d8-5271-7a63-9aee-2621213d96a4\\exec-73b6e67a-4d94-4316-8c48-6a56f296c12c.png",
+      "master": "output/dongho-card-prints/masters/tien-phat.png",
+      "runtime": "public/art/story-prints/tien-phat-v1.webp",
+      "width": 576,
+      "height": 384,
+      "bytes": 70196,
+      "prompt": "docs/dong-ho-card-print-prompts.json#tien-phat"
+    },
+    {
+      "id": "hai-ba",
+      "generatedSource": "C:\\Users\\zerg\\.codex\\generated_images\\01a071d8-5271-7a63-9aee-2621213d96a4\\exec-bd0c2b63-553b-4f80-803e-efb4d234ce99.png",
+      "master": "output/dongho-card-prints/masters/hai-ba.png",
+      "runtime": "public/art/story-prints/hai-ba-v1.webp",
+      "width": 576,
+      "height": 384,
+      "bytes": 65790,
+      "prompt": "docs/dong-ho-card-print-prompts.json#hai-ba"
+    },
+    {
+      "id": "thuan-thien",
+      "generatedSource": "C:\\Users\\zerg\\.codex\\generated_images\\01a071d8-5271-7a63-9aee-2621213d96a4\\exec-c3c925df-dfd7-46ed-9303-e751f14bcec0.png",
+      "master": "output/dongho-card-prints/masters/thuan-thien.png",
+      "runtime": "public/art/story-prints/thuan-thien-v1.webp",
+      "width": 576,
+      "height": 384,
+      "bytes": 78386,
+      "prompt": "docs/dong-ho-card-print-prompts.json#thuan-thien"
+    },
+    {
+      "id": "no-than",
+      "generatedSource": "C:\\Users\\zerg\\.codex\\generated_images\\01a071d8-5271-7a63-9aee-2621213d96a4\\exec-f7054625-b1bf-430e-9e98-1e4acb0c7abd.png",
+      "master": "output/dongho-card-prints/masters/no-than.png",
+      "runtime": "public/art/story-prints/no-than-v1.webp",
+      "width": 576,
+      "height": 384,
+      "bytes": 72270,
+      "prompt": "docs/dong-ho-card-print-prompts.json#no-than"
+    },
+    {
+      "id": "van-don",
+      "generatedSource": "C:\\Users\\zerg\\.codex\\generated_images\\01a071d8-5271-7a63-9aee-2621213d96a4\\exec-3e13989d-3c8b-4202-bc5c-9f6bdb6ac8be.png",
+      "master": "output/dongho-card-prints/masters/van-don.png",
+      "runtime": "public/art/story-prints/van-don-v1.webp",
+      "width": 576,
+      "height": 384,
+      "bytes": 75600,
+      "prompt": "docs/dong-ho-card-print-prompts.json#van-don"
+    },
+    {
+      "id": "luy-thay",
+      "generatedSource": "C:\\Users\\zerg\\.codex\\generated_images\\01a071d8-5271-7a63-9aee-2621213d96a4\\exec-3c6e8f90-86d7-4f63-a657-8647df1c2f49.png",
+      "master": "output/dongho-card-prints/masters/luy-thay.png",
+      "runtime": "public/art/story-prints/luy-thay-v1.webp",
+      "width": 576,
+      "height": 384,
+      "bytes": 73158,
+      "prompt": "docs/dong-ho-card-print-prompts.json#luy-thay"
+    },
+    {
+      "id": "van-mieu",
+      "generatedSource": "C:\\Users\\zerg\\.codex\\generated_images\\01a071d8-5271-7a63-9aee-2621213d96a4\\exec-8aeeb60d-9d95-445e-b0d4-56d87c8c3a07.png",
+      "master": "output/dongho-card-prints/masters/van-mieu.png",
+      "runtime": "public/art/story-prints/van-mieu-v1.webp",
+      "width": 576,
+      "height": 384,
+      "bytes": 82422,
+      "prompt": "docs/dong-ho-card-print-prompts.json#van-mieu"
+    },
+    {
+      "id": "thu-do",
+      "generatedSource": "C:\\Users\\zerg\\.codex\\generated_images\\01a071d8-5271-7a63-9aee-2621213d96a4\\exec-8bb0d7ee-411e-49e1-b30b-cdd239e08931.png",
+      "master": "output/dongho-card-prints/masters/thu-do.png",
+      "runtime": "public/art/story-prints/thu-do-v1.webp",
+      "width": 576,
+      "height": 384,
+      "bytes": 61902,
+      "prompt": "docs/dong-ho-card-print-prompts.json#thu-do"
+    },
+    {
+      "id": "binh-trong",
+      "generatedSource": "C:\\Users\\zerg\\.codex\\generated_images\\01a071d8-5271-7a63-9aee-2621213d96a4\\exec-e93dbf85-6be5-4f24-a247-fb776b30d3e3.png",
+      "master": "output/dongho-card-prints/masters/binh-trong.png",
+      "runtime": "public/art/story-prints/binh-trong-v1.webp",
+      "width": 576,
+      "height": 384,
+      "bytes": 58316,
+      "prompt": "docs/dong-ho-card-print-prompts.json#binh-trong"
+    },
+    {
+      "id": "khuc-thua-du",
+      "generatedSource": "C:\\Users\\zerg\\.codex\\generated_images\\01a071d8-5271-7a63-9aee-2621213d96a4\\exec-4b2ef921-a37f-4aea-a17f-0261123a0222.png",
+      "master": "output/dongho-card-prints/masters/khuc-thua-du.png",
+      "runtime": "public/art/story-prints/khuc-thua-du-v1.webp",
+      "width": 576,
+      "height": 384,
+      "bytes": 75574,
+      "prompt": "docs/dong-ho-card-print-prompts.json#khuc-thua-du"
+    },
+    {
+      "id": "de-dieu",
+      "generatedSource": "C:\\Users\\zerg\\.codex\\generated_images\\01a071d8-5271-7a63-9aee-2621213d96a4\\exec-da093554-2362-4590-a047-a3ef81ce8851.png",
+      "master": "output/dongho-card-prints/masters/de-dieu.png",
+      "runtime": "public/art/story-prints/de-dieu-v1.webp",
+      "width": 576,
+      "height": 384,
+      "bytes": 79706,
+      "prompt": "docs/dong-ho-card-print-prompts.json#de-dieu"
+    },
+    {
+      "id": "che-bong-nga",
+      "generatedSource": "C:\\Users\\zerg\\.codex\\generated_images\\01a071d8-5271-7a63-9aee-2621213d96a4\\exec-ef0dcc76-ff25-477d-9ea2-47466725deb8.png",
+      "master": "output/dongho-card-prints/masters/che-bong-nga.png",
+      "runtime": "public/art/story-prints/che-bong-nga-v1.webp",
+      "width": 576,
+      "height": 384,
+      "bytes": 63094,
+      "prompt": "docs/dong-ho-card-print-prompts.json#che-bong-nga"
+    },
+    {
+      "id": "bach-dang-stakes",
+      "generatedSource": "C:\\Users\\zerg\\.codex\\generated_images\\01a071d8-5271-7a63-9aee-2621213d96a4\\exec-0f3514c2-ef10-4e4d-815c-b62d2b86e559.png",
+      "master": "output/dongho-card-prints/masters/bach-dang-stakes.png",
+      "runtime": "public/art/story-prints/bach-dang-stakes-v1.webp",
+      "width": 576,
+      "height": 384,
+      "bytes": 78740,
+      "prompt": "docs/dong-ho-card-print-prompts.json#bach-dang-stakes"
+    },
+    {
+      "id": "thunder-march",
+      "generatedSource": "C:\\Users\\zerg\\.codex\\generated_images\\01a071d8-5271-7a63-9aee-2621213d96a4\\exec-4efc9fa0-9b22-4d1a-b589-3ef319379ffd.png",
+      "master": "output/dongho-card-prints/masters/thunder-march.png",
+      "runtime": "public/art/story-prints/thunder-march-v1.webp",
+      "width": 576,
+      "height": 384,
+      "bytes": 62434,
+      "prompt": "docs/dong-ho-card-print-prompts.json#thunder-march"
+    },
+    {
+      "id": "celestial-granary",
+      "generatedSource": "C:\\Users\\zerg\\.codex\\generated_images\\01a071d8-5271-7a63-9aee-2621213d96a4\\exec-a15bc208-d1d8-48ee-888a-563679b35597.png",
+      "master": "output/dongho-card-prints/masters/celestial-granary.png",
+      "runtime": "public/art/story-prints/celestial-granary-v1.webp",
+      "width": 576,
+      "height": 384,
+      "bytes": 74328,
+      "prompt": "docs/dong-ho-card-print-prompts.json#celestial-granary"
+    },
+    {
+      "id": "cam-quan",
+      "generatedSource": "C:\\Users\\zerg\\.codex\\generated_images\\01a071d8-5271-7a63-9aee-2621213d96a4\\exec-7082abc0-032f-4648-b305-3cfbdc151a88.png",
+      "master": "output/dongho-card-prints/masters/cam-quan.png",
+      "runtime": "public/art/story-prints/cam-quan-v1.webp",
+      "width": 576,
+      "height": 384,
+      "bytes": 78480,
+      "prompt": "docs/dong-ho-card-print-prompts.json#cam-quan"
+    },
+    {
+      "id": "kho-lam",
+      "generatedSource": "C:\\Users\\zerg\\.codex\\generated_images\\01a071d8-5271-7a63-9aee-2621213d96a4\\exec-83078bfa-4e1e-46a1-a7bd-1e9b5b452dd9.png",
+      "master": "output/dongho-card-prints/masters/kho-lam.png",
+      "runtime": "public/art/story-prints/kho-lam-v1.webp",
+      "width": 576,
+      "height": 384,
+      "bytes": 69340,
+      "prompt": "docs/dong-ho-card-print-prompts.json#kho-lam"
+    },
+    {
+      "id": "duc-tien",
+      "generatedSource": "C:\\Users\\zerg\\.codex\\generated_images\\01a071d8-5271-7a63-9aee-2621213d96a4\\exec-6c6097ef-6e2f-47b2-b303-2b6dac80e41e.png",
+      "master": "output/dongho-card-prints/masters/duc-tien.png",
+      "runtime": "public/art/story-prints/duc-tien-v1.webp",
+      "width": 576,
+      "height": 384,
+      "bytes": 69948,
+      "prompt": "docs/dong-ho-card-print-prompts.json#duc-tien"
+    },
+    {
+      "id": "long-dan",
+      "generatedSource": "C:\\Users\\zerg\\.codex\\generated_images\\01a071d8-5271-7a63-9aee-2621213d96a4\\exec-5eb24eec-dc1f-42d7-999a-6aff5dafdab6.png",
+      "master": "output/dongho-card-prints/masters/long-dan.png",
+      "runtime": "public/art/story-prints/long-dan-v1.webp",
+      "width": 576,
+      "height": 384,
+      "bytes": 76020,
+      "prompt": "docs/dong-ho-card-print-prompts.json#long-dan"
+    },
+    {
+      "id": "tho-ca",
+      "generatedSource": "C:\\Users\\zerg\\.codex\\generated_images\\01a071d8-5271-7a63-9aee-2621213d96a4\\exec-34bfdda9-2e57-4c8b-968d-0506c5997c30.png",
+      "master": "output/dongho-card-prints/masters/tho-ca.png",
+      "runtime": "public/art/story-prints/tho-ca-v1.webp",
+      "width": 576,
+      "height": 384,
+      "bytes": 67710,
+      "prompt": "docs/dong-ho-card-print-prompts.json#tho-ca"
+    },
+    {
+      "id": "cua-ai",
+      "generatedSource": "C:\\Users\\zerg\\.codex\\generated_images\\01a071d8-5271-7a63-9aee-2621213d96a4\\exec-22975841-007e-4677-b92e-8053e1743cf8.png",
+      "master": "output/dongho-card-prints/masters/cua-ai.png",
+      "runtime": "public/art/story-prints/cua-ai-v1.webp",
+      "width": 576,
+      "height": 384,
+      "bytes": 81268,
+      "prompt": "docs/dong-ho-card-print-prompts.json#cua-ai"
+    },
+    {
+      "id": "quan-so",
+      "generatedSource": "C:\\Users\\zerg\\.codex\\generated_images\\01a071d8-5271-7a63-9aee-2621213d96a4\\exec-5ff99327-8731-4720-bd0d-e12f99605f89.png",
+      "master": "output/dongho-card-prints/masters/quan-so.png",
+      "runtime": "public/art/story-prints/quan-so-v1.webp",
+      "width": 576,
+      "height": 384,
+      "bytes": 69210,
+      "prompt": "docs/dong-ho-card-print-prompts.json#quan-so"
+    },
+    {
+      "id": "chieu-hien",
+      "generatedSource": "C:\\Users\\zerg\\.codex\\generated_images\\01a071d8-5271-7a63-9aee-2621213d96a4\\exec-ddd3d9dc-9d66-4842-9049-8efe731e739d.png",
+      "master": "output/dongho-card-prints/masters/chieu-hien.png",
+      "runtime": "public/art/story-prints/chieu-hien-v1.webp",
+      "width": 576,
+      "height": 384,
+      "bytes": 66596,
+      "prompt": "docs/dong-ho-card-print-prompts.json#chieu-hien"
+    }
+  ]
+}

@@ -350,7 +350,7 @@ export function showFrontSheet(self: ConquestUIScene, landId: string): void {
    * certainly is.
    */
   const eta = columns.reduce((best, order) => {
-    const legs = Math.max(0, order.legRequired - order.progress) + Math.max(0, order.path.length - 1);
+    const legs = Math.max(0, Math.ceil(order.legRequired - order.progress)) + Math.max(0, order.path.length - 1);
     return Math.min(best, legs);
   }, Number.POSITIVE_INFINITY);
   addRow(

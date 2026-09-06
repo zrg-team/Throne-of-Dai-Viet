@@ -83,13 +83,13 @@ export function battleCamp(self: ConquestUIScene, x: number, y: number, color: n
         { x: cx + dx, y: ridgeY + dy },
         { x: cx, y: ridgeY },
       ],
-      PIGMENT.diepLo, tent.seed + 1, { ...ink, width: 0.22 * m, alpha: 0.62, fillAlpha: 0.95 },
+      PIGMENT.hoe, tent.seed + 1, { ...ink, width: 0.22 * m, alpha: 0.82, fillAlpha: 0.95 },
     );
     // The near gable, lit — the face the eye reads the tent off.
     printedShape(
       g,
       [{ x: cx - w, y: foot }, { x: cx, y: ridgeY }, { x: cx + w, y: foot }],
-      PIGMENT.diepHi, tent.seed + 2, { ...ink, width: 0.25 * m, alpha: 0.8, fillAlpha: 0.97 },
+      PIGMENT.hoePale, tent.seed + 2, { ...ink, width: 0.25 * m, alpha: 0.9, fillAlpha: 1 },
     );
     // The mouth: a flap tied back on one side, which is what tells you it is a tent and not a
     // wedge of paper.

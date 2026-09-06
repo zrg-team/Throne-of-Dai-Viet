@@ -12,7 +12,8 @@ import Phaser from 'phaser';
 import { battleTickMs } from '../../../game/battleOptions';
 import { BATTLE_ROUT_MORALE } from '../../../game/ascentConfig';
 import { INK_UI } from '../../../ui/InkUI';
-import { inkPath } from '../../../ui/ink/stroke';
+import { drawCardIcon, CARD_ICON_SIZE } from '../../../ui/CardIcons';
+import { PIGMENT } from '../../../ui/ink/palette';
 import { t } from '../../../i18n';
 import type { AscentBattle } from '../../../state/types';
 import { BATTLE_RAILS_HEIGHT } from '../constants';
@@ -80,7 +81,7 @@ export function buildBattleRails(self: ConquestUIScene, battle: AscentBattle): v
     // breaking looked exactly like one at half heart.
     const routMark = self.add.graphics();
     routMark.fillStyle(INK_UI.cinnabarDark, 0.9);
-    routMark.fillRect(x + barW * (BATTLE_ROUT_MORALE / 100) - 1, readoutY + 40, 1.5, 9);
+    routMark.fillRect(x + 16 + (barW - 16) * (BATTLE_ROUT_MORALE / 100) - 1, readoutY + 40, 1.5, 9);
     readout.add(routMark);
 
     const strength = self.ui.label(x + barW, readoutY + 6, `${widest}`, 'label', {
@@ -99,6 +100,12 @@ export function buildBattleRails(self: ConquestUIScene, battle: AscentBattle): v
       ? ` · ${t(`ascent.temper.${battle.commanderTemper}` as Parameters<typeof t>[0])}`
       : '',
   );
+
+  // The same two pictograms on each side label what the bars measure.
+  for (const x of [ui.railsGeom.ourX, ui.railsGeom.theirX]) {
+    readout.add(drawCardIcon(self, 'person', PIGMENT.muc).setPosition(x + 5, readoutY + 31).setScale(12 / CARD_ICON_SIZE));
+    readout.add(drawCardIcon(self, 'heart', PIGMENT.nau).setPosition(x + 5, readoutY + 44).setScale(10 / CARD_ICON_SIZE));
+  }
 
   // One graphics for all four measured lines, cleared and re-inked on the beat. Four containers
   // a beat was the single most expensive thing on this screen.
@@ -138,9 +145,8 @@ export function buildBattleRails(self: ConquestUIScene, battle: AscentBattle): v
 /**
  * The two numbers and the four bars - everything a beat actually moves.
  *
- * Two `setText`s and one `Graphics.clear()` plus four inked lines. The look is `InkUI.statBar`'s,
- * stroke for stroke and seed for seed, because it *is* those two calls - drawn into a graphics
- * that already exists instead of into one allocated for the purpose.
+ * Two `setText`s and one `Graphics.clear()` plus four flat pigment bars. Their contours and
+ * icon labels keep the remaining amount readable without rebuilding objects each beat.
  */
 export function updateBattleRails(self: ConquestUIScene, battle: AscentBattle): void {
   const ui = self.battleUi;
@@ -198,20 +204,16 @@ function drawBattleRails(self: ConquestUIScene,
   const g = ui.railsBars;
   g.clear();
   const bar = (x: number, y: number, height: number, ratio: number, colour: number): void => {
-    const mid = y + height / 2;
-    const width = Math.max(1, height * 0.8);
-    const seed = Math.round(x * 7 + y * 3 + barW);
-    inkPath(g, [{ x, y: mid }, { x: x + barW, y: mid }], seed,
-      { width, alpha: 0.2, colour: INK_UI.brush, wobble: 0.3, step: 14 });
-    if (ratio > 0) {
-      inkPath(g, [{ x, y: mid }, { x: x + Math.max(1.5, barW * Math.min(1, ratio)), y: mid }], seed + 1,
-        { width, alpha: 0.88, colour, wobble: 0.45, step: 12 });
-    }
+    const start = x + 16;
+    const width = barW - 16;
+    g.fillStyle(PIGMENT.diepLo, 1).fillRect(start, y, width, height);
+    g.fillStyle(colour, 1).fillRect(start, y, width * Phaser.Math.Clamp(ratio, 0, 1), height);
+    g.lineStyle(0.7, PIGMENT.mucSoft, 0.7).strokeRect(start, y, width, height);
   };
   const heartColour = (value: number): number => (
     value <= BATTLE_ROUT_MORALE + 10 ? INK_UI.cinnabar : INK_UI.gold);
-  bar(ourX, readoutY + 28, 8, frame.ourNow / Math.max(1, battle.ourStart), INK_UI.jade);
-  bar(theirX, readoutY + 28, 8, frame.theirNow / Math.max(1, battle.theirStart), ui.rivalColor);
+  bar(ourX, readoutY + 28, 8, frame.ourNow / Math.max(1, battle.ourStart), PIGMENT.son);
+  bar(theirX, readoutY + 28, 8, frame.theirNow / Math.max(1, battle.theirStart), PIGMENT.cham);
   bar(ourX, readoutY + 42, 5, frame.ourMorale / 100, heartColour(frame.ourMorale));
   bar(theirX, readoutY + 42, 5, frame.theirMorale / 100, heartColour(frame.theirMorale));
 }

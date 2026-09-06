@@ -46,7 +46,7 @@ import {
 import { ARMY_PROVISION_USE_PER_150, ARMY_RATION_USE_PER_100 } from '../game/gameplayConfig';
 import { palisadeMilitiaBonus } from './ascent/DoctrineSystem';
 import { doctrineMilitiaMult } from './ascent/RealmDoctrineSystem';
-import { realmPriceScale, treasuryGraftFrom } from './ascent/priceScale';
+import { scaledCost, treasuryGraftFrom } from './ascent/priceScale';
 import { eraIndex, eraLabel, getBuildingLevelCap } from './empire/MandateSystem';
 import { pushToast } from './empire/notifications';
 import { getCourtBonuses, getLandGovernorOutputMult } from './CourtSystem';
@@ -1877,7 +1877,7 @@ export function getBuildOptions(state: GameState, land: Land): BuildOption[] {
       : undefined;
     // The scaled purse (Dragon Ascent; exactly 1 elsewhere): a farm that cost 32 gold to a realm
     // grossing 40 a season is not a decision to one grossing 400. See `priceScale.ts`.
-    const cost = scaleResourceBag(spec.baseCost, getCourtBonuses(state).buildingCostMult * realmPriceScale(state));
+    const cost = scaledCost(state, scaleResourceBag(spec.baseCost, getCourtBonuses(state).buildingCostMult));
     const costReason = !canSpend(state, cost) ? formatCostBlocker(cost) : undefined;
     const reason = eraReason ?? terrainReason ?? capacityReason ?? duplicateReason ?? activeOrderReason ?? costReason;
 
@@ -1911,10 +1911,10 @@ export function getUpgradeOptions(state: GameState, land: Land): UpgradeOption[]
         required: activeOrder.required,
       })
       : undefined;
-    const cost = scaleResourceBag(
+    const cost = scaledCost(state, scaleResourceBag(
       spec.baseCost,
-      upgradeCostMultiplier(building.level) * getCourtBonuses(state).buildingCostMult * realmPriceScale(state),
-    );
+      upgradeCostMultiplier(building.level) * getCourtBonuses(state).buildingCostMult,
+    ));
     const costReason = !atMaxLevel && !canSpend(state, cost) ? formatCostBlocker(cost) : undefined;
     const reason = atMaxLevel ? t('reason.maxLevel') : (activeOrderReason ?? costReason);
     const nextLevel = Math.min(buildingCap, building.level + 1);

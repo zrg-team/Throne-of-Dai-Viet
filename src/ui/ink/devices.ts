@@ -702,6 +702,13 @@ export interface HostKit {
    */
   marchHeading?: number;
   /**
+   * File the blocks one behind another along the road (`MARCH_PLAN`) rather than keeping the
+   * standing arrangement. Off by default: a host on the map keeps its close formation and simply
+   * faces the way it is walking — a compact block on the road reads as the same host that stood
+   * beside its seat, where the long file strung the men out beyond the road's own width.
+   */
+  column?: boolean;
+  /**
    * How far apart the men stand, as a multiple of the formation's own pitch.
    *
    * Not a size — the figures keep the measured size `proportion.ts` gives them, which is the whole
@@ -1152,7 +1159,7 @@ export function planArmy(
   // `marching` lives on the kit precisely so it survives the second call.
   const shape = armyShape(
     men, compositionFor(kit), s, kit.mustered, kit.spread ?? 1, kit.shape, kit.markCap,
-    kit.marching
+    kit.marching && kit.column
       ? marchPlanFacing(kit.marchHeading ?? 0, RANK_PER_FILE, marksFor(men, kit.markCap))
       : undefined,
   );

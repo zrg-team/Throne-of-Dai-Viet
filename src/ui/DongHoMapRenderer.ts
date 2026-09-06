@@ -51,22 +51,24 @@ import { placeStamp } from './ink/stamp';
 function groundFor(terrain: HexTerrainType): number | null {
   const palette = seasonPalette();
   switch (terrain) {
-    // Open grass. `plains` is already the grass tile — 44% of the world — and it used to take the
-    // paddy's exact tone, so the map read as "paddy or bare paper" with nothing between. It still
-    // leans green, but only a quarter of the way: this tone is fixed while the tufts standing in it
-    // turn gold in autumn, and a hard spring green underneath them fought that. The coverage that
-    // used to come from the tone now comes from twice as many blades.
+    // Open grass. `plains` is 44% of the world, and on a print that much ground is the sheet: the
+    // grass is stated by the tufts standing in it, not by a green laid under them. It leans toward
+    // the canopy by a twelfth, only so a plain and a paddy are not the same cream. A quarter of the
+    // way — the old value — was enough green to pull the map's dominant tone to hue 60° while the
+    // sheet and the reference prints beside it sit at 40°.
     case 'plains':
-      return mixPigment(palette.ground, palette.foliage, 0.25);
+      return mixPigment(palette.ground, palette.foliage, 0.08);
     // The paddy's colour comes from the lattice drawn on top of it, so its base stays quieter —
     // otherwise the plot fills and the ground tone compound into the loudest thing on the sheet.
     case 'fields':
     case 'riceFields':
       return palette.ground;
-    // Forest floor is earth under a canopy, not more canopy. It used to return the foliage pigment
-    // outright, which read as a green blanket the instant the canopy above it went gold.
+    // Forest floor is earth under a canopy, not more canopy — and earth in this palette is nâu, the
+    // iron-brown, not the third of leaf green it used to borrow. A shade of the relief tone toward
+    // brown is enough for a wood to read as a mass at country zoom, with no green blanket under
+    // crowns that go gold in autumn.
     case 'forest':
-      return mixPigment(palette.groundRelief, palette.foliage, 0.3);
+      return mixPigment(palette.groundRelief, PIGMENT.nau, 0.12);
     case 'hills':
     case 'fortress':
     case 'shrine':
@@ -452,13 +454,12 @@ export class DongHoMapRenderer implements MapRenderer {
     const scaleKind = item.kind === 'tuft' ? 'grassTuft' : item.kind;
     void unitScale(scaleKind, item.scale * unit);
     const image = placeStamp(this.scene, stamp, item.x, item.y, item.scale * unit)
-      // Measured at zero drift for every tree, grass tuft and banana on the map — the plants were
-      // already sorting on their own feet. Read the same way as the relief so the two cannot drift
-      // apart if a plant is ever reauthored with padding under it.
-      .setDepth(groundDepth(item.y))
       .setAlpha(0.96)
       .setFlipX((item.seed & 1) === 1)
-      .setData('conquestScatterArt', id);
+      .setData('conquestScatterArt', id)
+      .setData('conquestGroundOrder', 'scatter');
+    // Redraws can change clear bottom padding. Sort on the actual root/foot ink, as relief does.
+    image.setDepth(groundDepth(stampFootY(image)));
     this.generatedDecoration.push(image);
     return true;
   }
@@ -516,18 +517,23 @@ export class DongHoMapRenderer implements MapRenderer {
             { x: mx + (nx / length) * reach, y: my + (ny / length) * reach },
           ],
           Math.round(mx + my * 3),
-          { width: 1.05, alpha: 0.5, colour: PIGMENT.cham, wobble: 3.2, step: 12 },
+          { width: 1.1, alpha: 0.62, colour: PIGMENT.cham, wobble: 1.8, step: 12 },
         );
       }
-      // Two flow lines per cell, well inside the edge, so the sheet reads as moving water.
+      // Two curved carved marks per cell, kept inside the continuous water body.
       for (let line = 0; line < 2; line += 1) {
         const oy = centre.y + (rand() - 0.5) * ctx.tileSize * 0.7;
         const half = ctx.tileSize * (0.2 + rand() * 0.28);
         inkPath(
           graphics,
-          [{ x: centre.x - half, y: oy }, { x: centre.x + half, y: oy }],
+          [
+            { x: centre.x - half, y: oy },
+            { x: centre.x - half * 0.4, y: oy - 1.6 },
+            { x: centre.x + half * 0.25, y: oy + 1.2 },
+            { x: centre.x + half, y: oy },
+          ],
           Math.round(centre.x + oy + line),
-          { width: 0.65, alpha: 0.3, colour: PIGMENT.cham, wobble: 1.6, step: 9 },
+          { width: 0.8, alpha: 0.48, colour: PIGMENT.cham, wobble: 0.45, step: 9 },
         );
       }
     }
@@ -797,7 +803,7 @@ export class DongHoMapRenderer implements MapRenderer {
           system.y,
           system.width,
           system.height,
-          0.82,
+          0.94,
           system.seed,
         )) {
           complete = false;
@@ -1188,7 +1194,7 @@ export class DongHoMapRenderer implements MapRenderer {
       if (loop.length < 3) {
         continue;
       }
-      hatchPoly(graphics, loop, isPlayer ? -0.65 : 0.75, 10, isPlayer ? PIGMENT.son : PIGMENT.mucSoft, isPlayer ? 0.15 : 0.11, 0.9);
+      hatchPoly(graphics, loop, isPlayer ? -0.65 : 0.75, 18, isPlayer ? PIGMENT.son : PIGMENT.mucSoft, isPlayer ? 0.06 : 0.05, 0.7);
     }
   }
 
@@ -1264,7 +1270,7 @@ export class DongHoMapRenderer implements MapRenderer {
       graphics.fillStyle(PIGMENT.diep, isNeutral ? 0.62 : 0.5);
       graphics.fillPoints(veil, true);
       // A rival's ground still carries its own hatch angle, so two neighbours read apart.
-      hatchPoly(graphics, veil, isNeutral ? 1.35 : 0.75, 9, PIGMENT.mucSoft, isNeutral ? 0.07 : 0.13, 0.9);
+      hatchPoly(graphics, veil, isNeutral ? 1.35 : 0.75, 18, PIGMENT.mucSoft, isNeutral ? 0.035 : 0.06, 0.7);
     }
   }
 
@@ -1310,16 +1316,21 @@ export class DongHoMapRenderer implements MapRenderer {
     if (points.length < 2) {
       return;
     }
-    inkPath(graphics, points as Pt[], Math.round(points[0].x + points[0].y), {
-      width: Math.max(1, widthFrom * 0.5), alpha: 0.24, colour: PIGMENT.nau, wobble: 1.4, step: 14,
+    const seed = Math.round(points[0].x + points[0].y);
+    const width = Math.max(1.5, widthFrom * 0.65);
+    // Matching paths form a quiet ink edge around a flat ochre road plate.
+    inkPath(graphics, points as Pt[], seed, {
+      width: width + 0.6, alpha: 0.4, colour: PIGMENT.mucSoft, wobble: 0.7, step: 14,
+    });
+    inkPath(graphics, points as Pt[], seed, {
+      width, alpha: 0.72, colour: PIGMENT.hoePale, wobble: 0.7, step: 14,
     });
   }
 
   /**
    * A timber footbridge — deck, two rails and its posts in the water.
    *
-   * Drawn in nâu, the iron-brown of Trần ware that every other piece of timber on this map is
-   * drawn in, so a bridge reads as the same material as the houses it connects. Slightly bowed:
+   * Ochre planks and warm-black rails match the printed timber assets. Slightly bowed:
    * a flat deck at this size reads as a plank dropped on the river rather than a thing built.
    */
   drawBridge(
@@ -1355,13 +1366,13 @@ export class DongHoMapRenderer implements MapRenderer {
       const foot = along(t);
       const head = { x: foot.x, y: foot.y + rise(t) - deckHalf * 0.15 };
       inkPath(graphics, [{ x: foot.x, y: foot.y + deckHalf * 1.1 }, head], seed + Math.round(t),
-        { width: 0.9, alpha: 0.4, colour: PIGMENT.nauDark, wobble: 0.8, step: 6 });
+        { width: 1, alpha: 0.85, colour: PIGMENT.muc, wobble: 0.4, step: 6 });
     }
 
     // The deck: a filled span between the two rail lines, so the water does not show through it.
     const left = railPoints(-1);
     const right = railPoints(1);
-    graphics.fillStyle(PIGMENT.nau, 0.5);
+    graphics.fillStyle(PIGMENT.hoePale, 0.95);
     graphics.beginPath();
     graphics.moveTo(left[0].x, left[0].y);
     for (const p of left.slice(1)) graphics.lineTo(p.x, p.y);
@@ -1376,11 +1387,11 @@ export class DongHoMapRenderer implements MapRenderer {
       const lift = rise(t);
       inkPath(graphics,
         [across({ x: p.x, y: p.y + lift }, -deckHalf), across({ x: p.x, y: p.y + lift }, deckHalf)],
-        seed + step * 7, { width: 0.6, alpha: 0.3, colour: PIGMENT.nauDark, wobble: 0.5, step: 5 });
+        seed + step * 7, { width: 0.65, alpha: 0.65, colour: PIGMENT.muc, wobble: 0.25, step: 5 });
     }
     for (const rail of [left, right]) {
       inkPath(graphics, rail, seed + Math.round(rail[0].x),
-        { width: 1.05, alpha: 0.55, colour: PIGMENT.nauDark, wobble: 0.9, step: 8 });
+        { width: 1.1, alpha: 0.85, colour: PIGMENT.muc, wobble: 0.4, step: 8 });
     }
   }
 }

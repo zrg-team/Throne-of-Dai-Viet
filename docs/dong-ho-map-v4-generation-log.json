@@ -1,0 +1,137 @@
+{
+  "generator": "built-in ImageGen",
+  "date": "2026-09-06",
+  "sourceDirectory": "C:/Users/zerg/.codex/generated_images/01a071d8-5271-7a63-9aee-2621213d96a4",
+  "records": [
+    {
+      "key": "mountains",
+      "prompt": "Use case: style-transfer. Asset type: Vietnamese historical RTS map cutout sheet. Image 1 is the edit target and determines each object and its layout; image 2 is the drawing-style reference ONLY. Match the accepted Đông Hồ style: warm-black carved contours, large opaque ochre/vermilion/indigo/leaf-green pigment shapes, sparse curved decorative marks, no gradients, tiny hatching, photorealistic shading or engraved microtexture. Preserve the original silhouettes, identity and functional shapes. No labels, grid lines or scenery. Keep seven distinct mountain/ridge shapes in original order: broad karst range, soft low ridge, classic karst, three-spire, seven-spire, stepped karst, tower-form cluster from the reference; final two cells empty. Preserve peak counts and silhouettes. Use broad flat pale ochre/leaf-green rock faces, clear warm-black outer contours and very few curling rock strata. No hundreds of thin hatch strokes, forests, sky, mist or ground rectangles. Landscape 1536x1024, 3 columns by 3 rows, 7 occupied cells in reading order. At least 24 pixels of empty margin around each complete silhouette and wide gutters. Use genuine transparent alpha including every hole, without a painted checkerboard. If true alpha cannot be produced use one exact #FF00FF production matte instead, including holes. No paper rectangle, white background, cast shadows, or magenta inside subjects.",
+      "references": [
+        "output/dongho-map-v4/references/mountains.png",
+        "public/art/story-prints/muster-v1.webp"
+      ],
+      "generatedFile": "exec-72ab7d09-609e-45b1-b557-9987ff6caa12.png",
+      "savedMaster": "output/dongho-map-v4/masters/mountains.png"
+    },
+    {
+      "key": "flora-spring",
+      "prompt": "Use case: style-transfer. Asset type: Vietnamese historical RTS map cutout sheet. Image 1 is the edit target and determines each object and its layout; image 2 is the drawing-style reference ONLY. Match the accepted Đông Hồ style: warm-black carved contours, large opaque ochre/vermilion/indigo/leaf-green pigment shapes, sparse curved decorative marks, no gradients, tiny hatching, photorealistic shading or engraved microtexture. Preserve the original silhouettes, identity and functional shapes. No labels, grid lines or scenery. Keep the ten original plant species and spring season cues. Read order: round tree, jackfruit, lychee, pomelo; silk-cotton, grass tuft, bamboo, banana; areca palm, banyan, empty, empty. Large leaf masses with a few curved leaf marks, full trunk/root contacts, no soil patch or cast shadow. Keep deciduous/evergreen distinctions from the original. Landscape 1536x1024, 4 columns by 3 rows, 10 occupied cells in reading order. At least 24 pixels of empty margin around each complete silhouette and wide gutters. Use genuine transparent alpha including every hole, without a painted checkerboard. If true alpha cannot be produced use one exact #FF00FF production matte instead, including holes. No paper rectangle, white background, cast shadows, or magenta inside subjects.",
+      "references": [
+        "output/dongho-map-v4/references/flora-spring.png",
+        "public/art/story-prints/muster-v1.webp"
+      ],
+      "generatedFile": "exec-b17a5e32-e5df-4fe3-9804-3b42c73508f5.png",
+      "savedMaster": "output/dongho-map-v4/masters/flora-spring.png"
+    },
+    {
+      "key": "flora-summer",
+      "prompt": "Use case: style-transfer. Asset type: Vietnamese historical RTS map cutout sheet. Image 1 is the edit target and determines each object and its layout; image 2 is the drawing-style reference ONLY. Match the accepted Đông Hồ style: warm-black carved contours, large opaque ochre/vermilion/indigo/leaf-green pigment shapes, sparse curved decorative marks, no gradients, tiny hatching, photorealistic shading or engraved microtexture. Preserve the original silhouettes, identity and functional shapes. No labels, grid lines or scenery. Keep the ten original plant species and summer season cues. Read order: round tree, jackfruit, lychee, pomelo; silk-cotton, grass tuft, bamboo, banana; areca palm, banyan, empty, empty. Large leaf masses with a few curved leaf marks, full trunk/root contacts, no soil patch or cast shadow. Keep deciduous/evergreen distinctions from the original. Landscape 1536x1024, 4 columns by 3 rows, 10 occupied cells in reading order. At least 24 pixels of empty margin around each complete silhouette and wide gutters. Use genuine transparent alpha including every hole, without a painted checkerboard. If true alpha cannot be produced use one exact #FF00FF production matte instead, including holes. No paper rectangle, white background, cast shadows, or magenta inside subjects.",
+      "references": [
+        "C:/Users/zerg/Projects/personal/grand-rts-game/output/dongho-map-v4/references/flora-summer.png",
+        "C:/Users/zerg/Projects/personal/grand-rts-game/output/dongho-map-v4/masters/flora-spring.png"
+      ],
+      "generatedFile": "exec-8c6b149f-e951-430e-9cc5-e785fd01f484.png",
+      "savedMaster": "output/dongho-map-v4/masters/flora-summer.png"
+    },
+    {
+      "key": "flora-autumn",
+      "prompt": "Use case: style-transfer. Asset type: Vietnamese historical RTS map cutout sheet. Image 1 is the edit target and determines each object and its layout; image 2 is the drawing-style reference ONLY. Match the accepted Đông Hồ style: warm-black carved contours, large opaque ochre/vermilion/indigo/leaf-green pigment shapes, sparse curved decorative marks, no gradients, tiny hatching, photorealistic shading or engraved microtexture. Preserve the original silhouettes, identity and functional shapes. No labels, grid lines or scenery. Keep the ten original plant species and autumn season cues. Read order: round tree, jackfruit, lychee, pomelo; silk-cotton, grass tuft, bamboo, banana; areca palm, banyan, empty, empty. Large leaf masses with a few curved leaf marks, full trunk/root contacts, no soil patch or cast shadow. Keep deciduous/evergreen distinctions from the original. Landscape 1536x1024, 4 columns by 3 rows, 10 occupied cells in reading order. At least 24 pixels of empty margin around each complete silhouette and wide gutters. Use genuine transparent alpha including every hole, without a painted checkerboard. If true alpha cannot be produced use one exact #FF00FF production matte instead, including holes. No paper rectangle, white background, cast shadows, or magenta inside subjects.",
+      "references": [
+        "C:/Users/zerg/Projects/personal/grand-rts-game/output/dongho-map-v4/references/flora-autumn.png",
+        "C:/Users/zerg/Projects/personal/grand-rts-game/output/dongho-map-v4/masters/flora-spring.png"
+      ],
+      "generatedFile": "exec-45711c4a-d22d-4624-89e9-ec74fcdd8afb.png",
+      "savedMaster": "output/dongho-map-v4/masters/flora-autumn.png"
+    },
+    {
+      "key": "flora-winter",
+      "prompt": "Use case: style-transfer. Asset type: Vietnamese historical RTS map cutout sheet. Image 1 is the edit target and determines each object and its layout; image 2 is the drawing-style reference ONLY. Match the accepted Đông Hồ style: warm-black carved contours, large opaque ochre/vermilion/indigo/leaf-green pigment shapes, sparse curved decorative marks, no gradients, tiny hatching, photorealistic shading or engraved microtexture. Preserve the original silhouettes, identity and functional shapes. No labels, grid lines or scenery. Keep the ten original plant species and winter season cues. Read order: round tree, jackfruit, lychee, pomelo; silk-cotton, grass tuft, bamboo, banana; areca palm, banyan, empty, empty. Large leaf masses with a few curved leaf marks, full trunk/root contacts, no soil patch or cast shadow. Keep deciduous/evergreen distinctions from the original. Landscape 1536x1024, 4 columns by 3 rows, 10 occupied cells in reading order. At least 24 pixels of empty margin around each complete silhouette and wide gutters. Use genuine transparent alpha including every hole, without a painted checkerboard. If true alpha cannot be produced use one exact #FF00FF production matte instead, including holes. No paper rectangle, white background, cast shadows, or magenta inside subjects. The original winter bamboo/banana/palm images have cropped leaf tips: restore complete natural tips within the cell; never preserve accidental source-image clipping. Keep the first tree and banyan leafless as in image 1.",
+      "references": [
+        "C:/Users/zerg/Projects/personal/grand-rts-game/output/dongho-map-v4/references/flora-winter.png",
+        "C:/Users/zerg/Projects/personal/grand-rts-game/output/dongho-map-v4/masters/flora-spring.png"
+      ],
+      "generatedFile": "exec-ddeccf13-343a-4a25-baa5-284956ca51ff.png",
+      "savedMaster": "output/dongho-map-v4/masters/flora-winter.png"
+    },
+    {
+      "key": "fields-bridge",
+      "prompt": "Use case: style-transfer. Asset type: Vietnamese historical RTS map cutout sheet. Image 1 is the edit target and determines each object and its layout; image 2 is the drawing-style reference ONLY. Match the accepted Đông Hồ style: warm-black carved contours, large opaque ochre/vermilion/indigo/leaf-green pigment shapes, sparse curved decorative marks, no gradients, tiny hatching, photorealistic shading or engraved microtexture. Preserve the original silhouettes, identity and functional shapes. No labels, grid lines or scenery. Keep five connected rice-field systems with shared bunds, in original elevated frontal projection. Row 1: flooded, fallow, transplanted. Row 2: ripe, nursery, timber bridge. Preserve each system footprint and separate linked plots; broad blue-green water, ochre bare earth or flat green/gold crop patches with sparse rice marks. Preserve crop-stage distinctions. No farmers, animals or houses. Bridge stays a complete isolated wooden structure with open gaps. Landscape 1536x1024, 3 columns by 2 rows, 6 occupied cells in reading order. At least 24 pixels of empty margin around each complete silhouette and wide gutters. Use genuine transparent alpha including every hole, without a painted checkerboard. If true alpha cannot be produced use one exact #FF00FF production matte instead, including holes. No paper rectangle, white background, cast shadows, or magenta inside subjects.",
+      "references": [
+        "C:/Users/zerg/Projects/personal/grand-rts-game/output/dongho-map-v4/references/fields-bridge.png",
+        "C:/Users/zerg/Projects/personal/grand-rts-game/public/art/story-prints/muster-v1.webp"
+      ],
+      "generatedFile": "exec-5e9c0f6c-dae2-4591-90e1-023b512e2a3e.png",
+      "savedMaster": "output/dongho-map-v4/masters/fields-bridge.png"
+    },
+    {
+      "key": "village-life",
+      "prompt": "Use case: style-transfer. Asset type: Vietnamese historical RTS map cutout sheet. Image 1 is the edit target and determines each object and its layout; image 2 is the drawing-style reference ONLY. Match the accepted Đông Hồ style: warm-black carved contours, large opaque ochre/vermilion/indigo/leaf-green pigment shapes, sparse curved decorative marks, no gradients, tiny hatching, photorealistic shading or engraved microtexture. Preserve the original silhouettes, identity and functional shapes. No labels, grid lines or scenery. Keep original order: farmer, traveler, buffalo, buffalo rider; calf, ox cart, egret wings up, egret wings down; spring petal, autumn leaf, winter snow, empty. Preserve original hats/clothing/equipment and right-facing walking poses. Buffalo are Vietnamese water buffalo with curved horns, not cattle; the ox cart keeps its original animal. Egrets keep the same body proportions in the two wing phases. Use expressive simple faces and large clean pigment masses. Landscape 1536x1024, 4 columns by 3 rows, 11 occupied cells in reading order. At least 24 pixels of empty margin around each complete silhouette and wide gutters. Use genuine transparent alpha including every hole, without a painted checkerboard. If true alpha cannot be produced use one exact #FF00FF production matte instead, including holes. No paper rectangle, white background, cast shadows, or magenta inside subjects. Restore the complete ox-cart animal's head and muzzle, which the old source clipped at its right edge. Full animal, cart, wheels and shafts must fit in its cell. All subjects isolated without any green/earth base. Use exact magenta matte only if true transparent alpha is unavailable, so white egrets and grey buffalo remain distinguishable from the background.",
+      "references": [
+        "C:/Users/zerg/Projects/personal/grand-rts-game/output/dongho-map-v4/references/village-life.png",
+        "C:/Users/zerg/Projects/personal/grand-rts-game/public/art/story-prints/muster-v1.webp"
+      ],
+      "generatedFile": "exec-0f9649cc-e15f-42b3-96e4-5dc679d42c91.png",
+      "savedMaster": "output/dongho-map-v4/masters/village-life.png"
+    },
+    {
+      "key": "walk-traveler",
+      "prompt": "Use case: style-transfer. Asset type: Vietnamese historical RTS map cutout sheet. Image 1 is the edit target and determines each object and its layout; image 2 is the drawing-style reference ONLY. Match the accepted Đông Hồ style: warm-black carved contours, large opaque ochre/vermilion/indigo/leaf-green pigment shapes, sparse curved decorative marks, no gradients, tiny hatching, photorealistic shading or engraved microtexture. Preserve the original silhouettes, identity and functional shapes. No labels, grid lines or scenery. Image 1 fixes all four ORIGINAL walking poses in 2x2 order. Keep the same subject, clothing, carried items, body proportions and right-facing direction in every frame. Preserve alternating front/rear foot contacts and lifted feet, or all four hoof poses and wheel rotation for the cart. Keep head and torso consistent, complete poles/horns/cart intact, broad empty gutters; no extra limbs or people. Change drawing style only, not gait or equipment. Square 1024x1024, 2 columns by 2 rows, 4 occupied cells in reading order. At least 24 pixels of empty margin around each complete silhouette and wide gutters. Use genuine transparent alpha including every hole, without a painted checkerboard. If true alpha cannot be produced use one exact #FF00FF production matte instead, including holes. No paper rectangle, white background, cast shadows, or magenta inside subjects. Match the red-brown tunic, pale trousers, gold conical hat and warm-black outline of the traveler in image 2. Top-left: contact A (near leg forward). Top-right: rear foot lifted, front foot planted. Bottom-left: contact B (opposite leg forward). Bottom-right: front foot lifted and REAR foot planted, a compact bent-knee step. Do not repeat the same planted foot in both passing frames. Keep hoe intact over the shoulder; remove all ground patches.",
+      "references": [
+        "C:/Users/zerg/Projects/personal/grand-rts-game/output/dongho-map-v4/references/walk-traveler.png",
+        "C:/Users/zerg/Projects/personal/grand-rts-game/output/dongho-map-v4/masters/village-life.png"
+      ],
+      "generatedFile": "exec-18add5b1-4f86-4da4-92f1-b8480276b605.png",
+      "savedMaster": "output/dongho-map-v4/masters/walk-traveler.png"
+    },
+    {
+      "key": "walk-farmer",
+      "prompt": "Use case: style-transfer. Asset type: Vietnamese historical RTS map cutout sheet. Image 1 is the edit target and determines each object and its layout; image 2 is the drawing-style reference ONLY. Match the accepted Đông Hồ style: warm-black carved contours, large opaque ochre/vermilion/indigo/leaf-green pigment shapes, sparse curved decorative marks, no gradients, tiny hatching, photorealistic shading or engraved microtexture. Preserve the original silhouettes, identity and functional shapes. No labels, grid lines or scenery. Image 1 fixes all four ORIGINAL walking poses in 2x2 order. Keep the same subject, clothing, carried items, body proportions and right-facing direction in every frame. Preserve alternating front/rear foot contacts and lifted feet, or all four hoof poses and wheel rotation for the cart. Keep head and torso consistent, complete poles/horns/cart intact, broad empty gutters; no extra limbs or people. Change drawing style only, not gait or equipment. Square 1024x1024, 2 columns by 2 rows, 4 occupied cells in reading order. At least 24 pixels of empty margin around each complete silhouette and wide gutters. Use genuine transparent alpha including every hole, without a painted checkerboard. If true alpha cannot be produced use one exact #FF00FF production matte instead, including holes. No paper rectangle, white background, cast shadows, or magenta inside subjects. Match the red-brown tunic, pale trousers, gold conical hat and warm-black outline of the farmer in image 2. All four carry the same sheaf of rice. Correct the old repeated foot poses into a clear gait: top-left near leg forward contact; top-right rear foot lifted and front foot planted; bottom-left opposite leg forward contact; bottom-right FRONT foot raised with bent knee, rear foot planted. The passing frames must clearly plant opposite feet. Keep the head and torso same size. Remove every earth patch under feet.",
+      "references": [
+        "C:/Users/zerg/Projects/personal/grand-rts-game/output/dongho-map-v4/references/walk-farmer.png",
+        "C:/Users/zerg/Projects/personal/grand-rts-game/output/dongho-map-v4/masters/village-life.png"
+      ],
+      "generatedFile": "exec-2204eea8-1895-4b66-874e-08277a48efd5.png",
+      "savedMaster": "output/dongho-map-v4/masters/walk-farmer.png"
+    },
+    {
+      "key": "walk-buffalo",
+      "prompt": "Use case: style-transfer. Asset type: Vietnamese historical RTS map cutout sheet. Image 1 is the edit target and determines each object and its layout; image 2 is the drawing-style reference ONLY. Match the accepted Đông Hồ style: warm-black carved contours, large opaque ochre/vermilion/indigo/leaf-green pigment shapes, sparse curved decorative marks, no gradients, tiny hatching, photorealistic shading or engraved microtexture. Preserve the original silhouettes, identity and functional shapes. No labels, grid lines or scenery. Image 1 fixes all four ORIGINAL walking poses in 2x2 order. Keep the same subject, clothing, carried items, body proportions and right-facing direction in every frame. Preserve alternating front/rear foot contacts and lifted feet, or all four hoof poses and wheel rotation for the cart. Keep head and torso consistent, complete poles/horns/cart intact, broad empty gutters; no extra limbs or people. Change drawing style only, not gait or equipment. Square 1024x1024, 2 columns by 2 rows, 4 occupied cells in reading order. At least 24 pixels of empty margin around each complete silhouette and wide gutters. Use genuine transparent alpha including every hole, without a painted checkerboard. If true alpha cannot be produced use one exact #FF00FF production matte instead, including holes. No paper rectangle, white background, cast shadows, or magenta inside subjects. Match the dark olive-grey water buffalo and sparse ochre curved hide marks in image 2. The four cells must retain visibly different planted/lifted hooves from image 1. Same body, horns, head and tail dimensions, no ground patch under any frame. Four legs only. Keep flat dark pigment inside the buffalo opaque.",
+      "references": [
+        "C:/Users/zerg/Projects/personal/grand-rts-game/output/dongho-map-v4/references/walk-buffalo.png",
+        "C:/Users/zerg/Projects/personal/grand-rts-game/output/dongho-map-v4/masters/village-life.png"
+      ],
+      "generatedFile": "exec-ec492539-26b1-43d9-8822-e1f0ee15c928.png",
+      "savedMaster": "output/dongho-map-v4/masters/walk-buffalo.png"
+    },
+    {
+      "key": "walk-ox-cart",
+      "prompt": "Use case: style-transfer. Asset type: Vietnamese historical RTS map cutout sheet. Image 1 is the edit target and determines each object and its layout; image 2 is the drawing-style reference ONLY. Match the accepted Đông Hồ style: warm-black carved contours, large opaque ochre/vermilion/indigo/leaf-green pigment shapes, sparse curved decorative marks, no gradients, tiny hatching, photorealistic shading or engraved microtexture. Preserve the original silhouettes, identity and functional shapes. No labels, grid lines or scenery. Image 1 fixes all four ORIGINAL walking poses in 2x2 order. Keep the same subject, clothing, carried items, body proportions and right-facing direction in every frame. Preserve alternating front/rear foot contacts and lifted feet, or all four hoof poses and wheel rotation for the cart. Keep head and torso consistent, complete poles/horns/cart intact, broad empty gutters; no extra limbs or people. Change drawing style only, not gait or equipment. Square 1024x1024, 2 columns by 2 rows, 4 occupied cells in reading order. At least 24 pixels of empty margin around each complete silhouette and wide gutters. Use genuine transparent alpha including every hole, without a painted checkerboard. If true alpha cannot be produced use one exact #FF00FF production matte instead, including holes. No paper rectangle, white background, cast shadows, or magenta inside subjects. Match the ochre thatched cart and dark olive-grey draught animal in image 2. Keep the same complete roof, load, shafts and animal head in all four cells. The four poses preserve the ORIGINAL different moving hooves and rotating wheel spokes from image 1. Wheels contact one baseline. No earth patches. Four animal legs, no added driver.",
+      "references": [
+        "C:/Users/zerg/Projects/personal/grand-rts-game/output/dongho-map-v4/references/walk-ox-cart.png",
+        "C:/Users/zerg/Projects/personal/grand-rts-game/output/dongho-map-v4/masters/village-life.png"
+      ],
+      "generatedFile": "exec-24839389-8e1b-460c-8282-ca4e2683b82b.png",
+      "savedMaster": "output/dongho-map-v4/masters/walk-ox-cart.png"
+    },
+    {
+      "key": "markers-1",
+      "prompt": "Use case: style-transfer. Asset type: Vietnamese historical RTS map cutout sheet. Image 1 is the edit target and determines each object and its layout; image 2 is the drawing-style reference ONLY. Match the accepted Đông Hồ style: warm-black carved contours, large opaque ochre/vermilion/indigo/leaf-green pigment shapes, sparse curved decorative marks, no gradients, tiny hatching, photorealistic shading or engraved microtexture. Preserve the original silhouettes, identity and functional shapes. No labels, grid lines or scenery. Preserve all original flags, emblems, colours and symbols in EXACT cell order. Thick clean warm-black outlines, broad flat pigments, simple tassels. No new insignia, text, lettering, banners, terrain or scenery. Keep functional paths, rings and brush accents intact; do not turn them into new objects. Landscape 1536x1024, 4 columns by 3 rows, 12 occupied cells in reading order. At least 24 pixels of empty margin around each complete silhouette and wide gutters. Use genuine transparent alpha including every hole, without a painted checkerboard. If true alpha cannot be produced use one exact #FF00FF production matte instead, including holes. No paper rectangle, white background, cast shadows, or magenta inside subjects. Exactly twelve flag standards. First six keep their original vivid gold/red/indigo/leaf-green colours, final six keep the original muted brown/cream rival colours. Retain each distinct original emblem and the five-colour striped flag. No ground patches.",
+      "references": [
+        "C:/Users/zerg/Projects/personal/grand-rts-game/output/dongho-map-v4/references/markers-1.png",
+        "C:/Users/zerg/Projects/personal/grand-rts-game/public/art/story-prints/muster-v1.webp"
+      ],
+      "generatedFile": "exec-cb938a02-11c5-4623-95be-dfcd7fbf078d.png",
+      "savedMaster": "output/dongho-map-v4/masters/markers-1.png"
+    },
+    {
+      "key": "markers-2",
+      "prompt": "Use case: style-transfer. Asset type: Vietnamese historical RTS map cutout sheet. Image 1 is the edit target and determines each object and its layout; image 2 is the drawing-style reference ONLY. Match the accepted Đông Hồ style: warm-black carved contours, large opaque ochre/vermilion/indigo/leaf-green pigment shapes, sparse curved decorative marks, no gradients, tiny hatching, photorealistic shading or engraved microtexture. Preserve the original silhouettes, identity and functional shapes. No labels, grid lines or scenery. Preserve all original flags, emblems, colours and symbols in EXACT cell order. Thick clean warm-black outlines, broad flat pigments, simple tassels. No new insignia, text, lettering, banners, terrain or scenery. Keep functional paths, rings and brush accents intact; do not turn them into new objects. Landscape 1536x1024, 4 columns by 3 rows, 11 occupied cells in reading order. At least 24 pixels of empty margin around each complete silhouette and wide gutters. Use genuine transparent alpha including every hole, without a painted checkerboard. If true alpha cannot be produced use one exact #FF00FF production matte instead, including holes. No paper rectangle, white background, cast shadows, or magenta inside subjects. Eleven occupied cells: row1 capital standard, destination standard, red circular selection seal, golden hollow sun ring; row2 gold square-hole coin, hammer medallion, recruit medallion, siege medallion; row3 crossed-swords medallion, dust medallion, route medallion, empty. Preserve these exact simple symbols. Hollow sun centre must be transparent. Remove all green/earth bases below the icons.",
+      "references": [
+        "C:/Users/zerg/Projects/personal/grand-rts-game/output/dongho-map-v4/references/markers-2.png",
+        "C:/Users/zerg/Projects/personal/grand-rts-game/public/art/story-prints/muster-v1.webp"
+      ],
+      "generatedFile": "exec-97555927-133d-4a52-a5b0-6daab1454d32.png",
+      "savedMaster": "output/dongho-map-v4/masters/markers-2.png"
+    }
+  ]
+}

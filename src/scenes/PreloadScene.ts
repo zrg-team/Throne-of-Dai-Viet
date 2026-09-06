@@ -5,6 +5,7 @@ import { applyRenderScale } from '../game/graphicsQuality';
 import { configuredSupportChannels, supportQrTextureKey } from '../data/support';
 import { allowsDonationLinks } from '../platform/shell';
 import { preloadConquestMapArt } from '../ui/conquestMapArt';
+import { preloadStoryPrints } from '../ui/storyPrint';
 
 export class PreloadScene extends Phaser.Scene {
   constructor() {
@@ -16,13 +17,16 @@ export class PreloadScene extends Phaser.Scene {
     const baseUrl = import.meta.env.BASE_URL;
     // Optional authored world art. Every call site retains its procedural draw as a fallback.
     preloadConquestMapArt(this, baseUrl);
+    preloadStoryPrints(this, baseUrl);
     // The front-page landscape is a registered four-plate illustration. Mountains, bamboo and
     // lotus retain a shared 1536x1024 frame so MenuScene can move them independently without the
-    // perspective drift that comes from rebuilding the scene out of map tokens.
-    this.load.image('menu-layer-ground-v4', `${baseUrl}art/menu-layer-ground-v4.png`);
-    this.load.image('menu-layer-mountains-v1', `${baseUrl}art/menu-layer-mountains-v1.png`);
-    this.load.image('menu-layer-bamboo-v1', `${baseUrl}art/menu-layer-bamboo-v1.png`);
-    this.load.image('menu-layer-lotus-v1', `${baseUrl}art/menu-layer-lotus-v1.png`);
+    // perspective drift that comes from rebuilding the scene out of map tokens. Ground v5,
+    // mountains v2, bamboo v2 and lotus v2 are the Đông Hồ pigment repaint of the same
+    // composition — chàm river and shadow, lá xanh foliage, hòe paddies, son petals, on a plain sheet.
+    this.load.image('menu-layer-ground-v5', `${baseUrl}art/menu-layer-ground-v5.png`);
+    this.load.image('menu-layer-mountains-v3', `${baseUrl}art/menu-layer-mountains-v3.png`);
+    this.load.image('menu-layer-bamboo-v2', `${baseUrl}art/menu-layer-bamboo-v2.png`);
+    this.load.image('menu-layer-lotus-v2', `${baseUrl}art/menu-layer-lotus-v2.png`);
     for (const icon of Object.values(RESOURCE_ICONS)) {
       this.load.svg(icon.key, `${baseUrl}icons/${icon.file}.svg`, size);
     }
