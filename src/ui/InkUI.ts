@@ -37,7 +37,7 @@ function printedSurface(
     shadow?: boolean;
   } = {},
 ): void {
-  const cut = opts.cut ?? Math.min(7, Math.min(width, height) * 0.16);
+  const cut = opts.cut ?? Math.min(2, Math.min(width, height) * 0.06);
   const seed = opts.seed ?? Math.round(width * 31 + height * 7);
   const sheet: Pt[] = [
     { x: cut, y: 0 }, { x: width - cut, y: 0 },
@@ -46,17 +46,18 @@ function printedSurface(
     { x: 0, y: height - cut }, { x: 0, y: cut },
   ];
 
-  if (opts.shadow !== false) {
-    g.fillStyle(PIGMENT.muc, 0.14);
+  if (opts.shadow === true) {
+    g.fillStyle(PIGMENT.muc, 0.05);
     g.fillPoints(sheet.map((p) => ({ x: p.x + 1.5, y: p.y + 2.5 })), true);
   }
-  washFill(g, sheet, opts.fill ?? INK_UI.parchment, seed, opts.fillAlpha ?? 1, 1.1);
+  washFill(g, sheet, opts.fill ?? INK_UI.parchment, seed, opts.fillAlpha ?? 1, 0.35);
   inkPath(g, sheet, seed + 1, {
     width: opts.borderWidth ?? 1.5,
     alpha: opts.borderAlpha ?? 0.72,
     colour: opts.border ?? PIGMENT.muc,
-    wobble: 0.7,
-    step: 11,
+    wobble: 0.3,
+    step: 17,
+    bleed: 0.12,
     closed: true,
   });
 }
@@ -548,6 +549,21 @@ export class InkUI {
    */
   crayonTile(bounds: UIBounds, opts: { selected?: boolean; fill?: number; accent?: number } = {}): Phaser.GameObjects.Image {
     const { selected = false } = opts;
+    if (opts.fill !== undefined || opts.accent !== undefined) {
+      const fill = opts.fill ?? INK_UI.parchment;
+      const border = opts.accent ?? (selected ? INK_UI.cinnabar : INK_UI.softBrush);
+      const { width, height } = bounds;
+      const st = stampDesign(this.scene, `ui:print-tile:${width}x${height}:${fill}:${border}:${selected}`,
+        { left: -3, top: -3, right: width + 3, bottom: height + 3 },
+        (g, x, y) => {
+          g.translateCanvas(x, y);
+          printedSurface(g, width, height, {
+            fill, border, borderWidth: selected ? 2 : 1.3, borderAlpha: selected ? 1 : 0.7,
+          });
+          g.translateCanvas(-x, -y);
+        }, { pool: 'ui' });
+      return placeStamp(this.scene, st, bounds.x, bounds.y);
+    }
     // Segmented selectors reuse the exact button surface so tiles, buttons, and cards read
     // as one visual family: selected = primary (gold), unselected = secondary (parchment).
     // Stamped, not drawn: a fight screen holds five of these and repaints them per order.
@@ -562,7 +578,7 @@ export class InkUI {
       fillAlpha = 1,
       border = INK_UI.brush,
       borderAlpha = 0.86,
-      borderWidth = 2,
+      borderWidth = 1.2,
       radius = 8,
       cut,
       muted = false,
@@ -577,8 +593,8 @@ export class InkUI {
       fill, fillAlpha: alpha, border, borderAlpha: muted ? borderAlpha * 0.6 : borderAlpha,
       borderWidth, cut, seed: Math.round(bounds.x * 13 + bounds.y * 7 + bounds.width),
     });
-    // A second rule just inside the edge, the way a printed plate is bordered twice.
-    inkPath(
+    // A second rule is reserved for ceremonial plates, leaving ordinary controls quiet.
+    if (ornaments) inkPath(
       g,
       [{ x: 4, y: 4 }, { x: bounds.width - 4, y: 4 }, { x: bounds.width - 4, y: bounds.height - 4 }, { x: 4, y: bounds.height - 4 }],
       Math.round(bounds.width * 3 + bounds.height),
@@ -1410,13 +1426,8 @@ function drawButtonSurface(
     printedSurface(g, width, height, {
       fill: pressed ? palette.bottom : palette.top, fillAlpha: alpha,
       border: palette.border, borderAlpha: 0.85 * alpha, borderWidth: 1.6, seed,
-      shadow: !pressed,
+      shadow: false,
     });
-    // The catchlight a block leaves along its top edge. Wobbled, or it reads as a CSS gradient.
-    inkPath(g, [{ x: 9, y: 7 }, { x: width - 9, y: 7 }], seed + 3, {
-      width: 1, alpha: disabled ? 0.1 : pressed ? 0.14 : 0.26, colour: INK_UI.goldLight, wobble: 0.5, step: 12,
-    });
-
     // A stamped seal at each end of a wide button, in place of the old arrow notches.
     if (width >= 220 && height >= 42) {
       const y = height / 2;
@@ -1461,8 +1472,8 @@ function buttonPalette(variant: InkButtonVariant, pressed: boolean): { top: numb
     return { top: INK_UI.parchment, bottom: INK_UI.parchment, border: INK_UI.softBrush };
   }
   return {
-    top: pressed ? INK_UI.parchmentDark : 0xd9c584,
-    bottom: pressed ? 0xbba466 : INK_UI.parchmentShade,
+    top: pressed ? INK_UI.parchmentDark : INK_UI.parchmentShade,
+    bottom: pressed ? PIGMENT.diepDeep : INK_UI.parchmentShade,
     border: variant === 'disabled' ? INK_UI.softBrush : INK_UI.brush,
   };
 }

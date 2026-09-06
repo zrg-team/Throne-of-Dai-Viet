@@ -49,6 +49,11 @@ export class ConquestScene extends MapScene {
   private arenaExitAt?: number;
 
   private ascentAccumulator = 0;
+
+  /** The Ascent clock's phase — see `MapScene.tickPhase`. */
+  protected override tickPhase(): number {
+    return Phaser.Math.Clamp(this.ascentAccumulator / ASCENT_TICK_MS, 0, 1);
+  }
   private frontMarker?: Phaser.GameObjects.Container;
   private ownershipTint?: Phaser.GameObjects.Graphics;
   /** Ownership map the tint was last painted for, so a tick with no flips repaints nothing. */
@@ -95,6 +100,7 @@ export class ConquestScene extends MapScene {
 
     this.state.realtimeSeconds += delta / 1000;
     this.ascentAccumulator += delta;
+    this.state.tickPhase = this.tickPhase();
     if (this.ascentAccumulator < ASCENT_TICK_MS) {
       return;
     }
@@ -102,6 +108,8 @@ export class ConquestScene extends MapScene {
     // late by the accumulated slack, and the season clock drifted behind wall time on slow frames.
     this.ascentAccumulator = Math.min(this.ascentAccumulator - ASCENT_TICK_MS, ASCENT_TICK_MS);
 
+    // The phase the tick's own orders are given at: just past the boundary, not just before it.
+    this.state.tickPhase = this.tickPhase();
     advanceAscentTick(this.state);
 
     // No arrival flourish here either — see `MapScene`'s note where the green-dot column used to

@@ -28,7 +28,7 @@ await page.addInitScript(() => {
   localStorage.setItem('mandate:map-theme:v1', 'dong-ho');
   // The one tier that keeps settlement ink live alongside the relief, so the two sort against each
   // other as scene objects rather than inside one baked raster. It is where the fault showed.
-  localStorage.setItem('mandate:quality:v1', 'high');
+  localStorage.setItem('mandate:graphics:v1', 'high');
 });
 
 await page.goto(`${BASE}/?capture=1&noladder=1`, { waitUntil: 'domcontentloaded' });

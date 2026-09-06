@@ -214,12 +214,16 @@ check(/^re-forming/.test(walkingBubble),
   'and our own bubble says why the exchange has just got worse', walkingBubble);
 check(walking.texts.includes('no shape yet — this is what the change costs'),
   'with the price of the change still beside the dials');
-// The transit bar is an extra graphics that only exists mid-walk. It used to be two — a seal in
-// the chip's corner went with them, because by the time it appeared the chip already said
-// `re-forming · 2` one line below it and the tap had already been answered by its own stamp.
-check(walking.graphics > opening.graphics,
-  'a transit bar is drawn while it walks',
-  `${opening.graphics} → ${walking.graphics} graphics`);
+// Check the actual transit drawing. A selection checkmark leaves when this bar enters,
+// so total Graphics count cannot tell whether progress is visible.
+const transitBar = await page.evaluate(() => {
+  const ui = window.__phaserGame.scene.getScene('ConquestUIScene');
+  const b = window.__mandateState.ascent.activeBattle;
+  const chip = ui.battleUi.dock.chips[b.formationTarget];
+  return Boolean(chip?.walking && chip.bar?.active && chip.bar.visible
+    && chip.bar.commandBuffer.length > 0 && ui.battleUi.orders.list.includes(chip.bar));
+});
+check(transitBar, 'a transit bar is drawn while it walks');
 
 // ── the payoff ─────────────────────────────────────────────────────────────
 // Landing is beat-quantised, so poll rather than sleeping on a guess.

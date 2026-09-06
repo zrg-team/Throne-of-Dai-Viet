@@ -234,9 +234,9 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 390, height: 664 }
   check(`${label}: four registered artwork plates are loaded`, menu.art?.layers?.length === 4
     && ['ground', 'mountains', 'bamboo', 'lotus'].every((name) => menu.art.layers.some((layer) => layer.name === name))
     && new Set(menu.art.layers.map((layer) => layer.texture)).size === 4
-    && menu.art.layers.find((layer) => layer.name === 'ground')?.texture === 'menu-layer-ground-v4'
+    && menu.art.layers.find((layer) => layer.name === 'ground')?.texture === 'menu-layer-ground-v5'
     && menu.art.layers.find((layer) => layer.name === 'ground')?.fieldContinuity === 'fully-planted-rice'
-    && menu.art.layers.find((layer) => layer.name === 'bamboo')?.texture === 'menu-layer-bamboo-v1'
+    && menu.art.layers.find((layer) => layer.name === 'bamboo')?.texture === 'menu-layer-bamboo-v2'
     && menu.art.sourceSize?.width >= 1500 && menu.art.sourceSize?.height >= 1000,
   JSON.stringify(menu.art));
   check(`${label}: the illustration keeps its authored aspect`, menu.art?.aspectError !== null
@@ -276,7 +276,9 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 390, height: 664 }
   check(`${label}: bamboo plate is truly transparent and its measured bounds drive placement`, menu.art?.bambooPixels
     && menu.art.bambooPixels.corners.every((alpha) => alpha === 0)
     && menu.art.bambooPixels.opaque > 100
-    && menu.art.bambooPixels.minY >= menu.art.bambooPixels.height * 0.4
+    // The v2 grove is drawn taller in its frame than v1 was; the guard is that the plate's upper
+    // third is clear, i.e. it is an isolated grove and not a full-frame picture.
+    && menu.art.bambooPixels.minY >= menu.art.bambooPixels.height * 0.3
     && Math.abs(bambooLayer?.bambooTransform?.sourceBounds?.left - menu.art.bambooPixels.minX) <= 2
     && Math.abs(bambooLayer?.bambooTransform?.sourceBounds?.right - menu.art.bambooPixels.maxX) <= 2
     && Math.abs(bambooLayer?.bambooTransform?.sourceBounds?.top - menu.art.bambooPixels.minY) <= 2
@@ -397,7 +399,9 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 390, height: 664 }
     && lotusWake?.origin === 'stem-waterline'
     && lotusWake?.animated === true
     && lotusWakeNormalized?.x >= 0.15 && lotusWakeNormalized.x <= 0.38
-    && lotusWakeNormalized?.y >= 0.88 && lotusWakeNormalized.y <= 0.94
+    // The band ends lower than it used to: the lotus plate is sunk by `LOTUS_SINK` so its stems
+    // stand in the river rather than on the pale bar beside it, and the waterline went with them.
+    && lotusWakeNormalized?.y >= 0.88 && lotusWakeNormalized.y <= 0.98
     && Math.abs(lotusLayer.lotusReaction?.x ?? 0) <= 2.2
     && Math.abs(lotusLayer.lotusReaction?.y ?? 0) <= 1.1
     && Math.abs(lotusLayer.lotusReaction?.angle ?? 0) <= 0.7
@@ -464,7 +468,7 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 390, height: 664 }
     // Quieter than the 0.88 a finger gets, or the pond would be answering a touch nobody made.
     && idle.log.every((wave) => wave.peak > 0.3 && wave.peak <= 0.75)
     && idle.log.every((wave) => wave.normX >= 0.1 && wave.normX <= 0.45)
-    && idle.log.every((wave) => wave.normY >= 0.86 && wave.normY <= 0.96)
+    && idle.log.every((wave) => wave.normY >= 0.86 && wave.normY <= 0.99)
     && idle.shapes.every((shape) => shape.origin === 'stem-waterline')
     // The pond has one water vocabulary: the idle swell opens the same rounded rings the touch
     // answer does, rather than inventing a second kind of wave on the same plate.

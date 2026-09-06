@@ -21,6 +21,7 @@ import { iconForOption, type CardIconId } from '../../../ui/CardIcons';
 import { staggerIn } from '../../../ui/animations';
 import { formatResourceList, heroName, resourceLabel, t } from '../../../i18n';
 import { focusTitle } from '../../../ui/focusPanel';
+import { storyPrintHeader } from '../../../ui/storyPrint';
 import type { AscentPrompt } from '../../../state/types';
 import type { ConquestUIScene } from '../../ConquestUIScene';
 
@@ -48,7 +49,7 @@ export function showEnvoy(self: ConquestUIScene, prompt: Extract<AscentPrompt, {
   // most names and overlapped the price line at a shorter height.
   const rowHeight = 84;
   const cards: Phaser.GameObjects.Container[] = [];
-  let used = 0;
+  let used = storyPrintHeader(self, body, 'petition', bodyWidth);
   offers.forEach((option) => {
     const price = option.cost && Object.keys(option.cost).length > 0
       ? formatResourceList(option.cost)
@@ -166,22 +167,24 @@ export function showMusterProposal(self: ConquestUIScene, prompt: Extract<Ascent
     0,
   );
 
-  let used = 0;
+  let used = storyPrintHeader(self, body, 'muster', bodyWidth);
   // The commander and the number, as a band: a face on the left, the headcount in the largest
   // type this card prints, the doctrine and the muster ground under it.
   const bandH = 64;
   const holder = self.add.container(0, used);
   body.add(holder);
-  holder.add(self.ui.panel({ x: 0, y: 0, width: bodyWidth, height: bandH }, { border: INK_UI.gold, fillAlpha: 0.9 }));
-  if (hero) holder.add(renderHeroFaceInBox(self, hero, { x: 6, y: 6, width: bandH - 12, height: bandH - 12 }));
-  holder.add(self.ui.label(bandH + 4, 6, `${prompt.plan.soldiers}`, 'title', { fontSize: '24px' }).setOrigin(0, 0));
-  holder.add(self.ui.label(bandH + 4 + 74, 14, t('ascent.muster.men'), 'caption', {}).setOrigin(0, 0));
-  holder.add(self.ui.label(bandH + 4, 38, t('ascent.muster.where', {
+  const where = self.ui.label(bandH + 4, 38, t('ascent.muster.where', {
     doctrine: t(`comp.${prompt.plan.composition}` as Parameters<typeof t>[0]),
     land: land?.name ?? '—',
     ticks: prompt.ticks,
-  }), 'caption', { wordWrap: { width: bodyWidth - bandH - 12 } }).setOrigin(0, 0));
-  used += bandH + 10;
+  }), 'caption', { wordWrap: { width: bodyWidth - bandH - 12 } }).setOrigin(0, 0);
+  const measuredBandH = Math.max(bandH, where.y + where.height + 8);
+  holder.add(self.ui.panel({ x: 0, y: 0, width: bodyWidth, height: measuredBandH }, { border: INK_UI.gold, fillAlpha: 0.9 }));
+  if (hero) holder.add(renderHeroFaceInBox(self, hero, { x: 6, y: 6, width: bandH - 12, height: bandH - 12 }));
+  holder.add(self.ui.label(bandH + 4, 6, `${prompt.plan.soldiers}`, 'title', { fontSize: '24px' }).setOrigin(0, 0));
+  holder.add(self.ui.label(bandH + 4 + 74, 14, t('ascent.muster.men'), 'caption', {}).setOrigin(0, 0));
+  holder.add(where);
+  used += measuredBandH + 10;
 
   const bill = [
     t('ascent.muster.billPeople', { n: prompt.plan.soldiers }),

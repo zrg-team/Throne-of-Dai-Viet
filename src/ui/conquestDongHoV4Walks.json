@@ -1,0 +1,74 @@
+{
+  "life.farmer-walk": {
+    "path": "art/conquest-dongho-v4/life/farmer-walk.png",
+    "frameWidth": 627,
+    "frameHeight": 627,
+    "contentHeight": 550,
+    "baselines": [
+      590,
+      590,
+      590,
+      590
+    ],
+    "anchorsX": [
+      313.5,
+      313.5,
+      313.5,
+      313.5
+    ]
+  },
+  "life.traveler-walk": {
+    "path": "art/conquest-dongho-v4/life/traveler-walk.png",
+    "frameWidth": 627,
+    "frameHeight": 627,
+    "contentHeight": 550,
+    "baselines": [
+      590,
+      590,
+      590,
+      590
+    ],
+    "anchorsX": [
+      313.5,
+      313.5,
+      313.5,
+      313.5
+    ]
+  },
+  "life.buffalo-walk": {
+    "path": "art/conquest-dongho-v4/life/buffalo-walk.png",
+    "frameWidth": 627,
+    "frameHeight": 627,
+    "contentHeight": 340.5253283302064,
+    "baselines": [
+      590,
+      590,
+      590,
+      590
+    ],
+    "anchorsX": [
+      313.5,
+      313.5,
+      313.5,
+      313.5
+    ]
+  },
+  "life.ox-cart-walk": {
+    "path": "art/conquest-dongho-v4/life/ox-cart-walk.png",
+    "frameWidth": 627,
+    "frameHeight": 627,
+    "contentHeight": 339.70588235294116,
+    "baselines": [
+      590,
+      590,
+      590,
+      590
+    ],
+    "anchorsX": [
+      313.5,
+      313.5,
+      313.5,
+      313.5
+    ]
+  }
+}

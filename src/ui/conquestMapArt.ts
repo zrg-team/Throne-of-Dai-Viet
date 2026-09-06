@@ -1,6 +1,12 @@
 import type Phaser from 'phaser';
 import type { ArmyWardrobe } from '../state/types';
 import type { Stamp, StampBox } from './ink/stamp';
+import dongHoV4Assets from './conquestDongHoV4Assets.json';
+import dongHoV4Walks from './conquestDongHoV4Walks.json';
+
+// One registry serves map, battlefield and History. Only reviewed redraws are listed here;
+// missing wardrobes keep their own historical silhouettes until their redraw is ready.
+const reviewedDongHoPaths: Readonly<Record<string, string>> = dongHoV4Assets;
 
 export type ConquestArtFamily =
   | 'flora' | 'settlements' | 'buildings' | 'terrain' | 'life' | 'markers' | 'figures';
@@ -135,7 +141,7 @@ function acceptedAsset(
   return {
     id,
     family,
-    path: accepted ? `art/conquest-dongho/${id.replaceAll('.', '/')}.png` : undefined,
+    path: accepted ? reviewedDongHoPaths[id] ?? `art/conquest-dongho/${id.replaceAll('.', '/')}.png` : undefined,
     textureKey: accepted ? `conquest-art:${id}` : undefined,
     anchor: extra.anchor ?? { x: 0.5, y: family === 'terrain' ? 0.5 : 0.96 },
     designBounds,
@@ -401,7 +407,7 @@ export function walkStrideFor(sheet: ConquestWalkSheet, visibleHeight: number): 
   return (sheet.cycleMetres / 4) * pixelsPerMetre;
 }
 
-export const CONQUEST_WALK_SHEETS: readonly ConquestWalkSheet[] = [
+const originalWalkSheets: readonly ConquestWalkSheet[] = [
   {
     kind: 'person',
     sourceTextureKey: 'conquest-art:life.farmer',
@@ -463,6 +469,15 @@ export const CONQUEST_WALK_SHEETS: readonly ConquestWalkSheet[] = [
     cycleMetres: 1.5,
   },
 ] as const;
+
+const reviewedWalks = dongHoV4Walks as unknown as Readonly<Record<string,
+  Pick<ConquestWalkSheet, 'path' | 'frameWidth' | 'frameHeight' | 'contentHeight' | 'baselines' | 'anchorsX'>>>;
+
+/** Select reviewed art and its measured frame anchors together, preserving each role's gait. */
+export const CONQUEST_WALK_SHEETS: readonly ConquestWalkSheet[] = originalWalkSheets.map(sheet => ({
+  ...sheet,
+  ...reviewedWalks[sheet.textureKey.replace('conquest-art:', '')],
+}));
 
 const walkSheetBySourceTexture = new Map(
   CONQUEST_WALK_SHEETS.map((sheet) => [sheet.sourceTextureKey, sheet] as const),

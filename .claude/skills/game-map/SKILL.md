@@ -151,10 +151,12 @@ invalidated independently — two of them are never cleared, which is fine only 
 inputs never change.
 
 **Roads** — `src/map/roadCurve.ts`. `buildRoadCurve` returns a `Phaser.Curves.Spline` seeded from
-`state.mapConfig.seed + hashString(seedKey)`, with 1–2 waypoints jittered along the normal. Callers
-key it differently on purpose: carts and travellers use `${landA}|${landB}` so they ride the drawn
-road, while marching armies use `army|${from}|${to}` so a host does **not** track the painted road
-exactly.
+`state.mapConfig.seed + hashString(seedKey)`, with 1–2 waypoints jittered along the normal. **Every
+walker goes through `drawnRoadBetween`** — the road as drawn for the sorted pair, walked backwards
+from the higher id — so carts, travellers and marching hosts are all on the painted road.
+`ArmyRenderer` chains stand → gate → road → far gate → far stand into a `MarchRoute`
+(`src/map/marchRoute.ts`) walked by arc length; where no road is drawn (wilderness, unseen ground) a
+host makes a `track|lo|hi` of its own on the same sorted key, so it comes home the way it went.
 
 ## Culling and fog
 

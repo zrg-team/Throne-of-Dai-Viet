@@ -7,6 +7,7 @@ import {
   EARLY_WAVE_GRACE,
   TRIBUTE_COOLDOWN_TICKS,
   TRIBUTE_INCOME_MULT,
+  TRIBUTE_TREASURY_SHARE,
   TRIBUTE_MEANS_FLOOR,
   TRIBUTE_REFUSE_TICKS,
   TRIBUTE_TREASURY_CAP,
@@ -117,7 +118,8 @@ function demandsSubmission(state: GameState, kingdom: Kingdom): boolean {
  * consequences land as an unavoidable punishment rather than a price you chose to pay.
  */
 export function tributeDemandGold(state: GameState): number {
-  const asked = Math.max(120, state.resourceRates.gold * TRIBUTE_INCOME_MULT);
+  // A bully asks by what it can see: the income, or a share of the pile, whichever is more.
+  const asked = Math.max(120, state.resourceRates.gold * TRIBUTE_INCOME_MULT, state.resources.gold * TRIBUTE_TREASURY_SHARE);
   const affordableCeiling = state.resources.gold * TRIBUTE_TREASURY_CAP;
   return Math.round(Math.max(120, Math.min(asked, affordableCeiling)));
 }

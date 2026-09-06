@@ -22,6 +22,9 @@ import {
   RELATIONS_WAVE_DIAL,
   RAID_INTERVAL_TICKS,
   MERCENARY_GOLD_BASE,
+  MERCENARY_TREASURY_SHARE,
+  FORTIFY_TREASURY_SHARE,
+  BUYOFF_TREASURY_SHARE,
   MERCENARY_INCOME_MULT,
   MERCENARY_POWER_SHARE,
   WAR_PURCHASE_ESCALATION,
@@ -112,12 +115,22 @@ function warPurchaseMultiplier(state: GameState): number {
 }
 
 function fortifyCost(state: GameState, wave: number): number {
-  const floor = Math.max(FORTIFY_GOLD_BASE * (1 + wave * 0.25), state.resourceRates.gold * 6);
+  // Never below a share of the treasury: a rich crown pays a rich crown's price for its walls.
+  // See `FORTIFY_TREASURY_SHARE`.
+  const floor = Math.max(
+    FORTIFY_GOLD_BASE * (1 + wave * 0.25),
+    state.resourceRates.gold * 6,
+    state.resources.gold * FORTIFY_TREASURY_SHARE,
+  );
   return Math.round(floor * warPurchaseMultiplier(state));
 }
 
 function buyOffCost(state: GameState, wave: number): number {
-  return Math.round(Math.max(BUYOFF_GOLD_BASE * (1 + wave * 0.32), state.resourceRates.gold * 14));
+  return Math.round(Math.max(
+    BUYOFF_GOLD_BASE * (1 + wave * 0.32),
+    state.resourceRates.gold * 14,
+    state.resources.gold * BUYOFF_TREASURY_SHARE,
+  ));
 }
 
 /**
@@ -129,7 +142,11 @@ function buyOffCost(state: GameState, wave: number): number {
  * timer, no free commander and no manpower cost.
  */
 function mercenaryCost(state: GameState, wave: number): number {
-  const floor = Math.max(MERCENARY_GOLD_BASE * (1 + wave * 0.3), state.resourceRates.gold * MERCENARY_INCOME_MULT);
+  const floor = Math.max(
+    MERCENARY_GOLD_BASE * (1 + wave * 0.3),
+    state.resourceRates.gold * MERCENARY_INCOME_MULT,
+    state.resources.gold * MERCENARY_TREASURY_SHARE,
+  );
   return Math.round(floor * warPurchaseMultiplier(state));
 }
 

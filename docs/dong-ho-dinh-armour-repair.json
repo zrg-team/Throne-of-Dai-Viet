@@ -1,0 +1,9 @@
+{
+  "generator": "built-in ImageGen",
+  "date": "2026-09-06",
+  "prompt": "Use case: precise-object-edit. Asset type: Vietnamese Đông Hồ RTS soldier sprite sheet. Image 1 is the edit target, the current accepted drawing style; image 2 is ONLY the original wardrobe/armour coverage reference. Correct ONLY the FOUR soldiers in the MIDDLE trained row of image 1: restore substantial ochre-brown protective torso armour over their indigo sleeves, with broad outlined chest panels, shoulder protection and short divided armoured skirt matching the coverage of image 2. The trained middle row must visibly wear armour, not just blue cloth. Preserve their soft brown cylindrical headgear, indigo undersleeves, pale trousers, wrapped boots, weapons, shields, bow, horse and right-facing poses. Keep the top levy row and bottom royal row unchanged. Same flat opaque pigment, warm-black woodblock outlines, sparse decorative interior marks, expressive faces; no gradients or tiny engraving. Landscape 1536x1024, exactly 4 columns and 3 rows, original cell order. Complete silhouettes with wide empty margins, no clipping, no labels. Use genuine transparent alpha including holes, never a painted checkerboard. If alpha cannot be produced, use exact uniform #FF00FF matte with no magenta inside subjects.",
+  "generatedFile": "exec-5b668842-4106-4d46-a5ad-fcbcf71655db.png",
+  "savedMaster": "output/dongho-style-v4/masters/army-dinh.png",
+  "status": "approved",
+  "notes": "Protective armour restored in all four distinct trained drawings; all fifteen Đinh slots now selected."
+}

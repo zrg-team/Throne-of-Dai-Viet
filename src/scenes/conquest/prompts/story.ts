@@ -10,6 +10,7 @@
  */
 import { renderHeroFaceInBox } from '../../../ui/FaceRenderer';
 import { drawStoryBand } from '../../../ui/ink/storyBand';
+import { addStoryPrint, storyBeatPrint } from '../../../ui/storyPrint';
 import { storyText } from '../../../i18n/story';
 import { INK_UI, INK_UI_HEX } from '../../../ui/InkUI';
 import { iconForOption } from '../../../ui/CardIcons';
@@ -41,35 +42,46 @@ export function showStoryBeat(self: ConquestUIScene, prompt: Extract<AscentPromp
 
   let used = 0;
 
-  // The band: a generic woodblock impression chosen by tag, with the speaker's own portrait
-  // beside it when a person is talking. No story owns an illustration — a template binds a
-  // random hero and a random province, so a specific picture would be a lie on most maps.
-  if (prompt.band) {
-    const bandHeight = 62;
-    const faceWidth = prompt.speakerHeroId ? bandHeight : 0;
+  // Symbolic scenes describe the selected moment; the actual cast still uses its own portrait.
+  // Other moments, and missing optional artwork, retain the procedural impression.
+  const printKind = storyBeatPrint(prompt.templateId, prompt.fragmentId);
+  const hasPrint = printKind && self.textures.exists(`story-print:${printKind}`);
+  if (hasPrint || prompt.band) {
+    const bandHeight = hasPrint ? 138 : 62;
+    const faceWidth = prompt.speakerHeroId ? 62 : 0;
     const holder = self.add.container(0, used);
 
     if (prompt.speakerHeroId) {
       const speaker = self.state.heroes.find((hero) => hero.id === prompt.speakerHeroId);
       if (speaker) {
-        holder.add(renderHeroFaceInBox(self, speaker, { x: 0, y: 0, width: faceWidth, height: bandHeight }));
+        holder.add(renderHeroFaceInBox(self, speaker,
+          { x: 0, y: (bandHeight - 62) / 2, width: faceWidth, height: 62 }));
       }
     }
 
-    const band = drawStoryBand(
-      self,
-      prompt.band,
-      `${prompt.storyId}:${prompt.fragmentId}`,
-      bodyWidth - faceWidth,
-      bandHeight,
-    );
-    band.setPosition(faceWidth, 0);
-    holder.add(band);
+    if (hasPrint) {
+      addStoryPrint(self, holder, printKind,
+        { x: faceWidth, y: 0, width: bodyWidth - faceWidth, height: bandHeight });
+    } else if (prompt.band) {
+      const band = drawStoryBand(
+        self,
+        prompt.band,
+        `${prompt.storyId}:${prompt.fragmentId}`,
+        bodyWidth - faceWidth,
+        bandHeight,
+      );
+      band.setPosition(faceWidth, 0);
+      holder.add(band);
+    }
 
     const frame = self.add.graphics();
     frame.lineStyle(1.2, INK_UI.brush, 0.5);
-    frame.strokeRect(0, 0, bodyWidth, bandHeight);
-    if (faceWidth > 0) frame.lineBetween(faceWidth, 0, faceWidth, bandHeight);
+    if (hasPrint) {
+      if (faceWidth > 0) frame.strokeRect(0, (bandHeight - 62) / 2, faceWidth, 62);
+    } else {
+      frame.strokeRect(0, 0, bodyWidth, bandHeight);
+      if (faceWidth > 0) frame.lineBetween(faceWidth, 0, faceWidth, bandHeight);
+    }
     holder.add(frame);
 
     body.add(holder);

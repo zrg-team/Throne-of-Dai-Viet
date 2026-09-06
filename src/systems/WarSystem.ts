@@ -43,7 +43,7 @@ import {
   refreshAllLandOutputs,
 } from './ResourceSystem';
 import { getCourtBonuses } from './CourtSystem';
-import { realmPriceScale } from './ascent/priceScale';
+import { realmPriceScale, storePriceScale } from './ascent/priceScale';
 import { hasTrait, noteTraitUse } from '../state/dynasty';
 import { eraIndex } from './empire/MandateSystem';
 import {
@@ -516,6 +516,15 @@ export function getTotalPathTicks(state: GameState, army: Army, path: string[]):
 }
 
 /**
+ * Where a fresh march's tick count starts: as far behind zero as the clock is into the current
+ * tick, so the march takes the ticks it says it will in wall time. See `GameState.tickPhase`;
+ * headless, there is no phase and the count starts at zero as it always did.
+ */
+function marchStartProgress(state: GameState): number {
+  return -Math.max(0, Math.min(1, state.tickPhase ?? 0));
+}
+
+/**
  * Issues a march order for `armyId` toward `targetLandId`, replacing any order
  * already in progress (re-routing from the army's current position). The army
  * advances one land per leg via `progressMovementOrders`, with the per-leg
@@ -556,7 +565,7 @@ export function issueMoveOrder(state: GameState, armyId: string, targetLandId: s
   state.movementOrders.push({
     armyId,
     path,
-    progress: 0,
+    progress: marchStartProgress(state),
     legRequired: getLegTicks(army, firstLand),
   });
 
@@ -636,12 +645,13 @@ export function getArmyUpgradeOptions(
   const refitting = Boolean(army.refit);
   const size = totalUnits(army);
   const tier = army.elite ?? 0;
-  // The scaled purse (Dragon Ascent; 1 elsewhere): the coin of every refit grows with the realm,
-  // the men and grain do not. See `priceScale.ts`.
+  // The scaled purse (Dragon Ascent; 1 elsewhere): the coin of every refit grows with the realm
+  // and its hoard, the grain and iron with the granary's and the armoury's; the men do not. See
+  // `priceScale.ts`.
   const priced = realmPriceScale(state);
   const equipCost: Partial<ResourceBag> = {
     gold: Math.round((ARMY_EQUIP_GOLD_BASE + size * ARMY_EQUIP_PER_SOLDIER) * ARMY_EQUIP_TIER_ESCALATION ** tier * priced),
-    supplies: Math.round((ARMY_EQUIP_SUPPLIES_BASE + size * ARMY_EQUIP_PER_SOLDIER) * ARMY_EQUIP_TIER_ESCALATION ** tier),
+    supplies: Math.round((ARMY_EQUIP_SUPPLIES_BASE + size * ARMY_EQUIP_PER_SOLDIER) * ARMY_EQUIP_TIER_ESCALATION ** tier * storePriceScale(state, 'supplies')),
   };
 
   const recruits = reinforcementSize(state, reinforceMen);
@@ -653,7 +663,7 @@ export function getArmyUpgradeOptions(
   const levelCap = getArmyLevelCap(state);
   const drillCost: Partial<ResourceBag> = {
     gold: Math.round(ARMY_DRILL_GOLD_BASE * ARMY_DRILL_LEVEL_ESCALATION ** Math.max(0, army.level - 1) * priced),
-    food: Math.round(ARMY_DRILL_FOOD_BASE * ARMY_DRILL_LEVEL_ESCALATION ** Math.max(0, army.level - 1)),
+    food: Math.round(ARMY_DRILL_FOOD_BASE * ARMY_DRILL_LEVEL_ESCALATION ** Math.max(0, army.level - 1) * storePriceScale(state, 'food')),
   };
 
   return [
@@ -808,7 +818,7 @@ export function issueHuntOrder(state: GameState, armyId: string, quarryArmyId: s
   state.movementOrders.push({
     armyId,
     path,
-    progress: 0,
+    progress: marchStartProgress(state),
     legRequired: firstLand ? getLegTicks(army, firstLand) : 1,
     pursueArmyId: quarryArmyId,
   });
@@ -989,13 +999,14 @@ export function musterCost(state: GameState, soldiers: number): { gold: number; 
   if (state.gameMode !== 'ascent' || n <= 0) return { gold: 0, food: 0, supplies: 0 };
   const scale = 1 + n / MUSTER_COST_SCALE;
   return {
-    // Coin wears the realm's price scale (`priceScale.ts`); the grain and iron a host actually
-    // consumes do not — a soldier eats the same whatever the treasury holds.
+    // Coin wears the realm's price scale (`priceScale.ts`); grain and iron wear the granary's and
+    // the armoury's own wealth factor — a soldier eats the same whatever the treasury holds, but
+    // a full granary provisions him lavishly, which is the only way a full granary ever empties.
     gold: Math.ceil(n * MUSTER_GOLD_PER_SOLDIER * realmPriceScale(state) * scale),
-    food: Math.ceil(n * MUSTER_FOOD_PER_SOLDIER * scale),
+    food: Math.ceil(n * MUSTER_FOOD_PER_SOLDIER * storePriceScale(state, 'food') * scale),
     // `MUSTER_SUPPLY_COST_MULT`: raising a host has to be the cheaper answer to "how do I
     // defend?" than another course of wall, which now buys half the power it used to.
-    supplies: Math.ceil(n * MUSTER_SUPPLIES_PER_SOLDIER * scale * MUSTER_SUPPLY_COST_MULT),
+    supplies: Math.ceil(n * MUSTER_SUPPLIES_PER_SOLDIER * storePriceScale(state, 'supplies') * scale * MUSTER_SUPPLY_COST_MULT),
   };
 }
 
@@ -1023,8 +1034,8 @@ export function musterLimit(state: GameState): number {
     afford(state.resources.gold, MUSTER_GOLD_PER_SOLDIER * realmPriceScale(state)),
     // Rations and provisions are charged on top of these, so the stores a muster may spend on
     // arming alone are only a share of what is in the granary.
-    afford(state.resources.food * 0.6, MUSTER_FOOD_PER_SOLDIER),
-    afford(state.resources.supplies * 0.6, MUSTER_SUPPLIES_PER_SOLDIER),
+    afford(state.resources.food * 0.6, MUSTER_FOOD_PER_SOLDIER * storePriceScale(state, 'food')),
+    afford(state.resources.supplies * 0.6, MUSTER_SUPPLIES_PER_SOLDIER * storePriceScale(state, 'supplies')),
   ));
 }
 

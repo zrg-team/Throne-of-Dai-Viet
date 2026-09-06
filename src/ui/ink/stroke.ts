@@ -45,6 +45,8 @@ export interface InkOptions {
   /** World distance between wobble nodes. Larger = calmer line. */
   step?: number;
   closed?: boolean;
+  /** Strength of the ink soak. Small print controls need a crisp contour, not a halo. */
+  bleed?: number;
 }
 
 /** Subdivides a path and pushes each node off the true line by a seeded amount. */
@@ -103,9 +105,10 @@ export function inkPath(
   // crisp contour look harsh rather than printed. Ink soaking into paper spreads *further* and
   // *weaker* than this pass used to, and the softness is most of what the low-resolution blur was
   // supplying for free.
-  graphics.lineStyle((width * 2.6) / zoom, colour, alpha * 0.14);
+  const bleed = options.bleed ?? 1;
+  graphics.lineStyle((width * 2.6) / zoom, colour, alpha * 0.14 * bleed);
   graphics.strokePoints(drawn, false, false);
-  graphics.lineStyle((width * 1.5) / zoom, colour, alpha * 0.2);
+  graphics.lineStyle((width * 1.5) / zoom, colour, alpha * 0.2 * bleed);
   graphics.strokePoints(drawn, false, false);
   graphics.lineStyle(width / zoom, colour, alpha * 0.88);
   graphics.strokePoints(drawn, false, false);

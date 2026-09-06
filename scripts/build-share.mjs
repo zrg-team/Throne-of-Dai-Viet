@@ -198,9 +198,9 @@ const html = `
 <div class="sheet"></div>
 
 <div class="land">
-  <img class="ground"    src="${url('public/art/menu-layer-ground-v4.png')}">
-  <img class="mountains" src="${url('public/art/menu-layer-mountains-v1.png')}">
-  <img class="lotus"     src="${url('public/art/menu-layer-lotus-v1.png')}">
+  <img class="ground"    src="${url('public/art/menu-layer-ground-v5.png')}">
+  <img class="mountains" src="${url('public/art/menu-layer-mountains-v3.png')}">
+  <img class="lotus"     src="${url('public/art/menu-layer-lotus-v2.png')}">
 </div>
 
 <div class="plate">

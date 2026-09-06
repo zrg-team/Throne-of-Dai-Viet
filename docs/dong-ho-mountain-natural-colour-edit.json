@@ -1,0 +1,19 @@
+{
+  "generator": "built-in ImageGen",
+  "date": "2026-09-06",
+  "prompt": "Use case: precise-object-edit.\nAsset type: Vietnamese historical RTS mountain sprite master, seven isolated cutouts.\nInput image 1 is the EDIT TARGET. The previous palette went too far towards black and white. Recolour this sheet again in a visibly COLOURED, restrained Vietnamese Đông Hồ woodblock palette inspired by natural limestone mountains. Do not deliver monochrome, greyscale, plain grey or sepia.\nColour design: pale warm ochre limestone / sandy cream (around #C8B989) is the dominant rock face, soft moss green (around #84966D) belongs to the existing vegetation and moss-covered slopes, and muted blue-green indigo (around #728B8D) separates recessed stone faces and distant ridges. Clear warm-black woodblock contours (around #332B21). Use only these three related, moderately muted pigment families plus the dark ink. Keep the colours unmistakably present and distinct. They should feel like natural sunlit limestone with moss and cool rock faces, not a rainbow. Broad flat opaque pigment blocks; minimal existing carved curling marks. Aim for approximately 60% light warm limestone, 25% moss green and 15% subdued blue-green across the coloured areas. Keep each existing vegetation clump consistently green; do not alternate random colour bands within one slope.\nNo vermilion, orange, rusty-red or bright yellow accents. No neon or heavily saturated colours. Also NO overall greyscale/desaturation wash: this must visibly look like a coloured Đông Hồ print.\nChange the palette only. Preserve the seven silhouettes, all peak counts, each object's size, placement, layout, contours, interior decorative marks, existing foliage shapes, proportions and complete feet. Exact 3-column by 3-row reading order with the last two cells empty. Preserve the flat Đông Hồ drawing style, no gradients or realistic lighting, no extra hatching, no added forest, mist, sky, scenery, cast shadows, paper rectangle or text.\nLandscape 1536x1024 with wide empty gutters and clear margins. Genuine transparent alpha outside the cutouts if possible. Otherwise use perfectly uniform #FF00FF production matte, including empty holes; no painted checkerboard and no grey or white backdrop. Do not use magenta inside any subject.",
+  "editTarget": "output/dongho-map-v4/masters/mountains-grey-rejected.png",
+  "generatedFile": "exec-2e718854-166c-4147-8916-868d22e2ec0d.png",
+  "savedMaster": "output/dongho-map-v4/masters/mountains.png",
+  "runtimeDirectory": "public/art/conquest-dongho-v4/terrain",
+  "supersedes": "dong-ho-mountain-palette-edit.json",
+  "affectedAssets": [
+    "karst-range",
+    "soft-ridge",
+    "karst-classic",
+    "karst-three-spire",
+    "karst-seven-spire",
+    "karst-stepped",
+    "karst-tower"
+  ]
+}

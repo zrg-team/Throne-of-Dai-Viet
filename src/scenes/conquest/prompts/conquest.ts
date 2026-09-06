@@ -20,6 +20,7 @@ import { buildHeroPickerRows, buildHostPickerRows } from '../../../ui/heroPicker
 import { CardFan } from '../../../ui/ascent/CardFan';
 import { focusTitle } from '../../../ui/focusPanel';
 import { UI_FONT } from '../../../ui/fonts';
+import { addStoryPrint, powerStoryPrint } from '../../../ui/storyPrint';
 import { INK_UI, type UIBounds } from '../../../ui/InkUI';
 import { iconForOption } from '../../../ui/CardIcons';
 import { staggerIn } from '../../../ui/animations';
@@ -65,13 +66,18 @@ export function showPowerDraft(self: ConquestUIScene, prompt: Extract<AscentProm
   // Between the readout and the fan there are two fixed lanes: the floating take-pill's
   // (~30 units around fanTop−40) and, above it, the gesture hint's. Sized apart or the pill
   // prints straight over the hint whenever the raised card sits mid-screen.
-  const HINT_Y_ABOVE_FAN = 70;
-  const LANES = HINT_Y_ABOVE_FAN + 8;
+  const hint = self.add.text(content.x + content.width / 2, 0, t('ascent.draft.fanHint'), {
+    color: '#6f6250', fontFamily: UI_FONT, fontSize: '10px', align: 'center',
+    wordWrap: { width: content.width - 8 },
+  }).setOrigin(0.5, 1);
+  // Reserve the measured hint above the highest edge of the floating take button.
+  const HINT_BOTTOM_ABOVE_FAN = 60;
+  const LANES = HINT_BOTTOM_ABOVE_FAN + hint.height + 8;
   const fanHeight = Phaser.Math.Clamp(Math.round(content.height * 0.48), 180, 232);
   const fanTop = footerY - 10 - fanHeight;
   // Capped: on a tall sheet the leftover space above the fan runs past 400 units, and a readout
   // stretched to fill it is a page of blank paper with four lines in its corner.
-  const infoHeight = Math.min(fanTop - content.y - LANES, 214);
+  const infoHeight = Math.min(fanTop - content.y - LANES, 306);
 
   const info = self.add.container(content.x, content.y);
   self.modalLayer.add(info);
@@ -140,19 +146,25 @@ export function showPowerDraft(self: ConquestUIScene, prompt: Extract<AscentProm
         ? t('ascent.draft.powerPreview', { pct: view.powerGainPct })
         : undefined;
     if (note && cursor < infoHeight - 14) {
-      info.add(self.add.text(14, cursor, note, {
+      const noteText = self.add.text(14, cursor, note, {
         color: '#8a5f1c', fontFamily: UI_FONT, fontSize: '11px', fontStyle: '700',
         wordWrap: { width: content.width - 28 },
-      }));
-      cursor += 16;
+      });
+      info.add(noteText);
+      cursor += noteText.height + 4;
     }
     // The forge remembers: a learned recipe names the partner from run one.
     if (view.recipeHint && cursor < infoHeight - 14) {
-      info.add(self.add.text(14, cursor, view.recipeHint, {
+      const hint = self.add.text(14, cursor, view.recipeHint, {
         color: '#4a6a55', fontFamily: UI_FONT, fontSize: '10px',
         wordWrap: { width: content.width - 28 },
-      }));
+      });
+      info.add(hint);
+      cursor += hint.height + 6;
     }
+    const printHeight = Math.min(152, infoHeight - cursor - 16);
+    if (printHeight >= 46) addStoryPrint(self, info, powerStoryPrint(view.id),
+      {x:14, y:cursor + 6, width:content.width - 28, height:printHeight});
   };
 
   // An evolution-ready card sits raised by default — the fan opens on the headline. With no
@@ -192,11 +204,8 @@ export function showPowerDraft(self: ConquestUIScene, prompt: Extract<AscentProm
   self.modalLayer.add(fan.view);
 
   // The gesture, said once, in its own lane above the take-pill's.
-  self.modalLayer.add(self.add.text(content.x + content.width / 2, fanTop - HINT_Y_ABOVE_FAN,
-    t('ascent.draft.fanHint'), {
-      color: '#6f6250', fontFamily: UI_FONT, fontSize: '10px', align: 'center',
-      wordWrap: { width: content.width - 8 },
-    }).setOrigin(0.5, 0));
+  hint.setY(fanTop - HINT_BOTTOM_ABOVE_FAN);
+  self.modalLayer.add(hint);
   const affordable = self.state.resources.gold >= prompt.rerollCost;
   self.modalLayer.add(self.ui.button(
     { x: content.x, y: footerY, width: content.width / 2 - 6, height: 40 },

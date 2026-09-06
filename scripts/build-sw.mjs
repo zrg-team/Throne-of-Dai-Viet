@@ -67,7 +67,9 @@ const isOptional = (rel) => rel.startsWith('faces/')
   || rel.startsWith('audio/')
   // Generated conquest sprites always have procedural fallbacks. Keeping them out of the
   // install-critical shell prevents the optional pack from delaying first offline readiness.
-  || rel.startsWith('art/conquest-dongho/');
+  || /^art\/conquest-dongho(?:-v\d+)?\//.test(rel)
+  // Card illustrations retain icon/band fallbacks when optional art is unavailable.
+  || rel.startsWith('art/story-prints/');
 
 const walk = (dir) => {
   const out = [];

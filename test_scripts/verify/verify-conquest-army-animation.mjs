@@ -8,6 +8,8 @@
 import { chromium } from 'playwright';
 
 const URL = process.env.DEV_URL ?? 'http://127.0.0.1:5179';
+const OUR_STYLE = process.env.OUR_STYLE ?? 'ly';
+const THEIR_STYLE = process.env.THEIR_STYLE ?? 'tran';
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
 const errors = [];
@@ -28,6 +30,11 @@ await page.evaluate((seed) => window.__startBenchGame(seed, 'ascent'), 20260901)
 await page.waitForFunction(() => window.__phaserGame.scene.isActive('ConquestScene')
   && window.__mandateState, null, { timeout: 30_000 });
 await page.waitForTimeout(900);
+await page.evaluate((style) => {
+  const state = window.__mandateState;
+  if (state.muster) state.muster.dynasty = style;
+  window.__phaserGame.scene.getScene('ConquestScene').refresh();
+}, OUR_STYLE);
 
 const mapSample = () => page.evaluate(() => {
   const map = window.__phaserGame.scene.getScene('ConquestScene');
@@ -103,14 +110,16 @@ check('map feet change pose while the host body stays planted',
 // deterministic launcher here; none of its renderer objects are inspected or changed.
 await page.evaluate(() => window.__phaserGame.scene.start('BattleArenaScene'));
 await page.waitForTimeout(700);
-await page.evaluate(() => {
+await page.evaluate(([ourStyle, theirStyle]) => {
   const arena = window.__phaserGame.scene.getScene('BattleArenaScene');
+  arena.ourStyle = ourStyle;
+  arena.theirStyle = theirStyle;
   arena.ourMen = 1500;
   arena.theirMen = 1500;
   arena.martial = 70;
   arena.ground = 'hills';
   arena.startFight();
-});
+}, [OUR_STYLE, THEIR_STYLE]);
 await page.waitForFunction(() => window.__phaserGame.scene.isActive('ConquestScene'), null,
   { timeout: 20_000 });
 await page.waitForTimeout(900);

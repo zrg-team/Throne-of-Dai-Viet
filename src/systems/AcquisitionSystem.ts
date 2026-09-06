@@ -3,7 +3,7 @@ import { getAcquisitionOrder, findLand, isLandVisibleToPlayer, refreshPlayerVisi
 import { applyResourceDelta, canSpend, refreshAllLandOutputs } from './ResourceSystem';
 import { getCourtBonuses } from './CourtSystem';
 import { extraClaimSlots } from './ascent/DoctrineSystem';
-import { realmPriceScale } from './ascent/priceScale';
+import { realmIncomeScale, realmPriceScale, storePriceScale } from './ascent/priceScale';
 import { ASCENT_SETTLE_CAPACITY_DIVISOR, EARLY_WAVE_GRACE, OPENING_CLAIM_PARTIES } from '../game/ascentConfig';
 import type { AcquisitionMethod, AcquisitionOrder, Army, GameState, Hero, Land, ResourceBag } from '../state/types';
 import { formatResourceList, heroName, t } from '../i18n';
@@ -169,7 +169,10 @@ export function getDiplomacyThreshold(land: Land): number {
 
 export function getDiplomacySuppliesCost(state: GameState, land: Land): number {
   const bonuses = getCourtBonuses(state);
-  return Math.ceil((DIPLOMACY_SUPPLIES_BASE + getNoblePower(land) * 0.5) * bonuses.acquisitionCostMult * realmPriceScale(state));
+  // Goods, not coin: the realm's size sets the ask (income scale) and a full armoury raises it
+  // (its own wealth factor); the treasury's hoard is not what a gift of goods is measured by.
+  return Math.ceil((DIPLOMACY_SUPPLIES_BASE + getNoblePower(land) * 0.5) * bonuses.acquisitionCostMult
+    * realmIncomeScale(state) * storePriceScale(state, 'supplies'));
 }
 
 export function getSettleHumansCost(): number {

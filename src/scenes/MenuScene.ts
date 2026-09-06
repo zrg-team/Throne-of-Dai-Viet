@@ -39,6 +39,7 @@ import { CARD_ICON_SIZE, drawCardIcon, type CardIconId } from '../ui/CardIcons';
 import { Copilot, type CopilotStep } from '../ui/Copilot';
 import { drawLanguageFlag } from '../ui/languageFlags';
 import { PIGMENT } from '../ui/ink/palette';
+import { mixPigment } from '../ui/ink/season';
 import { INK, brushStroke, inkOutline, shade, washFill, waveLine } from '../ui/inkTheme';
 import { TITLE_FONT, UI_FONT } from '../ui/fonts';
 import {
@@ -130,6 +131,24 @@ const PAGE_ARRIVAL_BAND = 8;
  * The wind: how far from the hand a gust is still felt, how fast a leaf may be carried, and how
  * far past the edge one drifts before it comes back on the other side.
  */
+/**
+ * How far down its own frame the mountain plate is drawn, as a fraction of the illustration's
+ * height. The range and the valley are separate 1536x1024 sheets in one registration; at that
+ * registration the karst feet stop just above the ground's far bank, so the plate's bare paper
+ * showed between the peaks. See the placement in `drawDongHoIllustration`.
+ */
+/**
+ * How far down its own frame the lotus plate is drawn, as a fraction of the illustration's height.
+ *
+ * On its own registration the stems end at about 0.95 of the frame, and at the near-left of the
+ * valley that is still the pale sandbar rather than the river: the flowers read as standing on
+ * the bank. Open water begins a little below it, so the plate sinks by this much and the stems
+ * go into the water they are drawn as growing out of. See the placement in
+ * `drawDongHoIllustration` and the stem anchors in `animateDongHoIllustration`, which carry the
+ * same offset so every ripple still starts at a waterline.
+ */
+const LOTUS_SINK = 0.035;
+const MOUNTAIN_DROP = 0.035;
 const WIND_REACH = 132;
 const WIND_TOP_SPEED = 3.4;
 const WIND_MARGIN = 26;
@@ -501,6 +520,12 @@ export class MenuScene extends Phaser.Scene {
     const menu = this.mapRenderer.theme.renderers.menu;
 
     if (menu === 'dongho') {
+      // The page's own paper. It is `diep` and not the brighter `diepHi` of the card stock: the
+      // shell paints `diep` behind the canvas (index.html), so a lighter sheet here reads as a
+      // white panel sitting on the page wherever the canvas is letterboxed, which is every desktop
+      // window. The card prints keep their brighter ground; the page under them is the darker one.
+      const paper = this.add.graphics().setDepth(-9);
+      paper.fillStyle(PIGMENT.diep, 1).fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
       this.drawDongHoIllustration();
     } else if (menu === 'atlas') {
       this.fitLandscapeLayer(() => {
@@ -593,7 +618,7 @@ export class MenuScene extends Phaser.Scene {
 
   /** The approved river scene, registered as four real image layers instead of one static plate. */
   private drawDongHoIllustration(): void {
-    const texture = this.textures.get('menu-layer-ground-v4').getSourceImage() as { width: number; height: number };
+    const texture = this.textures.get('menu-layer-ground-v5').getSourceImage() as { width: number; height: number };
     // The art lane loses height much faster than width on short browser-chrome viewports. Shrink
     // uniformly instead of squashing the landscape: full bleed on the 844 sheet, a quiet paper
     // margin on the compact sheet, and the lotus/roofs keep their authored proportions on both.
@@ -610,7 +635,7 @@ export class MenuScene extends Phaser.Scene {
       .setDepth(-8)
       .setData('menuLandscapeRole', 'illustration')
       .setData('menuArtwork', {
-        version: 9,
+        version: 12,
         layers: ['ground', 'mountains', 'mountain-mist', 'river-fx', 'bamboo', 'lotus'],
         composition: ['karst-mountains', 's-curve-river', 'foreground-lotus', 'right-bank-paddies', 'right-bank-bamboo-grove'],
         motion: ['mountain-drift', 'mountain-mist', 'bamboo-breeze', 'lotus-sway', 'pointer-lotus-spring', 'river-surface-flow', 'lotus-water-wakes', 'lotus-idle-swell', 'tap-and-drag-wakes'],
@@ -629,9 +654,17 @@ export class MenuScene extends Phaser.Scene {
       return image;
     };
 
-    const ground = layer('menu-layer-ground-v4', 'ground', 0.95)
+    const ground = layer('menu-layer-ground-v5', 'ground', 0.95)
       .setData('menuFieldContinuity', 'fully-planted-rice');
-    const mountains = layer('menu-layer-mountains-v1', 'mountains', 0.86);
+    // The range is dropped a thirtieth of the plate. Drawn on its own registration the karst feet
+    // end at 0.49 of the frame and the ground's far bank begins at 0.455, so between the peaks the
+    // plate's bare paper showed through as a pale seam and the mountains read as a separate strip
+    // pasted above the valley. At this drop the green skirts sit on the bank the whole way across;
+    // much more and the right-hand range starts covering the far paddies. The mist band below
+    // moves with it, or it would whiten the join it used to sit on.
+    const mountains = layer('menu-layer-mountains-v3', 'mountains', 1)
+      .setY(centreY + height * MOUNTAIN_DROP)
+      .setData('menuMountainDrop', MOUNTAIN_DROP);
     // This container is deliberately inserted between mountains and village. Mist can cross the
     // feet of the karst without whitening the houses or close lotus in front of it.
     const mountainMist = this.add.container(0, 0)
@@ -645,23 +678,27 @@ export class MenuScene extends Phaser.Scene {
       .setData('menuArtworkLayer', 'river-fx')
       .setData('menuCompositing', 'below-bamboo-and-lotus');
     artwork.add(waterFx);
-    const bamboo = layer('menu-layer-bamboo-v1', 'bamboo', 0.58)
+    const bamboo = layer('menu-layer-bamboo-v2', 'bamboo', 0.72)
       .setData('menuBambooPlacement', 'rear-field-edge-windbreak')
       .setData('menuBambooBand', 'rear-right-dike')
       .setData('menuBambooStyle', 'dong-ho-natural-pigment')
-      .setData('menuBambooCulmCount', 14)
+      .setData('menuBambooCulmCount', 13)
       .setData('menuBambooWindMode', 'segmented-canopy-lag')
       .setData('menuBambooWindLayers', 2);
     // The isolated grove keeps the registered 1536x1024 frame. Its measured ink bounds are
     // transformed onto the distant outer dike. At one fifth scale the roots sit on the bank line,
     // not inside a planted plot, and the grove reads as a rear windbreak rather than foreground art.
+    // The v2 plate's grove is drawn larger in the frame than v1's was (1016 x 649 against
+    // 904 x 522), which is why the bounds, and the wind crops below, were re-measured for it.
     const bambooScale = 0.2;
-    const bambooSourceBounds = { left: 590, top: 448, right: 1494, bottom: 970 };
+    const bambooSourceBounds = { left: 519, top: 358, right: 1535, bottom: 1007 };
     const bambooSourceCentre = {
       x: (bambooSourceBounds.left + bambooSourceBounds.right) / 2,
       y: (bambooSourceBounds.top + bambooSourceBounds.bottom) / 2,
     };
-    const bambooTargetCentre = { x: 1400, y: 480 };
+    // 1380, not the 1400 the v1 grove stood at: the v2 grove is wider, and at 1400 its outer
+    // leaves ran past the plate's overscanned right edge on the tall sheet.
+    const bambooTargetCentre = { x: 1380, y: 480 };
     const bambooX = left + width * (bambooTargetCentre.x / 1536)
       - width * bambooScale * (bambooSourceCentre.x / 1536 - 0.5);
     const bambooY = top + height * (bambooTargetCentre.y / 1024)
@@ -679,10 +716,10 @@ export class MenuScene extends Phaser.Scene {
     // cropped copies retain exact registration with the base but let upper culms and leaves lag.
     // The roots remain only in the stable base, so the wind never slides bamboo across the dike.
     const bambooWind = [
-      { part: 'upper-culms', crop: { x: 590, y: 590, width: 904, height: 245 }, alpha: 0.28 },
-      { part: 'leaf-canopy', crop: { x: 590, y: 448, width: 904, height: 250 }, alpha: 0.44 },
+      { part: 'upper-culms', crop: { x: 519, y: 533, width: 1017, height: 305 }, alpha: 0.28 },
+      { part: 'leaf-canopy', crop: { x: 519, y: 358, width: 1017, height: 311 }, alpha: 0.44 },
     ].map(({ part, crop, alpha }) => {
-      const wind = this.add.image(bambooX, bambooY, 'menu-layer-bamboo-v1')
+      const wind = this.add.image(bambooX, bambooY, 'menu-layer-bamboo-v2')
         .setDisplaySize(width * bambooScale, height * bambooScale)
         .setAlpha(alpha)
         .setCrop(crop.x, crop.y, crop.width, crop.height)
@@ -691,7 +728,9 @@ export class MenuScene extends Phaser.Scene {
       artwork.add(wind);
       return wind;
     });
-    const lotus = layer('menu-layer-lotus-v1', 'lotus', 0.98);
+    const lotus = layer('menu-layer-lotus-v2', 'lotus', 0.98)
+      .setY(centreY + height * LOTUS_SINK)
+      .setData('menuLotusSink', LOTUS_SINK);
     const layers = { ground, mountains, mountainMist, waterFx, bamboo, bambooWind, lotus };
 
     // The illustration carries its own softly stained paper. Feathering that paper back into the
@@ -741,10 +780,12 @@ export class MenuScene extends Phaser.Scene {
     layers.bamboo.setData('menuLayerMotion', 'bamboo-breeze');
     layers.lotus.setData('menuLayerMotion', 'foreground-sway');
 
+    // Around where the range was placed, not the plate's centre: see `MOUNTAIN_DROP`.
+    const mountainHome = layers.mountains.y;
     this.tweens.add({
       targets: layers.mountains,
       x: { from: centreX - 1.2, to: centreX + 1.2 },
-      y: { from: centreY + 0.4, to: centreY - 0.4 },
+      y: { from: mountainHome + 0.4, to: mountainHome - 0.4 },
       duration: 16_000,
       yoyo: true,
       repeat: -1,
@@ -781,9 +822,11 @@ export class MenuScene extends Phaser.Scene {
     // on the next ambient frame; two inputs into one transform behave like wind plus a soft stem.
     const lotusAmbient = { x: -0.95, y: 0.8, angle: -0.09 };
     const lotusReaction = { x: 0, y: 0, angle: 0 };
+    // Around where the plate was placed, not the picture's centre: see `LOTUS_SINK`.
+    const lotusHomeY = top + height * (0.5 + LOTUS_SINK);
     const applyLotusMotion = (): void => {
       layers.lotus
-        .setPosition(centreX + lotusAmbient.x + lotusReaction.x, centreY + lotusAmbient.y + lotusReaction.y)
+        .setPosition(centreX + lotusAmbient.x + lotusReaction.x, lotusHomeY + lotusAmbient.y + lotusReaction.y)
         .setAngle(lotusAmbient.angle + lotusReaction.angle)
         .setData('menuLotusReaction', { ...lotusReaction });
     };
@@ -1008,27 +1051,46 @@ export class MenuScene extends Phaser.Scene {
     // merged with the baked horizon haze, so their 20px tween was technically running but visually
     // unknowable. These narrower blue-grey-bottomed strands keep a readable moving edge.
     const mistStarts = [
-      at(0.12, 0.405), at(0.31, 0.435), at(0.5, 0.405), at(0.7, 0.43), at(0.87, 0.4),
+      at(0.12, 0.405 + MOUNTAIN_DROP), at(0.31, 0.435 + MOUNTAIN_DROP), at(0.5, 0.405 + MOUNTAIN_DROP),
+      at(0.7, 0.43 + MOUNTAIN_DROP), at(0.87, 0.4 + MOUNTAIN_DROP),
     ];
     for (let index = 0; index < mistStarts.length; index += 1) {
       const mist = this.add.graphics()
         .setData('menuAmbient', 'mountain-mist')
         .setData('menuMistLayer', 'mountains')
         .setData('menuMistVisibility', 'distinct-wisp');
-      const span = width * (0.2 + (index % 2) * 0.035);
-      const bandHeight = Math.max(7, height * (0.032 + (index % 3) * 0.004));
+      // Wider and deeper than the strands this started as. Once the wisps stopped being sheet
+      // colour they could afford to be bigger: at the old size a faint band is a scratch, at this
+      // one it is weather sitting in the valley, and it still leaves the pigment above it whole.
+      //
+      // Taller, stronger and quicker was tried on top of this and rejected: a lit crown over a
+      // chàm belly, narrower banks and half the crossing time read as something other than cloud.
+      // The shape below is the one that reads; leave its style alone.
+      const span = width * (0.26 + (index % 2) * 0.045);
+      const bandHeight = Math.max(9, height * (0.046 + (index % 3) * 0.006));
       const travel = width * (0.045 + (index % 2) * 0.012);
       const direction = index % 2 === 0 ? 1 : -1;
       const duration = 6_600 + index * 780;
       mist
         .setData('menuMistTravel', travel)
+        // The widest ellipse the bank draws, so its reach can be checked against the plate's own
+        // edges without a Graphics having bounds to ask for. See `probe-cloud-bounds.mjs`.
+        .setData('menuMistSpan', span)
         .setData('menuMistDuration', duration);
-      mist.fillStyle(PIGMENT.diepHi, 0.72);
-      mist.fillEllipse(-span * 0.13, 0, span * 0.72, bandHeight);
-      mist.fillStyle(PIGMENT.diep, 0.66);
-      mist.fillEllipse(span * 0.17, 0.7, span * 0.7, bandHeight * 0.72);
-      mist.fillStyle(PIGMENT.chamPale, 0.25);
-      mist.fillEllipse(span * 0.03, bandHeight * 0.22, span * 0.84, bandHeight * 0.28);
+      // A cool, thin haze rather than two near-opaque paper ellipses.
+      //
+      // The old wisps were `diepHi` at 0.72 over `diep` at 0.66 — sheet colour, laid across the
+      // karst feet. Against the softly washed plates they read as morning mist; against these
+      // printed ones, which have a hard ink line and no gradation anywhere, they read as a white
+      // smear that dissolves the foot of every peak and leaves the range hanging in the air.
+      // What is left is a chàm-grey band low enough to sit in the valley and faint enough that
+      // the pigment above it stays flat and whole.
+      mist.fillStyle(PIGMENT.chamWash, 0.3);
+      mist.fillEllipse(-span * 0.13, 0, span * 0.72, bandHeight * 0.62);
+      mist.fillStyle(PIGMENT.diep, 0.22);
+      mist.fillEllipse(span * 0.17, 0.7, span * 0.7, bandHeight * 0.46);
+      mist.fillStyle(PIGMENT.chamPale, 0.2);
+      mist.fillEllipse(span * 0.03, bandHeight * 0.18, span * 0.84, bandHeight * 0.2);
       inkPath(mist, [
         { x: -span * 0.39, y: -bandHeight * 0.04 },
         { x: -span * 0.17, y: bandHeight * 0.07 },
@@ -1125,8 +1187,8 @@ export class MenuScene extends Phaser.Scene {
       .setData('menuLotusGestures', ['hover', 'drag', 'water-wake']);
     layers.lotus.setData('menuLotusWaterResponse', 'stem-waterline-ripples');
     const lotusStemAnchors = [
-      { id: 'large-flower', touchX: left + width * 0.22, x: left + width * 0.19, y: top + height * 0.915 },
-      { id: 'small-flower', touchX: left + width * 0.36, x: left + width * 0.345, y: top + height * 0.902 },
+      { id: 'large-flower', touchX: left + width * 0.22, x: left + width * 0.19, y: top + height * (0.915 + LOTUS_SINK) },
+      { id: 'small-flower', touchX: left + width * 0.36, x: left + width * 0.345, y: top + height * (0.902 + LOTUS_SINK) },
     ] as const;
     let lastLotusPointer: { x: number; y: number } | undefined;
     let lastLotusWakeAt = -1_000;
@@ -2247,10 +2309,14 @@ export class MenuScene extends Phaser.Scene {
     // The veins carry their own colour rather than reusing the edge ink: on the deep cajuput green
     // a `tramDeep` vein is the same value as the blade it is drawn on, and the leaf comes out a
     // blob with an outline. Light veins on the dark tone, dark on the two light ones.
+    // Pitched at the printed foliage, which is deeper and yellower than the old sage pair: the
+    // lotus pads measure #607842 and their veins #808752, the bamboo canopy #43481a, and every
+    // leaf on those sheets is closed with a black ink line rather than a darker shade of itself.
+    // The pale `tramPale` blade the leaves used to carry was lighter than anything on the page.
     const tones = [
-      { fill: PIGMENT.tram, shade: PIGMENT.tramDeep, ink: PIGMENT.tramDeep, vein: PIGMENT.tramPale },
-      { fill: PIGMENT.tramPale, shade: PIGMENT.tram, ink: PIGMENT.tramDeep, vein: PIGMENT.tramDeep },
-      { fill: PIGMENT.hoePale, shade: PIGMENT.nau, ink: PIGMENT.nauDark, vein: PIGMENT.nau },
+      { fill: mixPigment(PIGMENT.tram, PIGMENT.tramDeep, 0.55), shade: PIGMENT.tramDeep, ink: PIGMENT.muc, vein: PIGMENT.tramPale },
+      { fill: PIGMENT.tram, shade: PIGMENT.tramDeep, ink: PIGMENT.muc, vein: PIGMENT.tramPale },
+      { fill: mixPigment(PIGMENT.hoePale, PIGMENT.hoe, 0.45), shade: PIGMENT.nau, ink: PIGMENT.muc, vein: PIGMENT.nau },
     ];
     const paint = tones[tone % tones.length];
     const SAMPLES = 18;
@@ -2562,7 +2628,7 @@ export class MenuScene extends Phaser.Scene {
     // then the gaps are shared out of whatever room is left — which is how the page fits at any
     // height in any language instead of fitting at 844 in English.
     const tagline = this.add.text(GAME_WIDTH / 2, 0, t('ascent.menu.tagline'), {
-      color: '#8a5f1c',
+      color: '#42596b',
       fontFamily: UI_FONT,
       fontSize: '11px',
       align: 'center',
@@ -3956,11 +4022,37 @@ export class MenuScene extends Phaser.Scene {
      * here and it is still on the sheet one tap away, so below 52 it goes and the words get the
      * whole board. The name, the level, the score, the seal and the bar all stay.
      */
-    const founder = opened && !merged ? dynastyFounderHero(store) : undefined;
     const PORTRAIT = Math.min(46, height - 20);
+    /**
+     * The right column is measured off the seal's own words, not off a constant.
+     *
+     * The seal's caption is right-aligned at `width - 14`, and 52 units were reserved for it —
+     * enough for "7 to choose" and not for "còn 7 lượt", so in Vietnamese the reign line ran
+     * six units under the caption and the two printed through each other. The reserve is now the
+     * caption's measured width plus its margin and a gutter.
+     */
+    const waitingText = owed && !merged ? t('dynasty.tabletWaiting', { n: store.pendingPicks }) : '';
+    const waitingWidth = (() => {
+      if (!waitingText) return 0;
+      const probe = this.ui.label(0, -9999, waitingText, 'caption', { fontSize: '9px' });
+      const measured = probe.width;
+      probe.destroy();
+      return measured;
+    })();
+    const rightReserve = owed ? (merged ? 34 : Math.max(52, Math.round(waitingWidth) + 20)) : 20;
+    const columnFor = (withPortrait: boolean): number =>
+      width - (14 + (withPortrait ? PORTRAIT + 11 : 0)) - rightReserve;
+    /**
+     * With a seal *and* a face on the board there is not room for both and a readable line, so the
+     * face gives way — the same rule the merged board already follows, applied one size up. A
+     * portrait plus a wide seal leaves the words about 105 units, and the reign line only reaches
+     * that by shrinking under four fifths of its size; without the portrait it prints whole.
+     */
+    const MIN_TEXT_COLUMN = 118;
+    const wanted = opened && !merged ? dynastyFounderHero(store) : undefined;
+    const founder = wanted && columnFor(true) >= MIN_TEXT_COLUMN ? wanted : undefined;
     const textX = 14 + (founder ? PORTRAIT + 11 : 0);
-    const rightReserve = owed ? (merged ? 34 : 52) : 20;
-    const textWidth = width - textX - rightReserve;
+    const textWidth = columnFor(Boolean(founder));
 
     if (founder) {
       // A ruled recess, so the face sits *in* the tablet rather than on it.
@@ -4059,7 +4151,20 @@ export class MenuScene extends Phaser.Scene {
         break;
       }
     }
-    tablet.add(this.ui.label(textX, statsY, statsLine, 'caption', { fontSize: '9.5px', wordWrap: { width: textWidth } }));
+    /**
+     * One line, whatever the column measures.
+     *
+     * The line used to be wrapped to `textWidth`, which is a second line this board has no room
+     * for: 16 units below it is the progress rule, so a Vietnamese `Cấp 10 · còn 4.849 lên Cấp 11`
+     * that broke after "lên" printed `Cấp 11` straight through the bar. Wrapping is off, and when
+     * even the shortest candidate is over the column the type is scaled to it instead — down to
+     * four fifths, which is the point where 9.5px stops being readable at arm's length.
+     */
+    const stats = this.ui.label(textX, statsY, statsLine, 'caption', { fontSize: '9.5px' });
+    if (stats.width > textWidth) {
+      stats.setOrigin(0, 0).setScale(Math.max(0.8, textWidth / stats.width));
+    }
+    tablet.add(stats);
 
     /**
      * The bar rides the foot of the board, inside the hairline — a rule that fills, not a widget.
@@ -4154,8 +4259,7 @@ export class MenuScene extends Phaser.Scene {
       });
       // On the compact board the seal says it alone — a chip beside it would sit under it.
       if (!merged) {
-        tablet.add(this.ui.label(width - 14, statsY,
-          t('dynasty.tabletWaiting', { n: store.pendingPicks }), 'caption',
+        tablet.add(this.ui.label(width - 14, statsY, waitingText, 'caption',
           { fontSize: '9px', color: ink(INK_UI.cinnabar), align: 'right' }).setOrigin(1, 0));
       }
     } else {

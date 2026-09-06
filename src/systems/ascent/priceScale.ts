@@ -1,27 +1,30 @@
 /**
  * The scaled purse: what the realm's routine purchases cost once the realm has outgrown the
- * opening.
+ * opening — and once it has more put by than it knows what to do with.
  *
- * Every price the war card quotes — walls, sellswords, a buy-off, a gift, an oath — is already
- * pegged to income, so a rich realm keeps deciding about them. The *economy's* prices were not:
- * a farm was 32 gold, a bribed village ~55, a minimum host 70, a reroll 68, a burnt district a
- * few dozen, from the founding to the fall. Measured on a steward's run (focus by aptitude,
- * governors posted, disciplined spending), gross gold went 80 → 330 a season by wave 15 while
- * every one of those prices stood still; the treasury banked 2,500-5,900 with nothing left in
- * it to decide, and the run's economy stopped being a game at about the point it started
- * working. Reported as *"resources become useless in late game when already have a lot"*.
+ * Every price the war card quotes — walls, sellswords, a buy-off, a gift, an oath — is pegged to
+ * income, so a rich realm keeps deciding about them. The *economy's* prices were not: a farm was
+ * 32 gold, a bribed village ~55, a minimum host 70, a reroll 68, a burnt district a few dozen,
+ * from the founding to the fall. Measured on a steward's run, gross gold went 80 → 330 a season
+ * by wave 15 while every one of those prices stood still; the treasury banked 2,500-5,900 with
+ * nothing left in it to decide. Reported as *"resources become useless in late game when already
+ * have a lot"*.
  *
- * The scale is a **sub-linear** function of gross income, not of the treasury. Stock-based
- * pricing is a treadmill — a price that is always a share of what you hold can never be saved
- * toward, and it rewards spending before the price rises. Income-based pricing keeps the shape
- * of every decision ("this is two seasons of income") while a richer realm can still afford
- * *more* decisions per season: at the exponent below a realm earning five times the base pays
- * about two and a half times the price. Growth is still worth having; a single purchase is
- * never again a rounding error.
+ * Two factors, multiplied, each smoothed a step a season toward its live figure so that a price
+ * quoted on a card is the price charged when the card is answered a season or two later:
  *
- * Smoothed toward the live figure a step a season, so a price quoted on a card is the price
- * charged when the card is answered a season or two later — gross moves the tick a province is
- * taken or lost, and a muster card that quoted 180 and charged 205 would be a card that lied.
+ *  - **Income** — `clamp(1, (gross / BASE) ^ EXPONENT, MAX)` on gross gold a season. Sub-linear,
+ *    so a realm earning five times the base pays about two and a half times the price: growth
+ *    still buys more decisions a season, and no decision becomes a rounding error.
+ *  - **Wealth** — the seasons of its own income (gold) or use (grain, goods) a store holds above
+ *    the free seasons, to the half power, capped. Measured after the income scale alone shipped,
+ *    the treasury still piled to fifteen, fourteen and fifty-nine seasons of income across three
+ *    drivers, because routine prices were tens of coin against piles of thousands and grain had
+ *    no scale at all. A working balance pays nothing extra; a hoard pays for being one. See
+ *    `PRICE_WEALTH_FREE_SEASONS`.
+ *
+ * Gold prices wear both. Grain and goods prices wear their own store's wealth factor — the coin
+ * of a muster grows with the purse, its rations with the granary, its kit with the armoury.
  *
  * A leaf module on purpose: `ResourceSystem`, `AcquisitionSystem`, `WarSystem` and the Ascent
  * systems all read it, and `ResourceSystem` <-> `CourtSystem` already form an import cycle.
@@ -31,17 +34,26 @@ import {
   PRICE_SCALE_EXPONENT,
   PRICE_SCALE_MAX,
   PRICE_SCALE_SMOOTHING,
+  PRICE_WEALTH_EXPONENT,
+  PRICE_WEALTH_FREE_SEASONS,
+  PRICE_WEALTH_MAX,
+  PRICE_WEALTH_STORE_FLOOR,
+  PRICE_WEALTH_STORE_USE_FLOOR,
   TREASURY_GRAFT_FROM,
   TREASURY_GRAFT_SEASONS,
 } from '../../game/ascentConfig';
 import type { GameState, ResourceBag } from '../../state/types';
+
+/** The stores a price can be quoted in. People are never scaled: a man is a man. */
+export type PricedStore = 'gold' | 'food' | 'supplies';
+const STORES: PricedStore[] = ['gold', 'food', 'supplies'];
 
 /** Gross gold a season as the books last recorded it. Zero before the first tick. */
 export function realmGrossGold(state: GameState): number {
   return Math.max(0, state.ascentLedger?.gold.gross ?? 0);
 }
 
-/** Where the scale is heading: the live figure, before smoothing. */
+/** Where the income scale is heading: the live figure, before smoothing. */
 export function targetPriceScale(state: GameState): number {
   if (state.gameMode !== 'ascent') return 1;
   const gross = realmGrossGold(state);
@@ -50,33 +62,86 @@ export function targetPriceScale(state: GameState): number {
 }
 
 /**
- * The multiplier every routine price wears right now. Exactly 1 outside Dragon Ascent, so the
- * classic economies keep their numbers to the digit.
+ * Seasons of its own income or use a store holds. The founding's purse is measured against the
+ * base gross, and the founding's granary and armoury are never counted at all, so the opening
+ * pays the base price whatever it was given to start with.
  */
-export function realmPriceScale(state: GameState): number {
+export function heldSeasons(state: GameState, store: PricedStore): number {
+  const stock = Math.max(0, state.resources[store]);
+  const ledger = state.ascentLedger;
+  if (store === 'gold') {
+    return stock / Math.max(PRICE_SCALE_BASE_GROSS, ledger?.gold.gross ?? 0);
+  }
+  const use = Math.max(PRICE_WEALTH_STORE_USE_FLOOR, ledger?.[store].demand ?? 0);
+  return Math.max(0, stock - PRICE_WEALTH_STORE_FLOOR) / use;
+}
+
+/** Where a store's wealth factor is heading: the live figure, before smoothing. */
+export function targetWealthScale(state: GameState, store: PricedStore): number {
+  if (state.gameMode !== 'ascent') return 1;
+  const held = heldSeasons(state, store);
+  if (held <= PRICE_WEALTH_FREE_SEASONS) return 1;
+  return Math.min(PRICE_WEALTH_MAX, Math.pow(held / PRICE_WEALTH_FREE_SEASONS, PRICE_WEALTH_EXPONENT));
+}
+
+/** The income scale alone: what the realm's size makes things cost, before any hoard. */
+export function realmIncomeScale(state: GameState): number {
   if (state.gameMode !== 'ascent' || !state.ascent) return 1;
   return state.ascent.priceScale ?? 1;
 }
 
-/** Steps the smoothed scale toward the live one. Called once per Ascent tick, after the books close. */
+/** The smoothed wealth factor of one store. Exactly 1 outside Dragon Ascent. */
+export function realmWealthScale(state: GameState, store: PricedStore): number {
+  if (state.gameMode !== 'ascent' || !state.ascent) return 1;
+  return state.ascent.wealthScale?.[store] ?? 1;
+}
+
+/**
+ * The multiplier every routine gold price wears right now: income and wealth together. Exactly
+ * 1 outside Dragon Ascent, so the classic economies keep their numbers to the digit.
+ */
+export function realmPriceScale(state: GameState): number {
+  if (state.gameMode !== 'ascent' || !state.ascent) return 1;
+  return Math.round(realmIncomeScale(state) * realmWealthScale(state, 'gold') * 100) / 100;
+}
+
+/** The multiplier a grain or goods price wears: that store's own hoard, and nothing else. */
+export function storePriceScale(state: GameState, store: 'food' | 'supplies'): number {
+  return realmWealthScale(state, store);
+}
+
+/** Steps the smoothed scales toward the live ones. Called once per Ascent tick, after the books close. */
 export function tickPriceScale(state: GameState): void {
   const ascent = state.ascent;
   if (state.gameMode !== 'ascent' || !ascent) return;
-  const target = targetPriceScale(state);
-  const current = ascent.priceScale ?? 1;
-  const next = current + (target - current) * PRICE_SCALE_SMOOTHING;
-  // Two decimals: enough that a quoted price never drifts by a whole coin between seasons.
-  ascent.priceScale = Math.round(next * 100) / 100;
+  const step = (current: number, target: number): number =>
+    // Two decimals: enough that a quoted price never drifts by a whole coin between seasons.
+    Math.round((current + (target - current) * PRICE_SCALE_SMOOTHING) * 100) / 100;
+  ascent.priceScale = step(ascent.priceScale ?? 1, targetPriceScale(state));
+  const wealth = ascent.wealthScale ?? { gold: 1, food: 1, supplies: 1 };
+  for (const store of STORES) {
+    wealth[store] = step(wealth[store] ?? 1, targetWealthScale(state, store));
+  }
+  ascent.wealthScale = wealth;
 }
 
-/** A cost with every resource scaled, rounded up so a scaled price is never below the base one. */
+/**
+ * A cost with every store scaled by what it wears — gold by income and wealth, grain and goods
+ * by their own hoard — rounded up so a scaled price is never below the base one. People pass
+ * through untouched.
+ */
 export function scaledCost(state: GameState, cost: Partial<ResourceBag>): Partial<ResourceBag> {
-  const scale = realmPriceScale(state);
-  if (scale === 1) return cost;
+  const scales = {
+    gold: realmPriceScale(state),
+    food: storePriceScale(state, 'food'),
+    supplies: storePriceScale(state, 'supplies'),
+  };
+  if (scales.gold === 1 && scales.food === 1 && scales.supplies === 1) return cost;
   const out: Partial<ResourceBag> = {};
   for (const [key, value] of Object.entries(cost) as [keyof ResourceBag, number | undefined][]) {
     if (value === undefined) continue;
-    out[key] = Math.ceil(value * scale);
+    const scale = key === 'gold' || key === 'food' || key === 'supplies' ? scales[key] : 1;
+    out[key] = scale === 1 ? value : Math.ceil(value * scale);
   }
   return out;
 }
